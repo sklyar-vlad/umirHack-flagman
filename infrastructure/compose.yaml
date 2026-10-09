@@ -23,6 +23,8 @@ services:
 
   db:
     image: postgres:18-alpine
+    ports:
+      - "5432:5432"
     networks:
       - flagman
     environment:

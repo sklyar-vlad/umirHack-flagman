@@ -25,16 +25,10 @@ type ConfigDatabase struct {
 	PostgresURL string
 }
 
-type ConfigAuth struct {
-	CookieDomain string
-	CookieSecure bool
-}
-
 type config struct {
 	Server   ConfigServer
 	Logger   ConfigLogger
 	Database ConfigDatabase
-	Auth     ConfigAuth
 }
 
 func NewConfig() (config, error) {
@@ -45,7 +39,6 @@ func NewConfig() (config, error) {
 	readTimeout, _ := strconv.Atoi(getEnv("READ_TIMEOUT", "10"))
 	writeTimeout, _ := strconv.Atoi(getEnv("WRITE_TIMEOUT", "10"))
 	idleTimeout, _ := strconv.Atoi(getEnv("IDLE_TIMEOUT", "60"))
-	cookieSecure, _ := strconv.ParseBool(getEnv("COOKIE_SECURE", "false"))
 
 	cfg := config{
 		Server: ConfigServer{
@@ -61,11 +54,7 @@ func NewConfig() (config, error) {
 			Env: getEnv("ENV", "production"),
 		},
 		Database: ConfigDatabase{
-			PostgresURL: getEnv("POSTGRES_URL", "postgres://admin:admin@db:5432/self-dev"),
-		},
-		Auth: ConfigAuth{
-			CookieDomain: getEnv("COOKIE_DOMAIN", ""),
-			CookieSecure: cookieSecure,
+			PostgresURL: getEnv("POSTGRES_URL", "postgres://admin:admin@db:5432/flagman"),
 		},
 	}
 

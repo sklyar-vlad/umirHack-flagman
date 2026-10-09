@@ -6,13 +6,42 @@ tasks:
       - 'task --list'
     silent: true
 
+### START
+
+  up:
+    desc: up all containers
+    cmds:
+      - echo "⚠️  starting containers... ⚠️"
+      - docker compose -f ./infrastructure/compose.yaml up -d --build
+      - echo "✅ all containers started ✅"
+    silent: true
+
+### STOP
+
+  down:
+    desc: down all containers
+    cmds:
+      - echo "⚠️  stopping containers... ⚠️"
+      - docker compose -f ./infrastructure/compose.yaml down
+      - echo "✅ all containers stopped and removed ✅"
+    silent: true
+
+### LOGS
+
+  logs:
+    desc: check logs all containers
+    cmds:
+      - docker compose -f ./infrastructure/compose.yaml logs -f
+
 ### LINTING
 
   lint:
     dir: backend
     desc: formatting project
     cmds:
+      - echo "⚠️  start linting... ⚠️"
       - go fmt ./...
       - golangci-lint run --fix
-      - echo "Linting and formatting finished"
+      - echo "✅ linting and formatting finished ✅"
+    silent: true
 

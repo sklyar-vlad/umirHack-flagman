@@ -18,6 +18,12 @@ Backend стартует после проверки готовности Postgr
 задаёт `PORT`; конфигурация Compose рассчитана на `8080`.
 При изменении реквизитов БД обновите и `POSTGRES_URL`.
 
+Для подключения к PostgreSQL из VS Code используйте host `127.0.0.1`, port
+`5432`, database из `POSTGRES_DB`, user из `POSTGRES_USER` и пароль из
+`POSTGRES_PASS` в `infrastructure/.env`. SSL для локального подключения
+отключён. Порт БД опубликован только на loopback-интерфейсе хоста;
+backend внутри Docker продолжает подключаться к `db:5432`.
+
 ```sh
 docker compose -f infrastructure/compose.yaml logs -f
 docker compose -f infrastructure/compose.yaml down

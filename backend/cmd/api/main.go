@@ -34,8 +34,9 @@ func main() {
 		_ = logger.Sync()
 	}()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	pool, err := database.NewPostgres(ctx, cfg.Database)
+	cancel()
 	if err != nil {
 		logger.Fatal("failed connect to the postgres", zap.Error(err))
 	}

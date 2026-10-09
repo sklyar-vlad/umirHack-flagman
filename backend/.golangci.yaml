@@ -90,8 +90,6 @@ formatters:
     - golines
     - swaggo
   settings:
-    gofumpt:
-      extra-rules: true
     gci:
       sections:
         - Standard
