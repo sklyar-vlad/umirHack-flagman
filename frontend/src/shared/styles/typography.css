@@ -1,0 +1,42 @@
+.text-title {
+  font: var(--text-title);
+  letter-spacing: var(--letter-spacing-title);
+}
+
+.text-section {
+  font: var(--text-section);
+  letter-spacing: var(--letter-spacing-section);
+}
+
+.text-body {
+  font: var(--text-body);
+  letter-spacing: var(--letter-spacing-body);
+}
+
+.text-strong {
+  font: var(--text-strong);
+  letter-spacing: var(--letter-spacing-strong);
+}
+
+.text-caption {
+  font: var(--text-caption);
+  letter-spacing: var(--letter-spacing-caption);
+}
+
+.text-label {
+  font: var(--text-label);
+  letter-spacing: var(--letter-spacing-label);
+}
+
+.text-metric {
+  font: var(--text-metric);
+  letter-spacing: var(--letter-spacing-metric);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.text-tabular {
+  font-variant-numeric: tabular-nums;
+}

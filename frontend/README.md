@@ -1,75 +1,112 @@
-# React + TypeScript + Vite
+# Кладовая
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Веб-интерфейс для управления ресторанным складом, разработанный в рамках хакатона «Флагман». Проект объединяет учет продуктов и партий, контроль сроков годности, оформление заказов и рекомендации по закупкам.
 
-Currently, two official plugins are available:
+[Дизайн в Figma](https://www.figma.com/design/rP1JjraHWpqUFwm5c2bgJb) · [Описание проекта и контракт API](../README.md) · [Инфраструктура](../infrastructure/README.md)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-## React Compiler
+## Функциональность проекта
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Раздел | Назначение |
+|---|---|
+| Склад | Общие остатки продуктов, партии, поиск и фильтрация по срокам годности |
+| Поставки | Прием продуктов отдельными партиями и просмотр истории поступлений |
+| Заказы | Проверка доступности ингредиентов и оформление заказов из нескольких блюд |
+| Стоп-лист | Перечень блюд, недоступных из-за нехватки годных продуктов |
+| Рекомендации | Расчет потребности в закупках и приоритет продажи блюд |
+| Обзор | Основные показатели склада и уведомления о проблемных остатках |
+| Администрирование | Управление продуктами, рецептурами, пользователями и настройками |
 
-## Expanding the ESLint configuration
+Основные сценарии: прием поставки, проверка состава заказа, списание ингредиентов по партиям и обновление доступности блюд. Просроченные продукты исключаются из годного остатка. При нехватке ингредиентов заказ не проводится, а интерфейс показывает причину отказа.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Технологический стек
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+| Технология | Назначение |
+|---|---|
+| React + TypeScript | Интерфейс и статическая типизация |
+| Redux Toolkit + React Redux | Управление общим клиентским состоянием |
+| RTK Query | Запросы к API, кеширование и обновление серверных данных |
+| React Hook Form | Управление формами |
+| Zod + Hook Form Resolvers | Валидация данных форм |
+| React Router | Маршрутизация |
+| Vite | Сервер разработки и сборка |
+| ESLint | Статический анализ кода |
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## Локальный запуск
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Требования: Node.js 22.12 или новее, npm.
 
+Команды выполняются из корня репозитория:
+
+```sh
+cd frontend
+npm ci
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+Адрес сервера разработки выводится в терминале. Установка выполняется по `package-lock.json`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Доступные команды
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| Команда | Действие |
+|---|---|
+| `npm run dev` | Запуск сервера разработки |
+| `npm run build` | Проверка TypeScript и сборка в `dist/` |
+| `npm run preview` | Локальный просмотр собранного приложения |
+| `npm run lint` | Проверка кода ESLint |
 
+Для просмотра production-сборки:
+
+```sh
+npm run build
+npm run preview
 ```
+
+Запуск приложения вместе с backend и PostgreSQL описан в [документации инфраструктуры](../infrastructure/README.md).
+
+## Архитектура
+
+Проект организован по Feature-Sliced Design. Зависимости направлены от верхних слоев к нижним:
+
+```text
+app → pages → widgets → features → entities → shared
+```
+
+```text
+src/
+├── main.tsx          # точка входа
+├── app/              # корень приложения, провайдеры, маршруты, store и стили
+├── pages/            # страницы приложения и админки
+├── widgets/          # крупные блоки интерфейса и навигация
+├── features/         # действия пользователя
+├── entities/         # бизнес-сущности
+└── shared/           # UI-kit, API-клиент, конфигурация и общие ресурсы
+```
+
+Бизнес-сущности: продукт, партия, поставка, заказ, блюдо и пользователь. Основные действия выделены в слайсы `create-supply`, `create-order`, `check-order-availability`, `filter-stock` и слайсы управления справочниками.
+
+Внутри слайсов используются сегменты `ui`, `model` и `api`. Внешние импорты проходят через публичный API слайса — `index.ts`. Алиас `@` указывает на `src` и настроен в TypeScript и Vite.
+
+Часть структуры пока представлена пустыми директориями. Git сохраняет их после добавления файлов.
+
+## Интеграция с API
+
+Префикс API — `/api/v1`. Методы, форматы запросов и ошибок описаны в [контракте команды](../README.md#эндпоинты). Фактически реализованные методы определяются кодом backend; контракт описывает целевую функциональность.
+
+Основные договоренности:
+
+- Количества передаются decimal-строками; единицы измерения — `g`, `ml`, `pcs`.
+- Даты передаются с часовым поясом. Ответы используют UTC, интерфейс — московское время.
+- Доступность всего заказа и списание по FEFO проверяются на сервере. Проверка заказа не резервирует остатки.
+- Создание поставки и заказа предусматривает `Idempotency-Key` для защиты от повторного проведения операции.
+- Ошибки валидации полей и конфликты доступности отображаются без потери введенных данных.
+
+В инфраструктуре nginx проксирует `/api/` на backend. Для отдельного запуска Vite dev-прокси пока не настроен.
+
+## Дизайн
+
+[Макет в Figma](https://www.figma.com/design/rP1JjraHWpqUFwm5c2bgJb) содержит экраны приложения и админки, UI-kit, компоненты, состояния форм и пользовательские пути. Предусмотрены версии для десктопа, планшета и мобильного устройства с контрольными ширинами 1440, 1024 и 390 px.
+
+## UI-kit в коде
+
+Цвета, отступы, радиусы и семь текстовых стилей из Figma доступны в `src/shared/styles`. Локальный Inter и 19 SVG-иконок находятся в `src/shared/assets`; общие тексты интерфейса — в `src/shared/config`. Глобальные стили подключены в точке входа. Состав ресурсов и примеры использования описаны в [документации UI-kit](src/shared/styles/README.md).
