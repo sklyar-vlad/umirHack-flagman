@@ -1,0 +1,18 @@
+version: "3"
+
+tasks:
+  default:
+    cmds:
+      - 'task --list'
+    silent: true
+
+### LINTING
+
+  lint:
+    dir: backend
+    desc: formatting project
+    cmds:
+      - go fmt ./...
+      - golangci-lint run --fix
+      - echo "Linting and formatting finished"
+
