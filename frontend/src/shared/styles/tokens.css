@@ -1,0 +1,113 @@
+:root {
+  --palette-background: #F5F4F0;
+  --color-background: var(--palette-background);
+  --palette-surface: #FFFFFF;
+  --color-surface: var(--palette-surface);
+  --palette-ink: #252A27;
+  --color-ink: var(--palette-ink);
+  --palette-muted: #727871;
+  --color-muted: var(--palette-muted);
+  --palette-border: #E1E3DC;
+  --color-border: var(--palette-border);
+  --palette-brand: #315B49;
+  --color-brand: var(--palette-brand);
+  --palette-brand-hover: #234534;
+  --color-brand-hover: var(--palette-brand-hover);
+  --palette-brand-soft: #E8EFE9;
+  --color-brand-soft: var(--palette-brand-soft);
+  --palette-warning: #89621D;
+  --color-warning: var(--palette-warning);
+  --palette-warning-soft: #FBF3DF;
+  --color-warning-soft: var(--palette-warning-soft);
+  --palette-danger: #A44138;
+  --color-danger: var(--palette-danger);
+  --palette-danger-soft: #FAECE9;
+  --color-danger-soft: var(--palette-danger-soft);
+  --palette-subtle: #F0F1EC;
+  --color-subtle: var(--palette-subtle);
+  --palette-disabled: #DDE1DA;
+  --color-disabled: var(--palette-disabled);
+  --palette-focus: #88A895;
+  --color-focus: var(--palette-focus);
+  --space-0: 0px;
+  --space-8: 8px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-44: 44px;
+  --space-48: 48px;
+  --space-64: 64px;
+  --radius-6: 6px;
+  --space-4: 4px;
+  --space-12: 12px;
+  --radius-8: 8px;
+
+  --color-text: var(--color-ink);
+  --color-text-muted: var(--color-muted);
+  --color-success: var(--color-brand);
+  --color-success-soft: var(--color-brand-soft);
+
+  --font-family-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  --font-size-title: 28px;
+  --line-height-title: 36px;
+  --font-weight-title: 600;
+  --letter-spacing-title: 0em;
+  --text-title: var(--font-weight-title) var(--font-size-title) / var(--line-height-title) var(--font-family-sans);
+
+  --font-size-section: 18px;
+  --line-height-section: 26px;
+  --font-weight-section: 600;
+  --letter-spacing-section: 0em;
+  --text-section: var(--font-weight-section) var(--font-size-section) / var(--line-height-section) var(--font-family-sans);
+
+  --font-size-body: 14px;
+  --line-height-body: 20px;
+  --font-weight-body: 400;
+  --letter-spacing-body: 0em;
+  --text-body: var(--font-weight-body) var(--font-size-body) / var(--line-height-body) var(--font-family-sans);
+
+  --font-size-strong: 14px;
+  --line-height-strong: 20px;
+  --font-weight-strong: 500;
+  --letter-spacing-strong: 0em;
+  --text-strong: var(--font-weight-strong) var(--font-size-strong) / var(--line-height-strong) var(--font-family-sans);
+
+  --font-size-caption: 12px;
+  --line-height-caption: 18px;
+  --font-weight-caption: 400;
+  --letter-spacing-caption: 0em;
+  --text-caption: var(--font-weight-caption) var(--font-size-caption) / var(--line-height-caption) var(--font-family-sans);
+
+  --font-size-label: 12px;
+  --line-height-label: 18px;
+  --font-weight-label: 500;
+  --letter-spacing-label: 0em;
+  --text-label: var(--font-weight-label) var(--font-size-label) / var(--line-height-label) var(--font-family-sans);
+
+  --font-size-metric: 32px;
+  --line-height-metric: 40px;
+  --font-weight-metric: 600;
+  --letter-spacing-metric: 0em;
+  --text-metric: var(--font-weight-metric) var(--font-size-metric) / var(--line-height-metric) var(--font-family-sans);
+
+  --control-height: var(--space-44);
+  --control-radius: var(--radius-6);
+  --panel-radius: var(--radius-8);
+  --control-padding: var(--space-12);
+  --control-gap: var(--space-8);
+  --border-width: 1px;
+  --focus-width: 2px;
+  --icon-size: 20px;
+  --icon-stroke-width: 1.7px;
+  --sidebar-width-desktop: 216px;
+  --sidebar-width-tablet: 72px;
+  --page-padding-desktop: var(--space-32);
+  --page-padding-mobile: var(--space-16);
+  --shadow-none: none;
+}

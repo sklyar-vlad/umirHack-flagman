@@ -1,0 +1,33 @@
+@import './normalize.css';
+@import '../../shared/styles/index.css';
+
+:root {
+  color-scheme: light;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text);
+  font: var(--text-body);
+}
+
+#root {
+  min-height: 100svh;
+}
+
+h1 {
+  margin: 0;
+  font: var(--text-title);
+}
+
+h2 {
+  margin: 0;
+  font: var(--text-section);
+}
+
+p {
+  margin: 0;
+}
