@@ -1,0 +1,107 @@
+version: "2"
+run:
+  build-tags:
+    - e2e
+    - fuzz
+linters:
+  default: none
+  enable:
+    - dogsled
+    - dupl
+    - errcheck
+    - forbidigo
+    - goconst
+    - gocritic
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - prealloc
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - whitespace
+  settings:
+    dupl:
+      threshold: 150
+    forbidigo:
+      forbid:
+        - pattern: ^print.*$
+        - pattern: ^fmt\.Print.*$
+          msg: Do not commit print statements.
+    goconst:
+      min-len: 2
+      min-occurrences: 3
+    gocritic:
+      disabled-checks:
+        - whyNoLint
+        - commentFormatting # insane-doc syntax requires "//>" format
+        - paramTypeCombine
+        - ptrToRefParam # we use interface pointer in many places
+        - unnamedResult
+        - sprintfQuotedString
+        - tooManyResultsChecker
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+    gosec:
+      excludes:
+        - G304 # potential file inclusion via variable -- it's ok for this project
+    govet:
+      enable:
+        - composites
+      disable:
+        - printf
+    misspell:
+      locale: US
+    staticcheck:
+      checks:
+        - -ST1021 # insane-doc syntax requires "//>" format
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - dupl
+          - errcheck
+          - goconst
+          - gocyclo
+          - gosec
+          - prealloc
+        path: _test\.go
+      - linters:
+          - govet
+        text: declaration of "(err|ctx)"
+      - linters:
+          - goconst
+        path: pipeline/doif
+    paths:
+      - testdata$
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+    - golines
+    - swaggo
+  settings:
+    gofumpt:
+      extra-rules: true
+    gci:
+      sections:
+        - Standard
+        - Default
+        - Prefix(github.com/sklyar-vlad/selfDev/)
+      no-inline-comments: false
+    golines:
+      max-len: 120
+  exclusions:
+    generated: lax
+    warn-unused: true
+    paths:
+      - testdata$
