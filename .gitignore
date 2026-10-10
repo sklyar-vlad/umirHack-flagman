@@ -27,5 +27,11 @@ coverage
 __screenshots__/
 *.timestamp-*-*.mjs
 
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
+*.gate.lock*
 __pycache__/
 *.pyc
