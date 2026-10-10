@@ -26,3 +26,9 @@ coverage
 /cypress/screenshots/
 __screenshots__/
 *.timestamp-*-*.mjs
+
+# Local coding-agent state and credentials are never versioned.
+.serena/
+.beads/
+.beads.gate.lock
+.ralph/
