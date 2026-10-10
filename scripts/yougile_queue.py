@@ -4,6 +4,7 @@ Credentials are inherited through YOUGILE_TOKEN, never saved in project state.
 All mutations are limited to the selected story and its existing subtasks.
 """
 import asyncio
+import hashlib
 import html
 import json
 import os
@@ -14,6 +15,7 @@ from pathlib import Path
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
+from workflow_notifications import notify_completed, flush_pending
 
 PROJECT = "1b6742cb-3f7b-46da-bf4a-9128875e31c7"
 BOARD = "bf67c16d-7fa2-42c6-9de4-3d93df641280"
@@ -34,6 +36,29 @@ def bd(*args):
 
 def issues():
     return json.loads(bd("list", "--all", "--limit", "0", "--json"))
+
+
+def working_changes():
+    """Fingerprint pending files so unrelated user edits can remain untouched."""
+    raw = subprocess.check_output(["git", "status", "--porcelain=v1", "-z",
+                                   "--untracked-files=all"], cwd=ROOT)
+    entries = iter(raw.split(b"\0"))
+    changes = {}
+    for entry in entries:
+        if not entry:
+            continue
+        status, name = entry[:2], os.fsdecode(entry[3:])
+        digest = hashlib.sha256(entry)
+        if b"R" in status or b"C" in status:
+            digest.update(next(entries))
+        digest.update(subprocess.check_output(["git", "ls-files", "--stage", "--", name], cwd=ROOT))
+        path = ROOT / name
+        if path.is_symlink():
+            digest.update(os.fsencode(os.readlink(path)))
+        elif path.is_file():
+            digest.update(path.read_bytes())
+        changes[name] = digest.hexdigest()
+    return changes
 
 
 def plaintext(description):
@@ -87,7 +112,8 @@ async def prepare(session):
     number = int(re.match(r"S(\d+)", story["title"])[1])
     issue_id = f"umi-s{number:02d}"
     external = "yougile:" + story["id"]
-    metadata = json.dumps({"base_commit": command("git", "rev-parse", "HEAD"), "yougile_id": story["id"]})
+    metadata = json.dumps({"base_commit": command("git", "rev-parse", "HEAD"),
+                           "yougile_id": story["id"], "baseline_changes": working_changes()})
     bd("create", story["title"], "--id", issue_id, "--type", "story", "--external-ref", external,
        "--description", description, "--metadata", metadata)
     for task in sorted(story["subtasks"], key=lambda t: t["title"]):
@@ -131,11 +157,13 @@ async def complete(session, issue_id, story=False):
     if story:
         if issue["issue_type"] != "story":
             raise RuntimeError("Expected a story")
-        if command("git", "status", "--porcelain", "--untracked-files=normal"):
-            raise RuntimeError("Commit all story changes before finishing")
         metadata = issue.get("metadata") or {}
         if isinstance(metadata, str):
             metadata = json.loads(metadata)
+        baseline = metadata.get("baseline_changes", {})
+        current = working_changes()
+        if current != baseline:
+            raise RuntimeError("Commit all story changes before finishing; preserve unrelated user edits")
         if not metadata.get("base_commit") or command("git", "rev-parse", "HEAD") == command("git", "rev-parse", metadata["base_commit"]):
             raise RuntimeError("A new story commit is required")
         number = re.match(r"S\d+", issue["title"])[0]
@@ -151,12 +179,14 @@ async def complete(session, issue_id, story=False):
             raise RuntimeError("Use finish for a story")
         await call(session, "manage_tasks", {"tasks": [update(remote_id, complete=True)]})
     bd("close", issue_id, "--reason", "Verified" + (" and committed" if story else ""))
+    notify_completed(issue, commit=command("git", "rev-parse", "--short", "HEAD") if story else None)
     if story:
         await prepare(session)
 
 
 async def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "prepare"
+    flush_pending()
     if mode == "prepare":
         active = [i for i in issues() if i.get("external_ref", "").startswith("yougile:") and i["status"] != "closed"]
         if active:
@@ -166,7 +196,14 @@ async def main():
     async with streamablehttp_client("https://ru.yougile.com/data/ai/mcp", headers={"Authorization": "Bearer " + token}) as (read, write, _):
         async with ClientSession(read, write) as session:
             await session.initialize()
-            if mode == "prepare":
+            if mode == "check":
+                active = next((i for i in issues() if i.get("external_ref", "").startswith("yougile:") and i["issue_type"] == "story" and i["status"] != "closed"), None)
+                if active:
+                    await call(session, "get_task_data", {"id": active["external_ref"].split(":", 1)[1], "cursor": ""})
+                else:
+                    await call(session, "query_tasks", {"jsCode": "return tasks.filter(t=>t.projectId==='%s').slice(0,1).map(t=>({id:t.id}));" % PROJECT, "cursor": ""})
+                print(json.dumps({"status": "connected"}))
+            elif mode == "prepare":
                 await prepare(session)
             elif mode in ("subtask", "finish") and len(sys.argv) == 3:
                 await complete(session, sys.argv[2], story=mode == "finish")

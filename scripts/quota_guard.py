@@ -320,6 +320,11 @@ def main():
                 stop_workflow(process)
                 checkpoint(reason)
                 return 0
+            from workflow_notifications import flush_pending
+            try:
+                flush_pending(limit=1)
+            except (OSError, ValueError):
+                print("Telegram delivery will be retried.", flush=True)
             for _ in range(30):
                 if process.poll() is not None or requested:
                     break

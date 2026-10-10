@@ -20,6 +20,12 @@ token_file="${YOUGILE_TOKEN_FILE:-$HOME/.local/share/ralph-codex/secrets/yougile
 export YOUGILE_TOKEN
 YOUGILE_TOKEN=$(<"$token_file")
 export BEADS_DOLT_AUTO_PUSH=false
+# Reuse installed tools; each writable location is explicitly granted to Codex.
+export UV_CACHE_DIR="$HOME/.cache/uv"
+export UV_TOOL_DIR="$HOME/.local/share/uv/tools"
+export GOPATH="${GOPATH:-$HOME/Apps/go}"
+export GOCACHE="$project_dir/.ralph/go-cache"
+mkdir -p "$UV_CACHE_DIR" "$UV_TOOL_DIR" "$GOPATH" "$GOCACHE"
 # Set budgets before Ralph initializes its zero-valued defaults.
 export RALPH_MAX_RUN_TOKENS="${RALPH_MAX_RUN_TOKENS:-150000}"
 export RALPH_MAX_RUN_SECONDS="${RALPH_MAX_RUN_SECONDS:-14400}"
@@ -29,6 +35,7 @@ export MENU_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export INVENTORY_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export SUPPLY_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export BATCH_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
+python3 scripts/workflow-preflight.py
 if [[ $# -eq 0 ]]; then
     set -- --unattended --no-sandbox --max-iterations 12
 fi

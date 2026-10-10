@@ -315,7 +315,11 @@ task engine использует старые параметры SQLite Beads. �
 Go-модуля в `backend/`.
 
 `--approve-for-me` передаёт запросы разрешений автоматическому reviewer Codex;
-`-s workspace-write` сохраняет системный sandbox. Если reviewer отклонит
+`--approve-for-me` одновременно задаёт `workspace-write`; добавлять `-s` нельзя.
+Для тестовой БД и YouGile включена сеть через
+`sandbox_workspace_write.network_access=true`. Кеши uv и GOPATH получают
+доступ через `--add-dir`; Go-кеш находится в `.ralph`. Перед запуском
+`workflow-preflight.py` проверяет соединения и кеши внутри sandbox. Если reviewer отклонит
 действие, агент фиксирует блокер и останавливает зависимую работу.
 `--no-sandbox` в Ralph управляет его Docker-обёрткой, а не sandbox Codex.
 
@@ -350,6 +354,8 @@ _build_ai_cmd() {
     fi
     _AI_STDIN=0
     _AI_CMD=(codex exec --approve-for-me --color never
+        -c sandbox_workspace_write.network_access=true
+        --add-dir "$UV_CACHE_DIR" --add-dir "$UV_TOOL_DIR" --add-dir "$GOPATH"
         -c mcp_servers.serena.required=true -c mcp_servers.yougile.required=true)
     [[ -z "$model" ]] || _AI_CMD+=(--model "$model")
     return 0
@@ -434,6 +440,7 @@ Credentials are inherited through YOUGILE_TOKEN, never saved in project state.
 All mutations are limited to the selected story and its existing subtasks.
 """
 import asyncio
+import hashlib
 import html
 import json
 import os
@@ -444,6 +451,7 @@ from pathlib import Path
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
+from workflow_notifications import notify_completed, flush_pending
 
 PROJECT = os.environ["YOUGILE_PROJECT_ID"]
 BOARD = os.environ["YOUGILE_BOARD_ID"]
@@ -464,6 +472,29 @@ def bd(*args):
 
 def issues():
     return json.loads(bd("list", "--all", "--limit", "0", "--json"))
+
+
+def working_changes():
+    """Fingerprint pending files so unrelated user edits can remain untouched."""
+    raw = subprocess.check_output(["git", "status", "--porcelain=v1", "-z",
+                                   "--untracked-files=all"], cwd=ROOT)
+    entries = iter(raw.split(b"\0"))
+    changes = {}
+    for entry in entries:
+        if not entry:
+            continue
+        status, name = entry[:2], os.fsdecode(entry[3:])
+        digest = hashlib.sha256(entry)
+        if b"R" in status or b"C" in status:
+            digest.update(next(entries))
+        digest.update(subprocess.check_output(["git", "ls-files", "--stage", "--", name], cwd=ROOT))
+        path = ROOT / name
+        if path.is_symlink():
+            digest.update(os.fsencode(os.readlink(path)))
+        elif path.is_file():
+            digest.update(path.read_bytes())
+        changes[name] = digest.hexdigest()
+    return changes
 
 
 def plaintext(description):
@@ -517,7 +548,8 @@ async def prepare(session):
     number = int(re.match(r"S(\d+)", story["title"])[1])
     issue_id = f"umi-s{number:02d}"
     external = "yougile:" + story["id"]
-    metadata = json.dumps({"base_commit": command("git", "rev-parse", "HEAD"), "yougile_id": story["id"]})
+    metadata = json.dumps({"base_commit": command("git", "rev-parse", "HEAD"),
+                           "yougile_id": story["id"], "baseline_changes": working_changes()})
     bd("create", story["title"], "--id", issue_id, "--type", "story", "--external-ref", external,
        "--description", description, "--metadata", metadata)
     for task in sorted(story["subtasks"], key=lambda t: t["title"]):
@@ -561,11 +593,13 @@ async def complete(session, issue_id, story=False):
     if story:
         if issue["issue_type"] != "story":
             raise RuntimeError("Expected a story")
-        if command("git", "status", "--porcelain", "--untracked-files=normal"):
-            raise RuntimeError("Commit all story changes before finishing")
         metadata = issue.get("metadata") or {}
         if isinstance(metadata, str):
             metadata = json.loads(metadata)
+        baseline = metadata.get("baseline_changes", {})
+        current = working_changes()
+        if current != baseline:
+            raise RuntimeError("Commit all story changes before finishing; preserve unrelated user edits")
         if not metadata.get("base_commit") or command("git", "rev-parse", "HEAD") == command("git", "rev-parse", metadata["base_commit"]):
             raise RuntimeError("A new story commit is required")
         number = re.match(r"S\d+", issue["title"])[0]
@@ -581,12 +615,14 @@ async def complete(session, issue_id, story=False):
             raise RuntimeError("Use finish for a story")
         await call(session, "manage_tasks", {"tasks": [update(remote_id, complete=True)]})
     bd("close", issue_id, "--reason", "Verified" + (" and committed" if story else ""))
+    notify_completed(issue, commit=command("git", "rev-parse", "--short", "HEAD") if story else None)
     if story:
         await prepare(session)
 
 
 async def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "prepare"
+    flush_pending()
     if mode == "prepare":
         active = [i for i in issues() if i.get("external_ref", "").startswith("yougile:") and i["status"] != "closed"]
         if active:
@@ -596,7 +632,14 @@ async def main():
     async with streamablehttp_client("https://ru.yougile.com/data/ai/mcp", headers={"Authorization": "Bearer " + token}) as (read, write, _):
         async with ClientSession(read, write) as session:
             await session.initialize()
-            if mode == "prepare":
+            if mode == "check":
+                active = next((i for i in issues() if i.get("external_ref", "").startswith("yougile:") and i["issue_type"] == "story" and i["status"] != "closed"), None)
+                if active:
+                    await call(session, "get_task_data", {"id": active["external_ref"].split(":", 1)[1], "cursor": ""})
+                else:
+                    await call(session, "query_tasks", {"jsCode": "return tasks.filter(t=>t.projectId==='%s').slice(0,1).map(t=>({id:t.id}));" % PROJECT, "cursor": ""})
+                print(json.dumps({"status": "connected"}))
+            elif mode == "prepare":
                 await prepare(session)
             elif mode in ("subtask", "finish") and len(sys.argv) == 3:
                 await complete(session, sys.argv[2], story=mode == "finish")
@@ -649,15 +692,22 @@ token_file="${YOUGILE_TOKEN_FILE:-$HOME/.local/share/ralph-codex/secrets/yougile
 export YOUGILE_TOKEN
 YOUGILE_TOKEN=$(<"$token_file")
 export BEADS_DOLT_AUTO_PUSH=false
+# Reuse installed tools; each writable location is explicitly granted to Codex.
+export UV_CACHE_DIR="$HOME/.cache/uv"
+export UV_TOOL_DIR="$HOME/.local/share/uv/tools"
+export GOPATH="${GOPATH:-$HOME/Apps/go}"
+export GOCACHE="$project_dir/.ralph/go-cache"
+mkdir -p "$UV_CACHE_DIR" "$UV_TOOL_DIR" "$GOPATH" "$GOCACHE"
 # Set budgets before Ralph initializes its zero-valued defaults.
 export RALPH_MAX_RUN_TOKENS="${RALPH_MAX_RUN_TOKENS:-150000}"
 export RALPH_MAX_RUN_SECONDS="${RALPH_MAX_RUN_SECONDS:-14400}"
 export MAX_CONSECUTIVE_FAILURES="${MAX_CONSECUTIVE_FAILURES:-3}"
-export FLAGMAN_TEST_DATABASE_URL="${FLAGMAN_TEST_DATABASE_URL:-postgres://postgres@127.0.0.1:55438/flagman_agent_test?sslmode=disable}"
+export FLAGMAN_TEST_DATABASE_URL="${FLAGMAN_TEST_DATABASE_URL:-postgres://postgres@127.0.0.1:55438/backend_test?sslmode=disable}"
 export MENU_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export INVENTORY_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export SUPPLY_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export BATCH_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
+python3 scripts/workflow-preflight.py
 if [[ $# -eq 0 ]]; then
     set -- --unattended --no-sandbox --max-iterations 12
 fi
@@ -989,6 +1039,11 @@ def main():
                 stop_workflow(process)
                 checkpoint(reason)
                 return 0
+            from workflow_notifications import flush_pending
+            try:
+                flush_pending(limit=1)
+            except (OSError, ValueError):
+                print("Telegram delivery will be retried.", flush=True)
             for _ in range(30):
                 if process.poll() is not None or requested:
                     break
@@ -1067,6 +1122,176 @@ forbidden = r"(?i)\b(?:agents?|codex|claude|chatgpt|ralph|serena|ai|neural)\b|н
 if re.search(forbidden, message):
     print("Use a neutral commit message without tool attribution.", file=sys.stderr)
     sys.exit(1)
+```
+
+### Файл `scripts/workflow-preflight.py`
+
+```python
+"""Check the actual executor sandbox before spending an iteration on a story."""
+import json
+import os
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+from urllib.parse import urlparse
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def database_address():
+    address = urlparse(os.environ["FLAGMAN_TEST_DATABASE_URL"])
+    if address.hostname not in ("localhost", "127.0.0.1", "::1") or "test" not in address.path:
+        raise RuntimeError("A dedicated local test database is required")
+    return address.hostname, address.port or 5432
+
+
+def check_database():
+    with socket.create_connection(database_address(), timeout=5):
+        pass
+
+
+def main():
+    if sys.argv[1:] == ["--inside-sandbox"]:
+        check_database()
+        for variable in ("GOCACHE", "UV_CACHE_DIR", "UV_TOOL_DIR", "GOPATH"):
+            probe = Path(os.environ[variable]) / f".workflow-write-probe-{os.getpid()}"
+            probe.write_text("ok")
+            probe.unlink()
+        subprocess.run([str(ROOT / "scripts/yougile-queue.sh"), "check"], cwd=ROOT,
+                       check=True, timeout=60)
+        print("Preflight: PostgreSQL, YouGile and writable caches verified inside the Codex sandbox.", flush=True)
+        return
+    try:
+        check_database()
+    except OSError:
+        if database_address() != ("127.0.0.1", 55438):
+            raise RuntimeError("Dedicated test PostgreSQL is unavailable") from None
+        container = "backend-test"
+        info = json.loads(subprocess.check_output(["docker", "inspect", container], text=True))[0]
+        ports = info["HostConfig"]["PortBindings"].get("5432/tcp", [])
+        if not info["Config"]["Image"].startswith("postgres:") or ports != [{"HostIp": "127.0.0.1", "HostPort": "55438"}]:
+            raise RuntimeError("Unexpected test container configuration")
+        subprocess.run(["docker", "start", container], check=True, stdout=subprocess.DEVNULL, timeout=30)
+        for attempt in range(20):
+            try:
+                check_database()
+                break
+            except OSError:
+                if attempt == 19:
+                    raise RuntimeError("Dedicated test PostgreSQL did not start") from None
+                time.sleep(1)
+    writable = [os.environ[name] for name in ("UV_CACHE_DIR", "UV_TOOL_DIR", "GOPATH")]
+    subprocess.run(["codex", "sandbox", "-c", "sandbox_mode=workspace-write",
+                    "-c", "sandbox_workspace_write.network_access=true",
+                    "-c", "sandbox_workspace_write.writable_roots=" + json.dumps(writable),
+                    "--", "python3", str(Path(__file__).resolve()), "--inside-sandbox"],
+                   cwd=ROOT, check=True, timeout=90)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, RuntimeError, subprocess.SubprocessError, ValueError, KeyError) as error:
+        print("Workflow preflight failed: " + type(error).__name__ + ". See the check above; no coding iteration started.", file=sys.stderr)
+        from quota_guard import checkpoint
+        checkpoint({"reason": "preflight_failed", "detail": "Test database, YouGile or executor permissions unavailable"})
+        sys.exit(1)
+```
+
+### Файл `scripts/workflow_notifications.py`
+
+```python
+"""Deliver completion notifications without putting credentials in project state."""
+import fcntl
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def credentials():
+    secrets = Path.home() / ".local/share/ralph-codex/secrets"
+    token_file = Path(os.environ.get("TELEGRAM_TOKEN_FILE", str(secrets / "telegram-token")))
+    chat_file = Path(os.environ.get("TELEGRAM_CHAT_ID_FILE", str(secrets / "telegram-chat-id")))
+    if not token_file.exists() or not chat_file.exists():
+        return None
+    return token_file.read_text().strip(), chat_file.read_text().strip()
+
+
+def send_message(text):
+    configured = credentials()
+    if not configured:
+        return False
+    token, chat_id = configured
+    request = urllib.request.Request(
+        "https://api.telegram.org/bot" + token + "/sendMessage",
+        data=json.dumps({"chat_id": chat_id, "text": text[:4096]}).encode(),
+        headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            result = json.load(response)
+        if not result.get("ok"):
+            print("Telegram delivery pending: API rejected the message.", file=sys.stderr)
+            return False
+        return True
+    except urllib.error.HTTPError as error:
+        print(f"Telegram delivery pending: HTTP {error.code}.", file=sys.stderr)
+    except (OSError, ValueError):
+        # Transport exceptions may contain the request URL and bot token.
+        print("Telegram delivery pending: connection unavailable.", file=sys.stderr)
+    return False
+
+
+def flush_pending(issue=None, commit=None, limit=None):
+    if not credentials():
+        return
+    state = ROOT / ".ralph"
+    state.mkdir(exist_ok=True)
+    with (state / "notifications.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        outbox = state / "notifications.json"
+        messages = json.loads(outbox.read_text()) if outbox.exists() else {}
+        if issue:
+            key = issue["id"]
+            text = "✅ Выполнено: " + issue["title"] + "\nПроверки пройдены. Задача отмечена выполненной в YouGile."
+            if commit:
+                text += "\nКоммит: " + commit + "\nСтори перенесена в Done."
+            messages.setdefault(key, {"text": text, "sent_at": None})
+            save(outbox, messages)
+        attempted = 0
+        for message in messages.values():
+            if message["sent_at"] is not None:
+                continue
+            if limit is not None and attempted >= limit:
+                break
+            attempted += 1
+            if send_message(message["text"]):
+                message["sent_at"] = int(time.time())
+                save(outbox, messages)
+
+
+def save(path, value):
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
+    temporary.replace(path)
+
+
+def notify_completed(issue, commit=None):
+    try:
+        flush_pending(issue, commit)
+    except (OSError, ValueError):
+        print("Telegram notification storage unavailable; task completion is preserved.", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    flush_pending()
 ```
 
 ## 10. Проверка перед автономным запуском
@@ -1223,15 +1448,29 @@ git ls-files .serena .beads .beads.gate.lock
 | Go-проверки не запускаются | Go-модуль находится в backend; ralph.json и allowlist в .ralphrc совпадают |
 | Интеграционные тесты пропущены | Правильные тестовые env-переменные и запущенная выделенная PostgreSQL |
 | Docker недоступен | Локальный доступ пользователя к Docker; не подставлять production-БД вместо тестовой |
-| Story не переходит в Done | Все подзадачи закрыты, дерево чистое, после начала story есть коммит с её номером |
+| Story не переходит в Done | Все подзадачи закрыты, изменения story закоммичены, посторонние изменения совпадают с сохранёнными при старте |
 | Нет готовой следующей story | Прочитать зависимости в YouGile; незавершённая зависимость останавливает выбор |
 | Появился запрос системного разрешения | --approve-for-me в команде Codex; решение reviewer нельзя обходить отключением sandbox |
 | Codex сообщает конфликт --approve-for-me и --sandbox | Оставить только --approve-for-me: он уже задаёт workspace-write |
 | Нет коммита story в git log | Проверить ветку worktree; в исходном каталоге посмотреть git log agent/s08 |
 | Кнопка продолжения снова оставила паузу | Проверить .ralph/paused.json и квоту: пока остаётся <=5%, модель не запускается |
 
+### Telegram-уведомления
+
+Сохраните собственный токен бота в
+`~/.local/share/ralph-codex/secrets/telegram-token`, а chat ID — в
+`telegram-chat-id` рядом с ним. Директория должна иметь права 0700, оба
+файла — 0600. Для приватного чата сначала отправьте боту `/start`.
+Не добавляйте значения в файлы проекта.
+
+Мост отправляет уведомление только после проверок и закрытия подзадачи.
+Для завершённой стори сообщение содержит коммит и подтверждение перехода
+в Done. Неотправленные сообщения остаются в `.ralph/notifications.json`
+и повторяются контроллером; ошибка Telegram не отменяет выполненную работу.
+
 ## 13. Первичные источники
 
+- [Codex: сеть и права sandbox](https://learn.chatgpt.com/docs/agent-approvals-security).
 - [Codex CLI: MCP](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
 - [Codex: автоматическая проверка разрешений](https://learn.chatgpt.com/docs/sandboxing/auto-review).
 - [Codex: неинтерактивный запуск](https://learn.chatgpt.com/docs/non-interactive-mode).

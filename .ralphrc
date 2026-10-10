@@ -23,6 +23,8 @@ _build_ai_cmd() {
     fi
     _AI_STDIN=0
     _AI_CMD=(codex exec --approve-for-me --color never
+        -c sandbox_workspace_write.network_access=true
+        --add-dir "$UV_CACHE_DIR" --add-dir "$UV_TOOL_DIR" --add-dir "$GOPATH"
         -c mcp_servers.serena.required=true -c mcp_servers.yougile.required=true)
     [[ -z "$model" ]] || _AI_CMD+=(--model "$model")
     return 0

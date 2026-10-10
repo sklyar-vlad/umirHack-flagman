@@ -1,4 +1,7 @@
 import json
+from pathlib import Path
+import subprocess
+import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
 
@@ -6,6 +9,15 @@ import yougile_queue as queue
 
 
 class QueueTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        for name in ("notify_completed", "flush_pending"):
+            replacement = patch.object(queue, name)
+            replacement.start()
+            self.addCleanup(replacement.stop)
+        replacement = patch.object(queue, "working_changes", return_value={})
+        self.changes = replacement.start()
+        self.addCleanup(replacement.stop)
+
     async def test_ascending_story_selection_and_assignment(self):
         stories = [
             {"id": "ten", "title": "S10. Later", "columnId": queue.TODO, "complete": False, "description": "", "subtasks": []},
@@ -83,7 +95,7 @@ class QueueTests(unittest.IsolatedAsyncioTestCase):
         issue = {"id": "umi-s09", "title": "S09. Next", "issue_type": "story", "external_ref": "yougile:story", "metadata": {"base_commit": "base"}}
         def git(*args):
             if args[1] == "status": return ""
-            if args[1] == "log": return "chore(agent): configure hooks\nfeat(orders): check basket (S09)"
+            if args[1] == "log": return "chore(workflow): configure hooks\nfeat(orders): check basket (S09)"
             return "new-head" if args[2] == "HEAD" else "old-base"
         def beads(*args):
             return json.dumps([issue]) if args[0] == "show" else "[]"
@@ -94,6 +106,50 @@ class QueueTests(unittest.IsolatedAsyncioTestCase):
             mutations = [c.args[2] for c in call.call_args_list if c.args[1] == "manage_tasks"]
             self.assertEqual(mutations[0]["tasks"][0]["columnId"], queue.DONE)
             prepare.assert_awaited_once()
+
+    async def test_unrelated_pending_changes_are_preserved_on_completion(self):
+        issue = {"id": "umi-s09", "title": "S09. Next", "issue_type": "story", "external_ref": "yougile:story",
+                 "metadata": {"base_commit": "base", "baseline_changes": {".gitignore": "unchanged"}}}
+        self.changes.return_value = {".gitignore": "unchanged"}
+        def git(*args):
+            if args[1] == "log": return "feat(orders): check basket (S09)"
+            return "new-head" if args[2] in ("HEAD", "--short") else "old-base"
+        def beads(*args):
+            return json.dumps([issue]) if args[0] == "show" else "[]"
+        with patch.object(queue, "bd", side_effect=beads) as bd, patch.object(queue, "verify"), \
+             patch.object(queue, "command", side_effect=git), patch.object(queue, "prepare", new=AsyncMock()), \
+             patch.object(queue, "call", new=AsyncMock(return_value={"taskFullInfo": {"projectId": queue.PROJECT, "boardId": queue.BOARD}})):
+            await queue.complete(None, issue["id"], story=True)
+            self.assertTrue(any(c.args[0] == "close" for c in bd.call_args_list))
+
+    async def test_new_or_changed_pending_files_prevent_done(self):
+        issue = {"id": "umi-s09", "title": "S09. Next", "issue_type": "story", "external_ref": "yougile:story",
+                 "metadata": {"base_commit": "base", "baseline_changes": {".gitignore": "original"}}}
+        for changes in ({".gitignore": "changed"}, {"backend/order.go": "uncommitted"}, {}):
+            self.changes.return_value = changes
+            with patch.object(queue, "bd", return_value=json.dumps([issue])) as bd, patch.object(queue, "verify"), \
+                 patch.object(queue, "call", new=AsyncMock(return_value={"taskFullInfo": {"projectId": queue.PROJECT, "boardId": queue.BOARD}})) as call:
+                with self.assertRaisesRegex(RuntimeError, "Commit all story changes"):
+                    await queue.complete(None, issue["id"], story=True)
+                self.assertFalse(any(c.args[0] == "close" for c in bd.call_args_list))
+                self.assertFalse(any(c.args[1] == "manage_tasks" for c in call.call_args_list))
+
+
+class FingerprintTests(unittest.TestCase):
+    def test_content_and_index_changes_are_detected(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(queue, "ROOT", Path(directory)):
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", directory], check=True)
+            target = root / "settings.txt"
+            target.write_text("original")
+            subprocess.run(["git", "add", "settings.txt"], cwd=root, check=True)
+            first = queue.working_changes()
+            self.assertEqual(first, queue.working_changes())
+            target.write_text("modified")
+            second = queue.working_changes()
+            self.assertNotEqual(first, second)
+            subprocess.run(["git", "add", "settings.txt"], cwd=root, check=True)
+            self.assertNotEqual(second, queue.working_changes())
 
 
 if __name__ == "__main__":
