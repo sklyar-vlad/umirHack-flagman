@@ -1,7 +1,7 @@
 # Автономная разработка backend
 
-Рабочая ветка `agent/s08` находится в отдельном worktree
-`/home/sklyarvlad/work/umirHack-flagman-agent-s08`. Очередь требований:
+Рабочая ветка `agent/s08` открыта в основном каталоге проекта
+`/home/sklyarvlad/work/umirHack-flagman`. Очередь требований:
 YouGile → `umirHack-flagman` → `dev` → `To do(backend)`.
 Stories выбираются по номеру S, начиная с S08. Текущая story находится
 в `In progress`, завершённая — в `Done`. Vladislav назначается исполнителем
@@ -35,11 +35,11 @@ commit на story и продолжает со следующей. Push, сли�
 
 S08 завершена коммитом `4abcd0e4`:
 `feat(menu): implement dish availability and stop-list (S08)`.
-В исходном каталоге на ветке `dev` этот коммит можно увидеть командой
-`git log agent/s08`. Push и перенос изменений в dev не выполнялись.
+Он виден обычной командой `git log` в основном каталоге проекта.
+Push и перенос изменений в dev не выполнялись.
 
-Привязка к YouGile хранится в `external_ref` задач Beads. База Beads общая
-для worktree и исходного репозитория; `bd` находит её автоматически.
+Привязка к YouGile хранится в `external_ref` задач Beads. База Beads находится
+в `.beads` основного каталога проекта; `bd` находит её автоматически.
 `scripts/yougile-queue.sh prepare` импортирует, назначает и берёт следующую
 story. `subtask <bd-id>` проверяет backend и закрывает подзадачу в обеих
 системах. `finish <bd-story-id>` требует чистое дерево и новый коммит с

@@ -44,8 +44,9 @@ The user authorizes implementation, tests, commits, and YouGile task transitions
 - Create ONE conventional Git commit for the completed story and its subtasks.
   Stage explicit related paths. Use the existing repository author and committer.
   Do not change identity, add AI attribution or co-author trailers, amend, rebase,
-  push, merge into dev/main/master, or modify main/master. Work in this isolated
-  worktree. A fast-forward to finished prerequisites before a new story is allowed.
+  push, merge into dev/main/master, or modify main/master. Work on `agent/s08`
+  in `/home/sklyarvlad/work/umirHack-flagman`, the user's main project directory.
+  A fast-forward to finished prerequisites before a new story is allowed.
 - Assign the user Vladislav (`sklyarvladislavtl@gmail.com`) to the story and
   every subtask in YouGile. Mark each subtask complete in YouGile and Beads
   immediately after its implementation and relevant verification succeed.
@@ -71,6 +72,6 @@ The user authorizes implementation, tests, commits, and YouGile task transitions
   has at most 5% remaining. Preserve unfinished code and Beads status. On restart,
   inspect the working tree and the current story; repeat verification before closing.
 
-Beads uses the shared database in the original repository; `bd -C` resolves it
-automatically from a Git worktree. The local Ralph compatibility overrides make
-Ralph use the same database instead of an obsolete separate SQLite store.
+Beads uses this repository's local `.beads` database. The local Ralph
+compatibility overrides make Ralph use the same database instead of an
+obsolete separate SQLite store.
