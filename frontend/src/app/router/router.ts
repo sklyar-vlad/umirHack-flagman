@@ -9,6 +9,15 @@ const routes: RouteObject[] = [
 
 if (import.meta.env.DEV) {
   routes.push({
+    path: '/dev/ui',
+    lazy: async () => {
+      const { UiKitPage } = await import('@/pages/ui-kit')
+      return { Component: UiKitPage }
+    },
+    ErrorBoundary: RouteError,
+    HydrateFallback: RouteLoading,
+  })
+  routes.push({
     path: '/dev/api',
     lazy: async () => {
       const { ApiStatusPage } = await import('@/pages/api-status')

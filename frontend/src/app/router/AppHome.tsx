@@ -7,7 +7,10 @@ export function AppHome() {
       <h1>Ресторанный склад</h1>
       <p className="text-muted">Интерфейс приложения в разработке.</p>
       {import.meta.env.DEV && (
-        <Link className="ui-button ui-button--secondary" to="/dev/api">Проверить подключение к API</Link>
+        <>
+          <Link className="ui-button ui-button--secondary" to="/dev/api">Проверить подключение к API</Link>
+          <Link className="ui-button ui-button--secondary" to="/dev/ui">Компоненты интерфейса</Link>
+        </>
       )}
     </main>
   )
