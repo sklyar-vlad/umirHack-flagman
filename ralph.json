@@ -1,0 +1,8 @@
+{
+  "tool": "codex",
+  "maxIterations": 20,
+  "sandbox": false,
+  "verbose": true,
+  "projectType": "node",
+  "commands": { "check": "./scripts/frontend-checks.sh" }
+}

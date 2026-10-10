@@ -1,0 +1,79 @@
+# Compatibility for WomB0ComB0/ralph 80ca69e and Beads 1.3.1.
+# Ralph loads defaults before ralph.json; set runtime options here explicitly.
+TOOL=codex
+MAX_ITERATIONS=20
+VERBOSE=true
+SANDBOX_MODE=false
+
+export RALPH_MAX_RUN_TOKENS="${RALPH_MAX_RUN_TOKENS:-150000}"
+export RALPH_MAX_RUN_SECONDS="${RALPH_MAX_RUN_SECONDS:-14400}"
+export MAX_CONSECUTIVE_FAILURES="${MAX_CONSECUTIVE_FAILURES:-3}"
+
+# Keep the OS sandbox and route necessary approvals through Codex auto-review.
+# Require Serena at startup instead of silently continuing without navigation.
+_build_ai_cmd() {
+    local tool="$1" model="$2"
+    if [[ "$tool" != codex ]]; then
+        log_error "This configuration supports the Codex executor only."
+        return 1
+    fi
+    _AI_STDIN=0
+    _AI_CMD=(codex exec --approve-for-me --color never
+        -c mcp_servers.serena.required=true -c mcp_servers.yougile.required=true)
+    # Inherit the user-selected model from Codex instead of Ralph's model catalog.
+    return 0
+}
+
+# Both the agent and Ralph must use the project's .beads database.
+# Upstream still initializes a separate SQLite database with --db-type.
+_bd() {
+    command "$BD_BIN" -C "$PROJECT_DIR" --sandbox "$@"
+}
+
+init_task_engine() {
+    _bd info >/dev/null
+}
+
+_ralph_pending_tasks() {
+    local status count total=0
+    for status in open in_progress blocked deferred; do
+        count=$(_bd count --status "$status" --quiet) || return 1
+        if [[ ! "$count" =~ ^[0-9]+$ ]]; then
+            log_error "Beads returned an invalid count for $status."
+            return 1
+        fi
+        total=$((total + count))
+    done
+    printf '%s\n' "$total"
+}
+
+verify_beads_complete() {
+    local pending
+    pending=$(_ralph_pending_tasks) || return 1
+    [[ "$pending" -eq 0 ]]
+}
+
+backlog_drained() {
+    local closed
+    verify_beads_complete || return 1
+    closed=$(_bd count --status closed --quiet) || return 1
+    [[ "$closed" =~ ^[0-9]+$ && "$closed" -gt 0 ]]
+}
+
+commit_task_state() {
+    _bd dolt commit -m "${1:-Agent iteration sync}"
+    if [[ "${LAST_VERIFY_OK:-false}" == true ]]; then
+        "$PROJECT_DIR/scripts/yougile-queue.sh" prepare
+    fi
+}
+
+# The frontend app lives in FRONTEND_DIR. Permit only the configured check.
+runtime_command_allowed() {
+    case "${1:-}" in
+        './scripts/frontend-checks.sh') return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+export RALPH_TRIAGE_AUTO_APPLY=0
+export RALPH_TRIAGE_ENABLED=0

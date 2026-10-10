@@ -33,5 +33,12 @@ __screenshots__/
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+
+# Local agent runtime and credentials
+/.ralph/
+/.serena/
+/.beads/
+/.beads.gate.lock
+/.agent-home/
 __pycache__/
 *.pyc
