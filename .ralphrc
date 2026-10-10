@@ -5,6 +5,13 @@ MAX_ITERATIONS=20
 VERBOSE=true
 SANDBOX_MODE=false
 
+# Record the user's configured model in Ralph logs; Codex still inherits it.
+determine_model() {
+    SELECTED_MODEL=$(python3 -c 'import os,pathlib,tomllib; p=pathlib.Path(os.environ.get("CODEX_HOME", str(pathlib.Path.home()/".codex")))/"config.toml"; print(tomllib.loads(p.read_text()).get("model", "user-default"))')
+    SELECTED_MODEL_SOURCE=user_config
+    export SELECTED_MODEL SELECTED_MODEL_SOURCE
+}
+
 export RALPH_MAX_RUN_TOKENS="${RALPH_MAX_RUN_TOKENS:-150000}"
 export RALPH_MAX_RUN_SECONDS="${RALPH_MAX_RUN_SECONDS:-14400}"
 export MAX_CONSECUTIVE_FAILURES="${MAX_CONSECUTIVE_FAILURES:-3}"
@@ -77,3 +84,25 @@ runtime_command_allowed() {
 
 export RALPH_TRIAGE_AUTO_APPLY=0
 export RALPH_TRIAGE_ENABLED=0
+
+# BSD ps on macOS has no sid column. Preserve supervisor ownership checks using
+# the actual kernel session ID rather than replacing them with a permissive stub.
+if [[ $(uname -s) == Darwin ]]; then
+    _ralph_process_session_id() {
+        python3 -c 'import os,sys; print(os.getsid(int(sys.argv[1])))' "$1" 2>/dev/null
+    }
+    _ralph_group_members() {
+        python3 - "$1" <<'PY'
+import os, subprocess, sys
+group = int(sys.argv[1])
+rows = subprocess.check_output(['ps', '-eo', 'pid=,pgid=,stat='], text=True)
+for row in rows.splitlines():
+    pid, pgid, state = row.split()
+    if int(pgid) == group:
+        try:
+            print(f'{pid}\t{os.getsid(int(pid))}\t{state}')
+        except ProcessLookupError:
+            pass
+PY
+    }
+fi
