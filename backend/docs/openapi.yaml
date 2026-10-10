@@ -8,7 +8,7 @@ info:
     Стартовый контракт S02-T04 на основе REST API из README.md.
     Реализованы GET /healthcheck, GET /products, GET /products/{id}/batches, GET /inventory,
     POST /supplies, GET /supplies, GET /supplies/{id}, GET /dishes,
-    GET /dishes/{id}, GET /stop-list и POST /orders/check.
+    GET /dishes/{id}, GET /stop-list, POST /orders/check и POST /orders.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
@@ -736,7 +736,11 @@ paths:
         при смене рецептуры — 409 RECIPE_CHANGED с issues;
         при отключённом/неполном блюде — 409 DISH_UNAVAILABLE с issues.
         Неизвестный ID блюда — 422, а не 404 или предметный дефицит.
-      x-implementation-status: planned
+        Позиции распределяются по ID блюда; партии — по expires_at,
+        received_at поставки, ID партии. Время фиксируется после ожидания
+        всех блокировок. Предметный отказ сохраняет одну попытку вместе
+        с ответом; повтор ключа возвращает тот же ответ без нового списания.
+      x-implementation-status: implemented
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CSRFToken'

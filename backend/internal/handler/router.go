@@ -66,3 +66,10 @@ type OrderCheckHandler interface {
 func RegisterOrderCheckRoutes(group *gin.RouterGroup, h OrderCheckHandler, access ProductAccess) {
 	group.POST("/orders/check", access.RequireProductReadAccess, h.Check)
 }
+
+type OrderCreateHandler interface{ Create(*gin.Context) }
+type OrderWriteAccess interface{ RequireOrderAccess(*gin.Context) }
+
+func RegisterOrderCreateRoutes(group *gin.RouterGroup, h OrderCreateHandler, access OrderWriteAccess) {
+	group.POST("/orders", access.RequireOrderAccess, h.Create)
+}

@@ -1,6 +1,10 @@
 package dto
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type OrderRequest struct {
 	Items []OrderRequestItem `json:"items"`
@@ -42,4 +46,32 @@ type OrderCheck struct {
 	Shortages    []Shortage          `json:"shortages"`
 	Issues       []OrderIssue        `json:"issues"`
 	Meta         map[string]any      `json:"meta"`
+}
+
+type OrderAllocation struct {
+	MovementID                  uuid.UUID `json:"movement_id"`
+	ProductID                   uuid.UUID `json:"product_id"`
+	ProductName                 string    `json:"product_name"`
+	Unit                        string    `json:"unit"`
+	BatchID                     uuid.UUID `json:"batch_id"`
+	SupplyID                    uuid.UUID `json:"supply_id"`
+	SupplyNumber                string    `json:"supply_number"`
+	LineNumber                  int       `json:"line_number"`
+	Quantity                    string    `json:"quantity"`
+	BatchRemainingQuantityAfter string    `json:"batch_remaining_quantity_after"`
+}
+
+type CreatedOrderItem struct {
+	OrderItemSnapshot
+	ID          uuid.UUID         `json:"id"`
+	Allocations []OrderAllocation `json:"allocations"`
+}
+
+type OrderDetail struct {
+	ID        uuid.UUID          `json:"id"`
+	Number    string             `json:"number"`
+	Status    string             `json:"status"`
+	CreatedAt time.Time          `json:"created_at"`
+	CreatedBy ActorBrief         `json:"created_by"`
+	Items     []CreatedOrderItem `json:"items"`
 }

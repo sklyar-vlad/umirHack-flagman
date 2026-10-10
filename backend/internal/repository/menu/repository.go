@@ -52,7 +52,7 @@ func (r *Repository) Load(ctx context.Context, q repository.DBTX, filter model.D
 			COALESCE(SUM(remaining_quantity) FILTER (WHERE expires_at<=$1),0.000) AS expired
 		FROM batches WHERE remaining_quantity>0 GROUP BY product_id
 	)
-	SELECT d.id,d.name,d.description,d.is_active,d.revision,rv.version,
+	SELECT d.id,d.name,d.description,d.is_active,d.revision,rv.version,rv.id,
 		p.id,p.name,p.unit::text,ri.quantity_per_portion::text,
 		COALESCE(s.available,0.000)::text,COALESCE(s.expired,0.000)::text
 	FROM dishes d
@@ -71,7 +71,7 @@ func (r *Repository) Load(ctx context.Context, q repository.DBTX, filter model.D
 		var productID *uuid.UUID
 		var productName, unit, required *string
 		var available, expired string
-		if err := rows.Scan(&dish.ID, &dish.Name, &dish.Description, &dish.IsActive, &dish.Revision, &dish.RecipeVersion,
+		if err := rows.Scan(&dish.ID, &dish.Name, &dish.Description, &dish.IsActive, &dish.Revision, &dish.RecipeVersion, &dish.RecipeVersionID,
 			&productID, &productName, &unit, &required, &available, &expired); err != nil {
 			return nil, fmt.Errorf("scan menu: %w", err)
 		}

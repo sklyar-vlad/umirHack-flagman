@@ -71,6 +71,22 @@ func (s *Service) AuthorizeProductRead(ctx context.Context, token string) (model
 	}
 }
 
+func (s *Service) AuthorizeOrder(ctx context.Context, token, origin, csrf string) (model.Actor, error) {
+	session, err := s.activeSession(ctx, token)
+	if err != nil {
+		return model.Actor{}, err
+	}
+	switch session.Actor.Role {
+	case "admin", "manager", "order_operator":
+	default:
+		return model.Actor{}, apperrors.ErrForbidden
+	}
+	if origin != s.frontendOrigin || session.CSRFToken == "" || subtle.ConstantTimeCompare([]byte(csrf), []byte(session.CSRFToken)) != 1 {
+		return model.Actor{}, apperrors.ErrForbidden
+	}
+	return session.Actor, nil
+}
+
 func (s *Service) activeSession(ctx context.Context, token string) (model.Session, error) {
 	if len(token) < 32 || len(token) > 512 {
 		return model.Session{}, apperrors.ErrUnauthorized

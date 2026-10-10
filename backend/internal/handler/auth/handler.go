@@ -49,6 +49,25 @@ func (h *Handler) RequireProductReadAccess(c *gin.Context) {
 	c.Next()
 }
 
+func (h *Handler) RequireOrderAccess(c *gin.Context) {
+	token, ok := sessionToken(c)
+	if !ok || h.service == nil {
+		basehandler.WriteError(c, apperrors.ErrUnauthorized)
+		return
+	}
+	origin, csrf := c.GetHeader("Origin"), c.GetHeader("X-CSRF-Token")
+	if len(c.Request.Header.Values("Origin")) != 1 || len(c.Request.Header.Values("X-CSRF-Token")) != 1 {
+		origin, csrf = "", ""
+	}
+	actor, err := h.service.AuthorizeOrder(c.Request.Context(), token, origin, csrf)
+	if err != nil {
+		basehandler.WriteError(c, err)
+		return
+	}
+	c.Request = c.Request.WithContext(requestctx.WithActor(c.Request.Context(), actor))
+	c.Next()
+}
+
 func sessionToken(c *gin.Context) (string, bool) {
 	var token string
 	var count int

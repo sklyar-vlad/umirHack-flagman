@@ -26,6 +26,7 @@ import (
 	batchrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/batch"
 	inventoryrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/inventory"
 	menurepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/menu"
+	orderrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/order"
 	productrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/product"
 	supplyrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/supply"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service"
@@ -78,6 +79,7 @@ func main() {
 	batches := batchservice.NewService(batchrepository.NewRepository(), repo)
 	menu := menuservice.NewService(menurepository.NewRepository(), repo)
 	orders := orderservice.NewService(menurepository.NewRepository(), repo)
+	orderCreation := orderservice.NewCreateService(orderrepository.NewRepository(), repo, idem)
 	cleanupCtx, cancelCleanup := context.WithCancel(context.Background())
 	cleanupDone := make(chan struct{})
 	go func() {
@@ -112,6 +114,7 @@ func main() {
 	handler.RegisterBatchRoutes(api, batchhandler.NewHandler(batches), access)
 	handler.RegisterMenuRoutes(api, menuhandler.NewHandler(menu), access)
 	handler.RegisterOrderCheckRoutes(api, orderhandler.NewHandler(orders), access)
+	handler.RegisterOrderCreateRoutes(api, orderhandler.NewCreateHandler(orderCreation), access)
 
 	server := &http.Server{
 		Addr:         net.JoinHostPort("", cfg.Server.Port),

@@ -12,13 +12,14 @@ type RecipeIngredient struct {
 }
 
 type Dish struct {
-	ID            uuid.UUID
-	Name          string
-	Description   *string
-	IsActive      bool
-	Revision      int64
-	RecipeVersion *int
-	Recipe        []RecipeIngredient
+	ID              uuid.UUID
+	Name            string
+	Description     *string
+	IsActive        bool
+	Revision        int64
+	RecipeVersion   *int
+	RecipeVersionID *uuid.UUID
+	Recipe          []RecipeIngredient
 }
 
 type DishFilter struct {
