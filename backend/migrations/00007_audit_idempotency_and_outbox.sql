@@ -1,4 +1,6 @@
 -- +goose Up
+CREATE SEQUENCE outbox_cursor_seq AS BIGINT;
+
 CREATE TABLE audit_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     actor_id UUID,
