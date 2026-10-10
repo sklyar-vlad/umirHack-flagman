@@ -16,6 +16,7 @@ import (
 )
 
 type Repository interface {
+	List(context.Context, repository.DBTX, model.SupplyFilter) ([]model.Supply, int64, error)
 	FindProducts(
 		context.Context,
 		repository.DBTX,

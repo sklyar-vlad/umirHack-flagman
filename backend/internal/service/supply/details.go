@@ -67,20 +67,7 @@ func makeSupplyDetail(details *model.SupplyDetails, now time.Time) dto.SupplyDet
 			value := item.Expiry.ProducedAt.UTC()
 			produced = &value
 		}
-		status := "valid"
-		switch {
-		case item.RemainingQuantity == "0.000":
-			status = "depleted"
-		case !expires.After(now):
-			status = "expired"
-		case !expires.After(now.Add(time.Duration(details.ExpiringThresholdHours) * time.Hour)):
-			status = "expiring"
-		}
-		// Integer arithmetic avoids time.Duration overflow for distant dates.
-		seconds := expires.Unix() - now.Unix()
-		if expires.Nanosecond() < now.Nanosecond() {
-			seconds--
-		}
+		status, seconds := calculateBatchStatus(item.RemainingQuantity, expires, now, details.ExpiringThresholdHours)
 		result.Items = append(result.Items, dto.SupplyDetailItem{
 			Product: dto.ProductBrief{
 				ID:          item.ProductID,
@@ -107,4 +94,28 @@ func makeSupplyDetail(details *model.SupplyDetails, now time.Time) dto.SupplyDet
 		})
 	}
 	return result
+}
+
+func calculateBatchStatus(remainingQtyStr string, expiresAt, now time.Time, thresholdHours int) (string, int64) {
+	// Floor the signed difference without overflowing time.Duration for distant dates.
+	remSec := expiresAt.Unix() - now.Unix()
+	if expiresAt.Nanosecond() < now.Nanosecond() {
+		remSec--
+	}
+
+	// Если остаток 0 -> depleted
+	if remainingQtyStr == "0.000" || remainingQtyStr == "0" {
+		return "depleted", remSec
+	}
+
+	// Если срок истёк -> expired
+	if !expiresAt.After(now) {
+		return "expired", remSec
+	}
+
+	if !expiresAt.After(now.Add(time.Duration(thresholdHours) * time.Hour)) {
+		return "expiring", remSec
+	}
+
+	return "valid", remSec
 }

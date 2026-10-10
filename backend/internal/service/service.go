@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/dto"
+	supplydto "github.com/sklyar-vlad/umirHack-flagman/internal/dto/supply"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 	supplyservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/supply"
@@ -47,4 +48,11 @@ func (s *service) CreateSupplyIdempotent(
 
 func (s *service) GetSupply(ctx context.Context, id uuid.UUID) (dto.SupplyDetail, error) {
 	return s.supplies.Get(ctx, id)
+}
+
+func (s *service) ListSupplies(
+	ctx context.Context,
+	filter model.SupplyFilter,
+) ([]supplydto.SupplySummaryDTO, int64, error) {
+	return s.supplies.List(ctx, filter)
 }

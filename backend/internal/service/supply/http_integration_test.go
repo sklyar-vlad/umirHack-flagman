@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/dto"
+	supplydto "github.com/sklyar-vlad/umirHack-flagman/internal/dto/supply"
 	basehandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler"
 	authhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auth"
 	supplyhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/supply"
@@ -32,6 +33,13 @@ func (s supplyHTTPService) CreateSupplyIdempotent(
 	ctx context.Context, actor, key uuid.UUID, body []byte,
 ) (model.IdempotencyResponse, error) {
 	return s.service.Receive(ctx, actor, key, body)
+}
+
+func (s supplyHTTPService) ListSupplies(
+	ctx context.Context,
+	filter model.SupplyFilter,
+) ([]supplydto.SupplySummaryDTO, int64, error) {
+	return s.service.List(ctx, filter)
 }
 
 func (s supplyHTTPService) GetSupply(ctx context.Context, id uuid.UUID) (dto.SupplyDetail, error) {
@@ -72,7 +80,10 @@ func newSupplyHTTPFixture(t *testing.T, middleware ...gin.HandlerFunc) *supplyHT
 	basehandler.RegisterRoutes(router.Group("/api/v1"), h)
 	router.NoRoute(basehandler.NotFound)
 	f.server = httptest.NewServer(router)
-	f.client = &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{DisableKeepAlives: true}}
+	f.client = &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{
+		DisableKeepAlives:     true,
+		ExpectContinueTimeout: time.Second,
+	}}
 	t.Cleanup(func() { f.client.CloseIdleConnections(); f.server.Close() })
 	return f
 }
@@ -424,7 +435,12 @@ func TestSupplyHTTPEarlyFailureDoesNotConsumeKeyIntegration(t *testing.T) {
 		{name: "no access", status: 401, modify: func(r *http.Request) { r.Header.Del("Cookie") }},
 		{name: "wrong csrf", status: 403, modify: func(r *http.Request) { r.Header.Set("X-CSRF-Token", "invalid") }},
 		{name: "wrong origin", status: 403, modify: func(r *http.Request) { r.Header.Set("Origin", "http://foreign.test") }},
-		{name: "body limit", status: 413, body: func([]byte) []byte { return bytes.Repeat([]byte(" "), 1024*1024+1) }},
+		{
+			name: "body limit", status: 413,
+			body: func([]byte) []byte { return bytes.Repeat([]byte(" "), 1024*1024+1) },
+			// Let the server reject Content-Length before the client writes a large body.
+			modify: func(r *http.Request) { r.Header.Set("Expect", "100-continue") },
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			f := newSupplyHTTPFixture(t)

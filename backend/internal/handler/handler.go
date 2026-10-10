@@ -8,6 +8,7 @@ import (
 )
 
 type SupplyHandler interface {
+	ListSupplies(*gin.Context)
 	CreateSupply(*gin.Context)
 	GetSupply(*gin.Context)
 }
@@ -27,6 +28,7 @@ func NewHandler(supplies SupplyHandler, access SupplyAccess, logger *zap.Logger)
 }
 
 func (h *handler) RequireSupplyAccess(c *gin.Context) { h.access.RequireSupplyAccess(c) }
+func (h *handler) ListSupplies(c *gin.Context)        { h.supplies.ListSupplies(c) }
 func (h *handler) CreateSupply(c *gin.Context)        { h.supplies.CreateSupply(c) }
 func (h *handler) GetSupply(c *gin.Context)           { h.supplies.GetSupply(c) }
 
