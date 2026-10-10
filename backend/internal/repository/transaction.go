@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -11,6 +12,22 @@ import (
 )
 
 const rollbackTimeout = 5 * time.Second
+
+var ErrTransactionRequired = errors.New("an explicit transaction is required")
+
+// RequireTransaction rejects pools and nil transactions so row locks and writes
+// cannot accidentally escape the transaction owned by the service.
+func RequireTransaction(q DBTX) (pgx.Tx, error) {
+	tx, ok := q.(pgx.Tx)
+	if !ok || tx == nil {
+		return nil, ErrTransactionRequired
+	}
+	value := reflect.ValueOf(tx)
+	if value.Kind() == reflect.Pointer && value.IsNil() {
+		return nil, ErrTransactionRequired
+	}
+	return tx, nil
+}
 
 func (r *repository) WithinTx(
 	ctx context.Context,

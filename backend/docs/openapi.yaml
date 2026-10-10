@@ -6,7 +6,8 @@ info:
     name: Команда проекта Кладовая
   description: |
     Стартовый контракт S02-T04 на основе REST API из README.md.
-    Реализован только GET /healthcheck. Операции с x-implementation-status: planned
+    Реализованы GET /healthcheck, POST /supplies и GET /supplies/{id}.
+    Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
 
@@ -43,11 +44,11 @@ info:
     X-Request-ID связывает ответ с логами; request_id ошибки совпадает с ним.
     Request ID генерируется сервером и не является Idempotency-Key.
 
-    Бизнес-операции будут требовать сессию и проверку роли согласно README.
-    Для изменяющих запросов с сессией обязателен X-CSRF-Token.
-    Схема cookie-аутентификации будет добавлена в стори авторизации после
-    определения имени cookie. Отсутствие securitySchemes здесь не означает
-    публичный доступ к запланированным бизнес-операциям.
+    Поставки требуют действующую сессию flagman_session и проверку роли.
+    Для POST обязательны X-CSRF-Token и Origin, совпадающий с FRONTEND_ORIGIN
+    (по умолчанию http://flagman.localhost). Выдача сессий через login пока
+    не реализована. Запланированные бизнес-операции также требуют авторизацию
+    согласно README после подключения их маршрутов.
 
     UUID и даты примеров иллюстративные: при реальном запросе используйте
     существующие ID и актуальные сроки годности.
@@ -214,10 +215,19 @@ paths:
         Строка задаёт expires_at либо produced_at с необязательным сроком.
         Без срока используется стандарт продукта; если его нет — 422 SHELF_LIFE_REQUIRED.
         Location указывает на детали созданной поставки.
-      x-implementation-status: planned
+        Тело ответа строится и сохраняется до commit; 201 отправляется после commit.
+        Повтор с тем же ключом и телом возвращает сохранённый статус, тело и Location.
+        meta.server_time фиксирует время расчёта статусов партий.
+        Невалидный JSON и проверки входных данных до транзакции не занимают ключ.
+        Проверки состояния продуктов и срока по текущему времени выполняются
+        после сериализации ключа; завершённые предметные отказы сохраняются.
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CSRFToken'
+        - $ref: '#/components/parameters/Origin'
       requestBody:
         required: true
         content:
@@ -231,7 +241,7 @@ paths:
                 $ref: '#/components/examples/SupplyCalculatedRequest'
       responses:
         '201':
-          description: Поставка принята; ответ совпадает с GET деталей
+          description: Поставка принята; схема совпадает с GET деталей, значения зафиксированы при приёмке
           headers:
             X-Request-ID:
               $ref: '#/components/headers/RequestID'
@@ -272,7 +282,10 @@ paths:
       description: |
         Роли admin, manager, storekeeper. Включает израсходованные партии.
         Корректный UUID отсутствующей поставки — 404; неверный UUID — 422.
-      x-implementation-status: planned
+        Данные читаются в одном согласованном снимке; время расчёта — meta.server_time.
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
       parameters:
         - $ref: '#/components/parameters/ResourceID'
       responses:
@@ -509,6 +522,12 @@ paths:
         '503':
           $ref: '#/components/responses/Unavailable'
 components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: flagman_session
+      description: Непрозрачный токен действующей сессии; в БД хранится его SHA-256
   parameters:
     ResourceID:
       name: id
@@ -559,7 +578,13 @@ components:
         Повтор того же тела возвращает сохранённые статус и тело без повторной записи.
         Другое тело — 409 IDEMPOTENCY_CONFLICT; незавершённый параллельный
         запрос — 409 REQUEST_IN_PROGRESS с Retry-After.
+        Хеш вычисляется по исходным байтам тела; изменение пробелов или порядка
+        JSON-полей меняет хеш. Область ключа — пользователь, HTTP-метод и путь.
+        Завершённый результат хранится минимум 24 часа. Повтор возвращает сохранённые
+        статус, тело и Location; X-Request-ID относится к текущему запросу.
         Ошибки разбора, доступа и валидации до транзакции ключ не занимают.
+        При expires_at <= текущему времени ключ может считаться новым.
+        Очистка истёкшего кеша сохраняет самостоятельную историю отказов.
       schema:
         $ref: '#/components/schemas/UUID'
       example: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
@@ -570,6 +595,13 @@ components:
       description: Токен из login/me для изменяющего запроса с сессией; проверяется также Origin
       schema: {type: string, minLength: 1}
       example: illustrative-csrf-token
+    Origin:
+      name: Origin
+      in: header
+      required: true
+      description: Должен точно совпадать с FRONTEND_ORIGIN; по умолчанию http://flagman.localhost
+      schema: {type: string}
+      example: http://flagman.localhost
   headers:
     RequestID:
       description: UUID текущего HTTP-запроса, совпадает с request_id в ошибке и логах
@@ -940,8 +972,10 @@ components:
       allOf:
         - $ref: '#/components/schemas/SupplySummary'
         - type: object
-          required: [items]
+          required: [items, meta]
           properties:
+            meta:
+              $ref: '#/components/schemas/Meta'
             items:
               type: array
               minItems: 1
@@ -1444,6 +1478,7 @@ components:
         items_count: 1
         created_by: {id: 88888888-8888-4888-8888-888888888888, name: Кладовщик}
         status: received
+        meta: {server_time: '2026-10-09T09:00:00Z'}
         items:
           - product:
               id: 55555555-5555-4555-8555-555555555555

@@ -15,7 +15,7 @@ func NewLogger(cfgLogger config.ConfigLogger) (*zap.Logger, error) {
 	case "production":
 		cfg = zap.NewProductionConfig()
 		cfg.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
-	case "development":
+	case "development", "demo":
 		cfg = zap.NewDevelopmentConfig()
 		cfg.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
 		cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder

@@ -5,23 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/requestctx"
 )
 
 const maxEventRequestIDLength = 128
 
-var ErrTransactionRequired = errors.New("an explicit transaction is required for audit and outbox writes")
-
 func (r *repository) AppendAudit(ctx context.Context, q DBTX, entry *model.AuditEntry) error {
-	tx, err := eventTransaction(q)
+	tx, err := RequireTransaction(q)
 	if err != nil {
 		return err
 	}
@@ -59,7 +55,7 @@ func (r *repository) AppendAudit(ctx context.Context, q DBTX, entry *model.Audit
 }
 
 func (r *repository) AppendOutbox(ctx context.Context, q DBTX, event *model.OutboxEvent) error {
-	tx, err := eventTransaction(q)
+	tx, err := RequireTransaction(q)
 	if err != nil {
 		return err
 	}
@@ -102,19 +98,6 @@ func (r *repository) AppendOutbox(ctx context.Context, q DBTX, event *model.Outb
 		return fmt.Errorf("append outbox: %w", err)
 	}
 	return nil
-}
-
-func eventTransaction(q DBTX) (pgx.Tx, error) {
-	tx, ok := q.(pgx.Tx)
-	if !ok || tx == nil {
-		return nil, ErrTransactionRequired
-	}
-	// An interface containing a nil *pgxpool.Tx is not itself nil.
-	value := reflect.ValueOf(tx)
-	if value.Kind() == reflect.Pointer && value.IsNil() {
-		return nil, ErrTransactionRequired
-	}
-	return tx, nil
 }
 
 func eventRequestID(ctx context.Context, actorID *uuid.UUID) (string, error) {

@@ -25,10 +25,15 @@ type ConfigDatabase struct {
 	PostgresURL string
 }
 
+type ConfigAuth struct {
+	FrontendOrigin string
+}
+
 type config struct {
 	Server   ConfigServer
 	Logger   ConfigLogger
 	Database ConfigDatabase
+	Auth     ConfigAuth
 }
 
 func NewConfig() (config, error) {
@@ -56,6 +61,7 @@ func NewConfig() (config, error) {
 		Database: ConfigDatabase{
 			PostgresURL: getEnv("POSTGRES_URL", "postgres://admin:admin@db:5432/flagman"),
 		},
+		Auth: ConfigAuth{FrontendOrigin: getEnv("FRONTEND_ORIGIN", "http://flagman.localhost")},
 	}
 
 	return cfg, nil

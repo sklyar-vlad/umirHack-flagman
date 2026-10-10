@@ -14,8 +14,15 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/database"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/config"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/handler"
+	authhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auth"
+	supplyhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/supply"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
+	authrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auth"
+	supplyrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/supply"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service"
+	authservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auth"
+	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
+	supplyservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/supply"
 	customLogger "github.com/sklyar-vlad/umirHack-flagman/logger"
 	"go.uber.org/zap"
 )
@@ -43,8 +50,24 @@ func main() {
 	defer pool.Close()
 
 	repo := repository.NewRepository(pool, logger)
-	serv := service.NewService(repo, logger)
-	hand := handler.NewHandler(serv, logger)
+	idem := idempotency.NewService(repo)
+	supplies := supplyservice.NewService(supplyrepository.NewRepository(), repo, idem)
+	serv := service.NewService(repo, logger, supplies)
+	sessionAuth, err := authservice.NewService(authrepository.NewRepository(pool), cfg.Auth.FrontendOrigin)
+	if err != nil {
+		logger.Fatal("failed configure session authentication", zap.Error(err))
+	}
+	hand := handler.NewHandler(supplyhandler.NewHandler(serv), authhandler.NewHandler(sessionAuth), logger)
+	cleanupCtx, cancelCleanup := context.WithCancel(context.Background())
+	cleanupDone := make(chan struct{})
+	go func() {
+		defer close(cleanupDone)
+		idem.RunCleanup(cleanupCtx, logger)
+	}()
+	defer func() {
+		cancelCleanup()
+		<-cleanupDone
+	}()
 
 	const (
 		maxBodyBytes      int64 = 1 << 20
