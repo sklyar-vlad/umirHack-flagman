@@ -14,6 +14,7 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/database"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/config"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/handler"
+	supplyhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/supply"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service"
 	customLogger "github.com/sklyar-vlad/umirHack-flagman/logger"
@@ -64,6 +65,7 @@ func main() {
 
 	api := mux.Group("/api/v1")
 	handler.RegisterRoutes(api, hand)
+	handler.RegisterSupplyRoutes(api, supplyhandler.NewHandler(serv))
 
 	server := &http.Server{
 		Addr:         net.JoinHostPort("", cfg.Server.Port),

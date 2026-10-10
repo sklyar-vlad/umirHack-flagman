@@ -2,40 +2,44 @@ package service
 
 import (
 	"context"
-	"strconv"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
+	supplydto "github.com/sklyar-vlad/umirHack-flagman/internal/dto/supply"
 	apperrors "github.com/sklyar-vlad/umirHack-flagman/internal/errors"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
-	supplydto "github.com/sklyar-vlad/umirHack-flagman/internal/dto/supply"
+	"go.uber.org/zap"
 )
 
-// Определение статуса партии согласно правилам складского учета
-func calculateBatchStatus(remainingQtyStr string, expiresAt time.Time, now time.Time, shelfLifeHours *int) (string, int64) {
-	remSec := int64(expiresAt.Sub(now).Seconds())
-	
+func calculateBatchStatus(remainingQtyStr string, expiresAt, now time.Time, thresholdHours int) (string, int64) {
+	// Floor the signed difference without overflowing time.Duration for distant dates.
+	remSec := expiresAt.Unix() - now.Unix()
+	if expiresAt.Nanosecond() < now.Nanosecond() {
+		remSec--
+	}
+
 	// Если остаток 0 -> depleted
-	qty, _ := strconv.ParseFloat(remainingQtyStr, 64)
-	if qty <= 0 {
+	if remainingQtyStr == "0.000" || remainingQtyStr == "0" {
 		return string(model.BatchStatusDepleted), remSec
 	}
 
 	// Если срок истёк -> expired
-	if now.After(expiresAt) {
+	if !expiresAt.After(now) {
 		return string(model.BatchStatusExpired), remSec
 	}
 
-	// Порог expiring (обычно последние 24/48ч или порог предупреждения по ТЗ/настройкам)
-	// Например: осталось <= 24 часа
-	if remSec <= 86400 {
+	if !expiresAt.After(now.Add(time.Duration(thresholdHours) * time.Hour)) {
 		return string(model.BatchStatusExpiring), remSec
 	}
 
 	return string(model.BatchStatusValid), remSec
 }
 
-func (s *service) ListSupplies(ctx context.Context, filter model.SupplyFilter) ([]supplydto.SupplySummaryDTO, int64, error) {
+func (s *service) ListSupplies(
+	ctx context.Context,
+	filter model.SupplyFilter,
+) ([]supplydto.SupplySummaryDTO, int64, error) {
 	supplies, total, err := s.repo.ListSupplies(ctx, filter)
 	if err != nil {
 		s.logger.Error("failed to list supplies", zap.Error(err))
@@ -43,12 +47,13 @@ func (s *service) ListSupplies(ctx context.Context, filter model.SupplyFilter) (
 	}
 
 	result := make([]supplydto.SupplySummaryDTO, 0, len(supplies))
-	for _, sup := range supplies {
+	for i := range supplies {
+		sup := &supplies[i]
 		result = append(result, supplydto.SupplySummaryDTO{
 			ID:         sup.ID,
 			Number:     sup.Number,
-			CreatedAt:  sup.CreatedAt.UTC().Format(time.RFC3339),
-			ReceivedAt: sup.ReceivedAt.UTC().Format(time.RFC3339),
+			CreatedAt:  sup.CreatedAt.UTC().Format(time.RFC3339Nano),
+			ReceivedAt: sup.ReceivedAt.UTC().Format(time.RFC3339Nano),
 			ItemsCount: sup.ItemsCount,
 			CreatedBy: supplydto.ActorBriefDTO{
 				ID:   sup.CreatedBy.ID,
@@ -62,22 +67,26 @@ func (s *service) ListSupplies(ctx context.Context, filter model.SupplyFilter) (
 }
 
 func (s *service) GetSupplyByID(ctx context.Context, id uuid.UUID, now time.Time) (*supplydto.SupplyDetailDTO, error) {
-	sup, items, err := s.repo.GetSupplyByID(ctx, id)
+	details, err := s.repo.GetSupplyByID(ctx, id)
 	if err != nil {
-		s.logger.Error("failed to get supply by id", zap.Error(err), zap.String("id", id.String()))
+		if !errors.Is(err, apperrors.ErrNotFound) {
+			s.logger.Error("failed to get supply by id", zap.Error(err), zap.String("id", id.String()))
+		}
 		return nil, err
 	}
-	if sup == nil {
+	if details == nil {
 		return nil, apperrors.ErrNotFound
 	}
+	sup, items := &details.Supply, details.Items
 
 	detailItems := make([]supplydto.SupplyItemDetailDTO, 0, len(items))
-	for _, it := range items {
-		status, remSec := calculateBatchStatus(it.RemainingQuantity, it.ExpiresAt, now, it.ShelfLifeHours)
+	for i := range items {
+		it := &items[i]
+		status, remSec := calculateBatchStatus(it.RemainingQuantity, it.ExpiresAt, now, details.ExpiringThresholdHours)
 
 		var producedAtStr *string
 		if it.ProducedAt != nil {
-			val := it.ProducedAt.UTC().Format(time.RFC3339)
+			val := it.ProducedAt.UTC().Format(time.RFC3339Nano)
 			producedAtStr = &val
 		}
 
@@ -95,7 +104,7 @@ func (s *service) GetSupplyByID(ctx context.Context, id uuid.UUID, now time.Time
 				Supply: supplydto.SupplyBatchParentDTO{
 					ID:         sup.ID,
 					Number:     sup.Number,
-					ReceivedAt: sup.ReceivedAt.UTC().Format(time.RFC3339),
+					ReceivedAt: sup.ReceivedAt.UTC().Format(time.RFC3339Nano),
 				},
 				LineNumber:        it.LineNumber,
 				InitialQuantity:   it.InitialQuantity,
@@ -103,10 +112,10 @@ func (s *service) GetSupplyByID(ctx context.Context, id uuid.UUID, now time.Time
 				ProducedAt:        producedAtStr,
 				ShelfLifeHours:    it.ShelfLifeHours,
 				ExpirySource:      string(it.ExpirySource),
-				ExpiresAt:         it.ExpiresAt.UTC().Format(time.RFC3339),
+				ExpiresAt:         it.ExpiresAt.UTC().Format(time.RFC3339Nano),
 				RemainingSeconds:  remSec,
 				Status:            status,
-				CreatedAt:         it.CreatedAt.UTC().Format(time.RFC3339),
+				CreatedAt:         it.CreatedAt.UTC().Format(time.RFC3339Nano),
 			},
 		})
 	}
@@ -115,8 +124,8 @@ func (s *service) GetSupplyByID(ctx context.Context, id uuid.UUID, now time.Time
 		SupplySummaryDTO: supplydto.SupplySummaryDTO{
 			ID:         sup.ID,
 			Number:     sup.Number,
-			CreatedAt:  sup.CreatedAt.UTC().Format(time.RFC3339),
-			ReceivedAt: sup.ReceivedAt.UTC().Format(time.RFC3339),
+			CreatedAt:  sup.CreatedAt.UTC().Format(time.RFC3339Nano),
+			ReceivedAt: sup.ReceivedAt.UTC().Format(time.RFC3339Nano),
 			ItemsCount: sup.ItemsCount,
 			CreatedBy: supplydto.ActorBriefDTO{
 				ID:   sup.CreatedBy.ID,
@@ -125,5 +134,6 @@ func (s *service) GetSupplyByID(ctx context.Context, id uuid.UUID, now time.Time
 			Status: string(sup.Status),
 		},
 		Items: detailItems,
+		Meta:  supplydto.SupplyDetailMetaDTO{ServerTime: now.UTC().Format(time.RFC3339Nano)},
 	}, nil
 }

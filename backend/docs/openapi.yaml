@@ -6,7 +6,8 @@ info:
     name: Команда проекта Кладовая
   description: |
     Стартовый контракт S02-T04 на основе REST API из README.md.
-    Реализован только GET /healthcheck. Операции с x-implementation-status: planned
+    Реализованы GET /healthcheck, GET /supplies и GET /supplies/{id}.
+    Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
 
@@ -201,6 +202,70 @@ paths:
         '503':
           $ref: '#/components/responses/Unavailable'
   /supplies:
+    get:
+      tags: [Supplies]
+      operationId: listSupplies
+      summary: Получить список поставок
+      description: |
+        Поиск по буквальной части номера без учёта регистра; пустой search
+        не ограничивает выборку. Символы %, _ и обратный слеш не являются
+        шаблонами. Фильтры объединяются через AND.
+        from включительно и to исключительно ограничивают created_at,
+        а не received_at. RFC3339 с timezone; from <= to, равные границы
+        возвращают пустой список. Порядок created_at DESC, id DESC.
+        total учитывает фильтры до пагинации; страница за концом списка
+        возвращает items: [] с исходным total. meta — {}.
+        По контракту роли admin, manager, storekeeper; в текущей версии
+        механизм сессионной авторизации ещё не подключён.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: search
+          in: query
+          description: Буквальная часть номера, без учёта регистра
+          schema: {type: string}
+          example: '104'
+        - name: from
+          in: query
+          description: Нижняя включительная граница created_at
+          schema: {type: string, format: date-time}
+          example: '2026-10-01T00:00:00Z'
+        - name: to
+          in: query
+          description: Верхняя исключительная граница created_at
+          schema: {type: string, format: date-time}
+          example: '2026-11-01T00:00:00Z'
+        - name: sort
+          in: query
+          description: Фиксированная стабильная сортировка; других значений нет
+          schema: {type: string, enum: ['-created_at'], default: '-created_at'}
+      responses:
+        '200':
+          description: Список поставок, включая пустую страницу
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplyListResponse'
+              example:
+                items: []
+                total: 0
+                page: 1
+                page_size: 50
+                meta: {}
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
     post:
       tags: [Supplies]
       operationId: createSupply
@@ -270,9 +335,19 @@ paths:
       operationId: getSupply
       summary: Получить поставку с исходными строками и текущими партиями
       description: |
-        Роли admin, manager, storekeeper. Включает израсходованные партии.
+        Все партии по line_number ASC, id ASC, включая израсходованные,
+        просроченные и партии отключённых продуктов. Повторные продукты
+        в разных строках не объединяются. Продукты и партии читаются вместе
+        с поставкой в одном снимке REPEATABLE READ READ ONLY.
+        created_at — время создания записи поставки; received_at — фактическое
+        время приёмки. batch.created_at — время создания записи партии.
+        Фактический срок партии не пересчитывается по стандарту продукта.
+        Статусы и remaining_seconds используют одно meta.server_time;
+        порог expiring берётся из настроек ресторана (без настроек — 24 часа).
+        Query-параметров нет. Сессионная авторизация пока не подключена;
+        целевые роли после её реализации — admin, manager, storekeeper.
         Корректный UUID отсутствующей поставки — 404; неверный UUID — 422.
-      x-implementation-status: planned
+      x-implementation-status: implemented
       parameters:
         - $ref: '#/components/parameters/ResourceID'
       responses:
@@ -288,10 +363,6 @@ paths:
               examples:
                 supply:
                   $ref: '#/components/examples/SupplyDetail'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
@@ -920,9 +991,12 @@ components:
         remaining_seconds:
           type: integer
           format: int64
-          description: Знаковая разница expires_at и server_time, отрицательная при просрочке
+          description: floor(expires_at - server_time) в секундах, отрицательное при просрочке
         status: {type: string, enum: [valid, expiring, expired, depleted]}
-        created_at: {type: string, format: date-time}
+        created_at:
+          type: string
+          format: date-time
+          description: Время создания записи партии в системе
     SupplySummary:
       type: object
       required: [id, number, created_at, received_at, items_count, created_by, status]
@@ -930,18 +1004,38 @@ components:
         id:
           $ref: '#/components/schemas/UUID'
         number: {type: string}
-        created_at: {type: string, format: date-time}
-        received_at: {type: string, format: date-time}
+        created_at:
+          type: string
+          format: date-time
+          description: Время создания записи поставки в системе; используется для фильтрации и сортировки списка
+        received_at:
+          type: string
+          format: date-time
+          description: Фактическое время приёмки, сохранённое в поставке
         items_count: {type: integer, minimum: 1, maximum: 100}
         created_by:
           $ref: '#/components/schemas/ActorBrief'
         status: {type: string, enum: [received]}
+    SupplyListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ListEnvelope'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/SupplySummary'
     SupplyDetail:
       allOf:
         - $ref: '#/components/schemas/SupplySummary'
         - type: object
-          required: [items]
+          required: [items, meta]
           properties:
+            meta:
+              allOf:
+                - $ref: '#/components/schemas/Meta'
+                - type: object
+                  required: [server_time]
             items:
               type: array
               minItems: 1
@@ -1439,11 +1533,13 @@ components:
       value:
         id: 45454545-4545-4545-8545-454545454545
         number: '109'
-        created_at: '2026-10-09T09:00:00Z'
+        created_at: '2026-10-09T09:05:00Z'
         received_at: '2026-10-09T09:00:00Z'
         items_count: 1
         created_by: {id: 88888888-8888-4888-8888-888888888888, name: Кладовщик}
         status: received
+        meta:
+          server_time: '2026-10-09T09:06:00Z'
         items:
           - product:
               id: 55555555-5555-4555-8555-555555555555
@@ -1465,9 +1561,9 @@ components:
               shelf_life_hours: null
               expiry_source: explicit
               expires_at: '2026-10-11T09:00:00Z'
-              remaining_seconds: 172800
+              remaining_seconds: 172440
               status: valid
-              created_at: '2026-10-09T09:00:00Z'
+              created_at: '2026-10-09T09:05:01Z'
     DishList:
       summary: Блюдо с полной рецептурой и доступностью
       value:

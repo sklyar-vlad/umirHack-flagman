@@ -109,3 +109,5 @@ func writeError(c *gin.Context, err error) {
 func NotFound(c *gin.Context) {
 	writeError(c, apperrors.ErrNotFound)
 }
+
+func WriteError(c *gin.Context, err error) { writeError(c, err) }

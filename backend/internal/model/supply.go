@@ -29,19 +29,19 @@ const (
 )
 
 type ActorBrief struct {
-	ID   uuid.UUID `json:"id" db:"id"`
+	ID   uuid.UUID `json:"id"   db:"id"`
 	Name string    `json:"name" db:"name"`
 }
 
 type Supply struct {
-	ID         uuid.UUID    `json:"id" db:"id"`
-	Number     string       `json:"number" db:"number"`
-	CreatedAt  time.Time    `json:"created_at" db:"created_at"`
-	ReceivedAt time.Time    `json:"received_at" db:"received_at"`
-	CreatedBy  ActorBrief   `json:"created_by"`
-	CreatedByID uuid.UUID   `json:"-" db:"created_by"`
-	Status     SupplyStatus `json:"status" db:"status"`
-	ItemsCount int          `json:"items_count" db:"items_count"`
+	ID          uuid.UUID    `json:"id"          db:"id"`
+	Number      string       `json:"number"      db:"number"`
+	CreatedAt   time.Time    `json:"created_at"  db:"created_at"`
+	ReceivedAt  time.Time    `json:"received_at" db:"received_at"`
+	CreatedBy   ActorBrief   `json:"created_by"`
+	CreatedByID uuid.UUID    `json:"-"           db:"created_by"`
+	Status      SupplyStatus `json:"status"      db:"status"`
+	ItemsCount  int          `json:"items_count" db:"items_count"`
 }
 
 type BatchItem struct {
@@ -58,6 +58,12 @@ type BatchItem struct {
 	ExpirySource      ExpirySource `db:"expiry_source"`
 	ExpiresAt         time.Time    `db:"expires_at"`
 	CreatedAt         time.Time    `db:"created_at"`
+}
+
+type SupplyDetails struct {
+	Supply
+	Items                  []BatchItem
+	ExpiringThresholdHours int
 }
 
 type SupplyFilter struct {

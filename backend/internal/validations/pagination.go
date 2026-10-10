@@ -1,6 +1,7 @@
 package validations
 
 import (
+	"math"
 	"net/url"
 	"strconv"
 
@@ -25,10 +26,30 @@ func ParsePagination(query url.Values) (dto.Pagination, error) {
 		}
 	}
 
-	return dto.Pagination{
+	pagination := dto.Pagination{
 		Page:     page,
 		PageSize: pageSize,
-	}, nil
+	}
+	if _, err := PaginationOffset(pagination); err != nil {
+		return dto.Pagination{}, err
+	}
+	return pagination, nil
+}
+
+// PaginationOffset guards the BIGINT offset before multiplying page and size.
+func PaginationOffset(pagination dto.Pagination) (int64, error) {
+	if pagination.Page < 1 {
+		return 0, &FieldError{Field: "page", Message: "Ожидается целое число больше нуля"}
+	}
+	if pagination.PageSize < 1 || pagination.PageSize > 100 {
+		return 0, &FieldError{Field: "page_size", Message: "Допустимое значение: от 1 до 100"}
+	}
+	page := int64(pagination.Page - 1)
+	size := int64(pagination.PageSize)
+	if page > math.MaxInt64/size {
+		return 0, &FieldError{Field: "page", Message: "Номер страницы слишком велик"}
+	}
+	return page * size, nil
 }
 
 func parsePositiveInt(

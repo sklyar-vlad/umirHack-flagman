@@ -58,6 +58,11 @@ type SupplySummaryDTO struct {
 type SupplyDetailDTO struct {
 	SupplySummaryDTO
 	Items []SupplyItemDetailDTO `json:"items"`
+	Meta  SupplyDetailMetaDTO   `json:"meta"`
+}
+
+type SupplyDetailMetaDTO struct {
+	ServerTime string `json:"server_time"`
 }
 
 type SupplyListResponse = dto.ListResponse[SupplySummaryDTO]
