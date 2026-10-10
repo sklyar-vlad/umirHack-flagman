@@ -638,6 +638,10 @@ token_file="${YOUGILE_TOKEN_FILE:-$HOME/.local/share/ralph-codex/secrets/yougile
 export YOUGILE_TOKEN
 YOUGILE_TOKEN=$(<"$token_file")
 export BEADS_DOLT_AUTO_PUSH=false
+# Set budgets before Ralph initializes its zero-valued defaults.
+export RALPH_MAX_RUN_TOKENS="${RALPH_MAX_RUN_TOKENS:-150000}"
+export RALPH_MAX_RUN_SECONDS="${RALPH_MAX_RUN_SECONDS:-14400}"
+export MAX_CONSECUTIVE_FAILURES="${MAX_CONSECUTIVE_FAILURES:-3}"
 export FLAGMAN_TEST_DATABASE_URL="${FLAGMAN_TEST_DATABASE_URL:-postgres://postgres@127.0.0.1:55438/flagman_agent_test?sslmode=disable}"
 export MENU_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export INVENTORY_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
