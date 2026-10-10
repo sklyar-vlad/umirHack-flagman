@@ -80,6 +80,7 @@ func main() {
 	menu := menuservice.NewService(menurepository.NewRepository(), repo)
 	orders := orderservice.NewService(menurepository.NewRepository(), repo)
 	orderCreation := orderservice.NewCreateService(orderrepository.NewRepository(), repo, idem)
+	orderHistory := orderservice.NewHistoryService(orderrepository.NewRepository(), repo)
 	cleanupCtx, cancelCleanup := context.WithCancel(context.Background())
 	cleanupDone := make(chan struct{})
 	go func() {
@@ -115,6 +116,7 @@ func main() {
 	handler.RegisterMenuRoutes(api, menuhandler.NewHandler(menu), access)
 	handler.RegisterOrderCheckRoutes(api, orderhandler.NewHandler(orders), access)
 	handler.RegisterOrderCreateRoutes(api, orderhandler.NewCreateHandler(orderCreation), access)
+	handler.RegisterOrderHistoryRoutes(api, orderhandler.NewHistoryHandler(orderHistory), access)
 
 	server := &http.Server{
 		Addr:         net.JoinHostPort("", cfg.Server.Port),

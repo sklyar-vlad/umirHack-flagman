@@ -73,3 +73,15 @@ type OrderWriteAccess interface{ RequireOrderAccess(*gin.Context) }
 func RegisterOrderCreateRoutes(group *gin.RouterGroup, h OrderCreateHandler, access OrderWriteAccess) {
 	group.POST("/orders", access.RequireOrderAccess, h.Create)
 }
+
+type OrderHistoryHandler interface {
+	ListOrders(*gin.Context)
+	GetOrder(*gin.Context)
+	ListAttempts(*gin.Context)
+}
+
+func RegisterOrderHistoryRoutes(group *gin.RouterGroup, h OrderHistoryHandler, access ProductAccess) {
+	group.GET("/orders", access.RequireProductReadAccess, h.ListOrders)
+	group.GET("/orders/:id", access.RequireProductReadAccess, h.GetOrder)
+	group.GET("/order-attempts", access.RequireProductReadAccess, h.ListAttempts)
+}

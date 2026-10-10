@@ -8,7 +8,8 @@ info:
     Стартовый контракт S02-T04 на основе REST API из README.md.
     Реализованы GET /healthcheck, GET /products, GET /products/{id}/batches, GET /inventory,
     POST /supplies, GET /supplies, GET /supplies/{id}, GET /dishes,
-    GET /dishes/{id}, GET /stop-list, POST /orders/check и POST /orders.
+    GET /dishes/{id}, GET /stop-list, POST /orders/check, POST /orders,
+    GET /orders, GET /orders/{id} и GET /order-attempts.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
@@ -723,6 +724,52 @@ paths:
         '503':
           $ref: '#/components/responses/Unavailable'
   /orders:
+    get:
+      tags: [Orders]
+      operationId: listOrders
+      summary: Получить историю успешных заказов
+      description: |
+        Роли admin, manager, order_operator. Буквальный поиск без учёта регистра
+        по части номера заказа или сохранённого названия блюда; %, _ и обратный
+        слеш не являются шаблонами. Текущее название блюда не используется.
+        Фильтры объединяются через AND. from включительно и to исключительно
+        ограничивают created_at; RFC3339 с timezone, from <= to.
+        Порядок created_at DESC, id DESC. total учитывает фильтры до пагинации;
+        страница за концом списка возвращает items: [] с исходным total.
+        Названия и версии рецептов в items соответствуют моменту заказа.
+        Неизвестные и повторяющиеся параметры — 422. meta — {}.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: search
+          in: query
+          description: Буквальная часть номера или сохранённого названия блюда
+          schema: {type: string}
+        - $ref: '#/components/parameters/HistoryFrom'
+        - $ref: '#/components/parameters/HistoryTo'
+        - $ref: '#/components/parameters/HistorySort'
+      responses:
+        '200':
+          description: Страница истории заказов
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderListResponse'
+              example: {items: [], total: 0, page: 1, page_size: 50, meta: {}}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
     post:
       tags: [Orders]
       operationId: createOrder
@@ -797,7 +844,7 @@ paths:
         Роли admin, manager, order_operator. Названия и версии рецептур — снимки
         на момент заказа. Остатки после движения — исторические, не текущие.
         Корректный UUID отсутствующего заказа — 404; неверный UUID — 422.
-      x-implementation-status: planned
+      x-implementation-status: implemented
       parameters:
         - $ref: '#/components/parameters/ResourceID'
       responses:
@@ -825,6 +872,60 @@ paths:
           $ref: '#/components/responses/PayloadTooLarge'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /order-attempts:
+    get:
+      tags: [Orders]
+      operationId: listOrderAttempts
+      summary: Получить историю отклонённых предметных попыток
+      description: |
+        Роли admin, manager, order_operator. Буквальный поиск без учёта регистра
+        по ID попытки или сохранённому названию блюда. %, _ и обратный слеш
+        не являются шаблонами. Пустой search не ограничивает выборку.
+        from включительно и to исключительно ограничивают created_at;
+        RFC3339 с timezone, from <= to. Фильтры объединяются через AND.
+        Порядок created_at DESC, id DESC; total до пагинации, meta — {}.
+        Попытки имеют собственный ID без номера/order_id успешного заказа.
+        items, shortages и issues — снимки на момент отказа. Редактирование
+        блюда/продукта не меняет историю. check, ошибки полей/доступа,
+        транспортные/технические сбои и успешные заказы сюда не попадают.
+        Повтор Idempotency-Key возвращает исходный отказ без второй строки.
+        Неизвестные/повторяющиеся параметры или неверный reason_code — 422.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: search
+          in: query
+          description: Буквальная часть ID попытки или сохранённого названия блюда
+          schema: {type: string}
+        - $ref: '#/components/parameters/HistoryFrom'
+        - $ref: '#/components/parameters/HistoryTo'
+        - $ref: '#/components/parameters/HistorySort'
+        - name: reason_code
+          in: query
+          description: Причина предметного отказа; отсутствие означает все причины
+          schema: {type: string, enum: [INSUFFICIENT_STOCK, RECIPE_CHANGED, DISH_UNAVAILABLE]}
+      responses:
+        '200':
+          description: Страница истории отказов
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderAttemptListResponse'
+              example: {items: [], total: 0, page: 1, page_size: 50, meta: {}}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
         '500':
           $ref: '#/components/responses/InternalError'
         '503':
@@ -863,6 +964,21 @@ components:
       description: Поиск по имени без учёта регистра
       schema: {type: string}
       example: Моцарелла
+    HistoryFrom:
+      name: from
+      in: query
+      description: Нижняя включительная граница created_at, RFC3339 с timezone
+      schema: {type: string, format: date-time}
+    HistoryTo:
+      name: to
+      in: query
+      description: Верхняя исключительная граница created_at, RFC3339 с timezone; from <= to
+      schema: {type: string, format: date-time}
+    HistorySort:
+      name: sort
+      in: query
+      description: Фиксированный порядок created_at DESC, id DESC
+      schema: {type: string, enum: ['-created_at'], default: '-created_at'}
     CategoryID:
       name: category_id
       in: query
@@ -1535,6 +1651,70 @@ components:
           $ref: '#/components/schemas/PositiveQuantity'
         batch_remaining_quantity_after:
           $ref: '#/components/schemas/Quantity'
+    OrderListResponse:
+      type: object
+      required: [items, total, page, page_size, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderSummary'
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        meta:
+          $ref: '#/components/schemas/Meta'
+    OrderSummary:
+      type: object
+      required: [id, number, status, created_at, created_by, items, total_portions]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        number: {type: string, description: Номер успешного заказа}
+        status: {type: string, enum: [completed]}
+        total_portions: {type: integer, minimum: 1, maximum: 100000}
+        created_at: {type: string, format: date-time}
+        created_by:
+          $ref: '#/components/schemas/ActorBrief'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItemSnapshot'
+    OrderAttemptListResponse:
+      type: object
+      required: [items, total, page, page_size, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderAttempt'
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        meta:
+          $ref: '#/components/schemas/Meta'
+    OrderAttempt:
+      type: object
+      required: [id, created_at, created_by, reason_code, items, shortages, issues]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        created_at: {type: string, format: date-time}
+        created_by:
+          $ref: '#/components/schemas/ActorBrief'
+        reason_code: {type: string, enum: [INSUFFICIENT_STOCK, RECIPE_CHANGED, DISH_UNAVAILABLE]}
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItemSnapshot'
+        shortages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Shortage'
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderIssue'
     OrderDetail:
       type: object
       required: [id, number, status, created_at, created_by, items]
