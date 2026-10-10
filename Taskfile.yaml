@@ -136,7 +136,13 @@ tasks:
           sh -eu -c 'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres_demo'
           < ./backend/database/seeds/reset_demo.sql
 
+### SWAGGER 
 
+  swagger:
+    desc: up swagger
+    cmds:
+    - docker run --rm --name flagman-swagger -p 127.0.0.1:8090:8080 -e SWAGGER_JSON=/docs/openapi.yaml -v "$PWD/backend/docs:/docs:ro" docker.swagger.io/swaggerapi/swagger-ui
+    - echo "swagger was up at localhost:8090 ✅"
 
 ### LINTING
 

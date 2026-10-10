@@ -40,10 +40,7 @@ func SessionTokenHash(token string) string {
 }
 
 func (s *Service) AuthorizeSupply(ctx context.Context, token, method, origin, csrf string) (model.Actor, error) {
-	if len(token) < 32 || len(token) > 512 {
-		return model.Actor{}, apperrors.ErrUnauthorized
-	}
-	session, err := s.repo.FindActiveSession(ctx, SessionTokenHash(token))
+	session, err := s.activeSession(ctx, token)
 	if err != nil {
 		return model.Actor{}, err
 	}
@@ -59,4 +56,24 @@ func (s *Service) AuthorizeSupply(ctx context.Context, token, method, origin, cs
 		}
 	}
 	return session.Actor, nil
+}
+
+func (s *Service) AuthorizeProductRead(ctx context.Context, token string) (model.Actor, error) {
+	session, err := s.activeSession(ctx, token)
+	if err != nil {
+		return model.Actor{}, err
+	}
+	switch session.Actor.Role {
+	case "admin", "manager", "storekeeper", "order_operator":
+		return session.Actor, nil
+	default:
+		return model.Actor{}, apperrors.ErrForbidden
+	}
+}
+
+func (s *Service) activeSession(ctx context.Context, token string) (model.Session, error) {
+	if len(token) < 32 || len(token) > 512 {
+		return model.Session{}, apperrors.ErrUnauthorized
+	}
+	return s.repo.FindActiveSession(ctx, SessionTokenHash(token))
 }

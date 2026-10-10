@@ -16,3 +16,23 @@ func RegisterRoutes(group *gin.RouterGroup, h Handler) {
 	group.POST("/supplies", h.RequireSupplyAccess, h.CreateSupply)
 	group.GET("/supplies/:id", h.RequireSupplyAccess, h.GetSupply)
 }
+
+type ProductHandler interface {
+	ListProducts(*gin.Context)
+}
+
+type ProductAccess interface {
+	RequireProductReadAccess(*gin.Context)
+}
+
+func RegisterProductRoutes(group *gin.RouterGroup, h ProductHandler, access ProductAccess) {
+	group.GET("/products", access.RequireProductReadAccess, h.ListProducts)
+}
+
+type InventoryHandler interface {
+	ListInventory(*gin.Context)
+}
+
+func RegisterInventoryRoutes(group *gin.RouterGroup, h InventoryHandler, access ProductAccess) {
+	group.GET("/inventory", access.RequireProductReadAccess, h.ListInventory)
+}

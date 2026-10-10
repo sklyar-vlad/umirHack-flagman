@@ -15,13 +15,19 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/config"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/handler"
 	authhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auth"
+	inventoryhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/inventory"
+	producthandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/product"
 	supplyhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/supply"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 	authrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auth"
+	inventoryrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/inventory"
+	productrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/product"
 	supplyrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/supply"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service"
 	authservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auth"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
+	inventoryservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/inventory"
+	productservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/product"
 	supplyservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/supply"
 	customLogger "github.com/sklyar-vlad/umirHack-flagman/logger"
 	"go.uber.org/zap"
@@ -57,7 +63,10 @@ func main() {
 	if err != nil {
 		logger.Fatal("failed configure session authentication", zap.Error(err))
 	}
-	hand := handler.NewHandler(supplyhandler.NewHandler(serv), authhandler.NewHandler(sessionAuth), logger)
+	access := authhandler.NewHandler(sessionAuth)
+	hand := handler.NewHandler(supplyhandler.NewHandler(serv), access, logger)
+	products := productservice.NewService(productrepository.NewRepository(), repo)
+	inventory := inventoryservice.NewService(inventoryrepository.NewRepository(), repo)
 	cleanupCtx, cancelCleanup := context.WithCancel(context.Background())
 	cleanupDone := make(chan struct{})
 	go func() {
@@ -87,6 +96,8 @@ func main() {
 
 	api := mux.Group("/api/v1")
 	handler.RegisterRoutes(api, hand)
+	handler.RegisterProductRoutes(api, producthandler.NewHandler(products), access)
+	handler.RegisterInventoryRoutes(api, inventoryhandler.NewHandler(inventory), access)
 
 	server := &http.Server{
 		Addr:         net.JoinHostPort("", cfg.Server.Port),

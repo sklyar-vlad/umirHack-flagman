@@ -6,7 +6,8 @@ info:
     name: Команда проекта Кладовая
   description: |
     Стартовый контракт S02-T04 на основе REST API из README.md.
-    Реализованы GET /healthcheck, POST /supplies, GET /supplies и GET /supplies/{id}.
+    Реализованы GET /healthcheck, GET /products, GET /inventory,
+    POST /supplies, GET /supplies и GET /supplies/{id}.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
@@ -14,6 +15,8 @@ info:
     Даты: RFC 3339 с timezone; ответы сервера — UTC.
     Количества: точные десятичные JSON-строки в базовых единицах g/ml/pcs,
     до 11 цифр до точки и до 3 после (numeric(14,3)). Для pcs дробь нулевая.
+    Суммы партий в InventoryItem могут превышать предел одной партии;
+    они возвращаются строками с тремя знаками после точки без ограничения целой части.
     Сервер не использует float64 для складского учёта.
 
     Ограничения HTTP из S02-T05 уже подключены. Тело любого запроса —
@@ -102,8 +105,20 @@ paths:
       tags: [Inventory]
       operationId: listProducts
       summary: Получить продукты для каталога и формы поставки
-      description: Чтение разрешено всем четырём ролям.
-      x-implementation-status: planned
+      description: |
+        Чтение разрешено всем четырём ролям при действующей сессии.
+        Для форм возвращаются ID, имя, категория (ID и имя), базовая и
+        отображаемая единицы, стандартный срок хранения и целевой запас.
+        Ответ также содержит is_active, revision и created_at в UTC.
+        По умолчанию is_active=true. Поиск — буквальная часть имени без учёта
+        регистра; %, _ и обратный слеш не являются шаблонами.
+        Фильтры объединяются через AND; неизвестная категория даёт пустой список.
+        Порядок name ASC, id ASC. Счётчик и страница читаются в одном снимке.
+        Отсутствующий стандартный срок или целевой запас — null;
+        нулевой целевой запас — строка '0.000'.
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
@@ -149,12 +164,20 @@ paths:
       operationId: listInventory
       summary: Получить остатки, статусы продуктов и проблемные партии
       description: |
+        Реализовано в S07-T02. Включает продукты без партий и неактивные продукты.
         Доступно всем четырём ролям. counts учитывает поиск и категорию,
         но игнорирует filter и пагинацию; фильтры пересекаются.
         attention_batches — первые 20 проблемных партий по expires_at, id
         в том же поиске/категории; attention_total — их полное число.
         nearest_expires_at сортируется с null в конце.
-      x-implementation-status: planned
+        Все агрегаты используют один момент T = meta.server_time и один снимок БД.
+        available: expires_at > T; expired: expires_at <= T.
+        expiring входит в available и имеет expires_at <= T + expiring_threshold_hours.
+        Порог берётся из настроек ресторана, без строки настроек — 24 часа.
+        Нулевые партии не входят в batches_count, ближайший срок и attention_batches.
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
@@ -708,6 +731,14 @@ components:
         - type: string
           pattern: '^(?!0+(\.0+)?$).+$'
       example: '3000.000'
+    InventoryQuantity:
+      type: string
+      pattern: '^[0-9]+\.[0-9]{3}$'
+      description: |
+        Точная неотрицательная сумма остатков партий в базовой единице продукта.
+        Три знака после точки; целая часть может превышать numeric(14,3) одной партии.
+        Для pcs дробная часть нулевая. Float и округление не используются.
+      example: '199999999999.998'
     NullableQuantity:
       type: string
       nullable: true
@@ -874,19 +905,20 @@ components:
         expiring_quantity входит в available_quantity.
         Бейдж выбирается в порядке expired, expiring, normal, out_of_stock.
         Признаки могут пересекаться. deficit_quantity — рекомендация закупки,
-        null без target_stock. Ближайший срок только годных ненулевых партий.
+        max(target_stock - available_quantity, 0), null без target_stock.
+        Ближайший срок только годных ненулевых партий.
         Без такой партии nearest_expires_at и remaining_seconds — null.
       properties:
         product:
           $ref: '#/components/schemas/InventoryProduct'
         physical_quantity:
-          $ref: '#/components/schemas/Quantity'
+          $ref: '#/components/schemas/InventoryQuantity'
         available_quantity:
-          $ref: '#/components/schemas/Quantity'
+          $ref: '#/components/schemas/InventoryQuantity'
         expiring_quantity:
-          $ref: '#/components/schemas/Quantity'
+          $ref: '#/components/schemas/InventoryQuantity'
         expired_quantity:
-          $ref: '#/components/schemas/Quantity'
+          $ref: '#/components/schemas/InventoryQuantity'
         target_stock:
           $ref: '#/components/schemas/NullableQuantity'
         deficit_quantity:
@@ -896,7 +928,11 @@ components:
           minimum: 0
           description: Число ненулевых партий, включая просроченные
         nearest_expires_at: {type: string, format: date-time, nullable: true}
-        remaining_seconds: {type: integer, format: int64, nullable: true}
+        remaining_seconds:
+          type: integer
+          format: int64
+          nullable: true
+          description: floor((nearest_expires_at - meta.server_time) / 1s); null без годной партии
         has_expiring: {type: boolean}
         has_expired: {type: boolean}
         is_out_of_stock:
@@ -942,6 +978,11 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/InventoryItem'
+            meta:
+              allOf:
+                - $ref: '#/components/schemas/Meta'
+                - type: object
+                  required: [server_time]
             counts:
               $ref: '#/components/schemas/InventoryCounts'
             attention_batches:
