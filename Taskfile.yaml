@@ -81,6 +81,20 @@ tasks:
     cmds:
       - '{{.GOOSE_CMD}} reset'
 
+  seed:
+    desc: Заполнить начальные справочники, рецептуры и настройки
+    preconditions:
+      - sh: test -f ./infrastructure.env
+        msg: Создай infrastructure/.env из infrastructure/.env.example
+      - sh: test -f ./backend/seeds/001_catalog.sql
+        msg: Не найден backend/seeds/001_catalog.sql
+    cmds:
+      - '{{.COMPOSE_CMD}} up -d --wait --wait-timeout 60 db'
+      - task: migrate
+      - >-
+          {{.COMPOSE_CMD}} exec -T db
+          sh -c 'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+          < ./backend/seeds/001_catalog.sql
 
 ### LINTING
 

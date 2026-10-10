@@ -29,14 +29,10 @@ const (
 	AuditSettings        AuditEntity = "settings"
 )
 
-// AuditSnapshot accepts only explicitly defined projections of business data.
-// Persistence also checks the concrete type before marshaling a snapshot.
 type AuditSnapshot interface {
 	auditSnapshot()
 }
 
-// AuditEntry is constructed by the service from authenticated identity and saved data.
-// Request ID and creation time are assigned by the repository.
 type AuditEntry struct {
 	ActorID    *uuid.UUID
 	Action     AuditAction
@@ -118,7 +114,6 @@ type StockMovementAuditSnapshot struct {
 	Note                   *string    `json:"note"`
 }
 
-// UserAuditSnapshot deliberately contains no password, hash, or session data.
 type UserAuditSnapshot struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
@@ -175,8 +170,6 @@ const (
 	TopicStockMovements             EventTopic = "stock-movements"
 )
 
-// OutboxEvent permits identifiers only. Topics, request ID, and time are assigned
-// by the repository; callers cannot provide arbitrary payloads or topic names.
 type OutboxEvent struct {
 	Type        OutboxEventType
 	ActorID     *uuid.UUID
@@ -189,8 +182,6 @@ type OutboxEvent struct {
 	UserIDs     []uuid.UUID
 }
 
-// OutboxPayload is internal storage data. The SSE dispatcher must project its
-// topics and identifiers according to the recipient's role before delivery.
 type OutboxPayload struct {
 	OccurredAt  time.Time    `json:"occurred_at"`
 	RequestID   string       `json:"request_id,omitempty"`

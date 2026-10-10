@@ -20,8 +20,6 @@ const maxEventRequestIDLength = 128
 
 var ErrTransactionRequired = errors.New("an explicit transaction is required for audit and outbox writes")
 
-// AppendAudit writes through the caller's transaction. Its error must be returned
-// from WithinTx so that the business mutation is rolled back together with audit.
 func (r *repository) AppendAudit(ctx context.Context, q DBTX, entry *model.AuditEntry) error {
 	tx, err := eventTransaction(q)
 	if err != nil {
@@ -60,8 +58,6 @@ func (r *repository) AppendAudit(ctx context.Context, q DBTX, entry *model.Audit
 	return nil
 }
 
-// AppendOutbox saves an unpublished event in the business transaction. Publication
-// time and SSE cursor are assigned separately by the future dispatcher after commit.
 func (r *repository) AppendOutbox(ctx context.Context, q DBTX, event *model.OutboxEvent) error {
 	tx, err := eventTransaction(q)
 	if err != nil {
@@ -203,8 +199,6 @@ func marshalAuditSnapshot(entity model.AuditEntity, snapshot model.AuditSnapshot
 }
 
 func auditSnapshotMatches(entity model.AuditEntity, snapshot model.AuditSnapshot) bool {
-	// Checking exact types also rejects wrappers with extra fields or custom JSON
-	// marshalers, even when they embed one of the allowed snapshot types.
 	switch value := snapshot.(type) {
 	case *model.CategoryAuditSnapshot:
 		return value != nil && entity == model.AuditProductCategory
