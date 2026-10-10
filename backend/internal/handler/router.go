@@ -85,3 +85,9 @@ func RegisterOrderHistoryRoutes(group *gin.RouterGroup, h OrderHistoryHandler, a
 	group.GET("/orders/:id", access.RequireProductReadAccess, h.GetOrder)
 	group.GET("/order-attempts", access.RequireProductReadAccess, h.ListAttempts)
 }
+
+type ProcurementHandler interface{ List(*gin.Context) }
+
+func RegisterProcurementRoutes(group *gin.RouterGroup, h ProcurementHandler, access SupplyAccess) {
+	group.GET("/procurement-recommendations", access.RequireSupplyAccess, h.List)
+}

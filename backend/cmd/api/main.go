@@ -19,6 +19,7 @@ import (
 	inventoryhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/inventory"
 	menuhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/menu"
 	orderhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/order"
+	procurementhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/procurement"
 	producthandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/product"
 	supplyhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/supply"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
@@ -27,6 +28,7 @@ import (
 	inventoryrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/inventory"
 	menurepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/menu"
 	orderrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/order"
+	procurementrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/procurement"
 	productrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/product"
 	supplyrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/supply"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service"
@@ -36,6 +38,7 @@ import (
 	inventoryservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/inventory"
 	menuservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/menu"
 	orderservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/order"
+	procurementservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/procurement"
 	productservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/product"
 	supplyservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/supply"
 	customLogger "github.com/sklyar-vlad/umirHack-flagman/logger"
@@ -81,6 +84,7 @@ func main() {
 	orders := orderservice.NewService(menurepository.NewRepository(), repo)
 	orderCreation := orderservice.NewCreateService(orderrepository.NewRepository(), repo, idem)
 	orderHistory := orderservice.NewHistoryService(orderrepository.NewRepository(), repo)
+	procurement := procurementservice.NewService(procurementrepository.NewRepository(), menurepository.NewRepository(), repo)
 	cleanupCtx, cancelCleanup := context.WithCancel(context.Background())
 	cleanupDone := make(chan struct{})
 	go func() {
@@ -117,6 +121,7 @@ func main() {
 	handler.RegisterOrderCheckRoutes(api, orderhandler.NewHandler(orders), access)
 	handler.RegisterOrderCreateRoutes(api, orderhandler.NewCreateHandler(orderCreation), access)
 	handler.RegisterOrderHistoryRoutes(api, orderhandler.NewHistoryHandler(orderHistory), access)
+	handler.RegisterProcurementRoutes(api, procurementhandler.NewHandler(procurement), access)
 
 	server := &http.Server{
 		Addr:         net.JoinHostPort("", cfg.Server.Port),

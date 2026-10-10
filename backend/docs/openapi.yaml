@@ -8,7 +8,7 @@ info:
     Стартовый контракт S02-T04 на основе REST API из README.md.
     Реализованы GET /healthcheck, GET /products, GET /products/{id}/batches, GET /inventory,
     POST /supplies, GET /supplies, GET /supplies/{id}, GET /dishes,
-    GET /dishes/{id}, GET /stop-list, POST /orders/check, POST /orders,
+    GET /dishes/{id}, GET /stop-list, GET /procurement-recommendations, POST /orders/check, POST /orders,
     GET /orders, GET /orders/{id} и GET /order-attempts.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
@@ -930,6 +930,72 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/Unavailable'
+  /procurement-recommendations:
+    get:
+      tags: [Procurement]
+      operationId: getProcurementRecommendations
+      summary: Получить необходимые закупки
+      description: |
+        Роли admin, manager, storekeeper. Закупка равна max(0, target_stock -
+        available_quantity); только положительные рекомендации для заданных целей.
+        Просрочка не уменьшает закупку. Продукты и последние рецепты активных
+        блюд читаются в одном read-only Repeatable Read снимке на meta.server_time.
+        affected_dishes связывает только блюда с недостатком данного ингредиента.
+        Приоритет до пагинации: число связанных блюд убывает, затем нулевой годный
+        остаток, затем имя/ID возрастают. sort не принимается.
+        Причины: below_target всегда, no_valid_stock при нуле годного остатка,
+        дополнительно only_expired_stock при положительной просрочке.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+        - name: category_id
+          in: query
+          description: UUID категории продукта
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: Страница необходимых закупок; total до пагинации
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcurementListResponse'
+              example:
+                items:
+                  - product_id: 44444444-4444-4444-8444-444444444444
+                    product_name: Куриное филе
+                    unit: g
+                    display_unit: kg
+                    available_quantity: '0.000'
+                    expired_quantity: '0.000'
+                    target_stock: '3000.000'
+                    recommended_quantity: '3000.000'
+                    reason_codes: [below_target, no_valid_stock]
+                    reason: Годного остатка нет; пополнить до целевого запаса 3000 г
+                    affected_dishes: []
+                total: 1
+                page: 1
+                page_size: 50
+                meta: {server_time: '2026-10-11T00:00:00Z'}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
 components:
   securitySchemes:
     SessionCookie:
@@ -1537,6 +1603,51 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/Dish'
+    AffectedDish:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name: {type: string}
+    ProcurementItem:
+      type: object
+      required: [product_id, product_name, unit, display_unit, available_quantity, expired_quantity, target_stock, recommended_quantity, reason_codes, reason, affected_dishes]
+      properties:
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        unit:
+          $ref: '#/components/schemas/Unit'
+        display_unit:
+          $ref: '#/components/schemas/DisplayUnit'
+        available_quantity:
+          $ref: '#/components/schemas/InventoryQuantity'
+        expired_quantity:
+          $ref: '#/components/schemas/InventoryQuantity'
+        target_stock:
+          $ref: '#/components/schemas/PositiveQuantity'
+        recommended_quantity:
+          $ref: '#/components/schemas/PositiveQuantity'
+        reason_codes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, enum: [below_target, no_valid_stock, only_expired_stock]}
+        reason: {type: string, description: Объяснение с целевым запасом в базовой единице}
+        affected_dishes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AffectedDish'
+    ProcurementListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ListEnvelope'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProcurementItem'
     OrderRequest:
       type: object
       required: [items]
