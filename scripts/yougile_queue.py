@@ -139,7 +139,8 @@ async def complete(session, issue_id, story=False):
         if not metadata.get("base_commit") or command("git", "rev-parse", "HEAD") == command("git", "rev-parse", metadata["base_commit"]):
             raise RuntimeError("A new story commit is required")
         number = re.match(r"S\d+", issue["title"])[0]
-        if number not in command("git", "log", "-1", "--format=%s"):
+        subjects = command("git", "log", metadata["base_commit"] + "..HEAD", "--format=%s")
+        if not re.search(r"\b" + re.escape(number) + r"\b", subjects):
             raise RuntimeError(f"Include {number} in the story commit subject")
         children = json.loads(bd("list", "--parent", issue_id, "--all", "--limit", "0", "--json"))
         if any(child["status"] != "closed" for child in children):

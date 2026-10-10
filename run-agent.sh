@@ -25,7 +25,11 @@ export MENU_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export INVENTORY_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export SUPPLY_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export BATCH_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
-./scripts/yougile-queue.sh prepare
+queue_status=$(./scripts/yougile-queue.sh prepare)
+printf '%s\n' "$queue_status"
+if jq -e '.status == "drained"' >/dev/null <<<"$queue_status"; then
+    exit 0
+fi
 if [[ $# -eq 0 ]]; then
     set -- --unattended --no-sandbox --max-iterations 12
 fi

@@ -67,6 +67,34 @@ class QueueTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(any(c.args[0] == "close" for c in bd.call_args_list))
             self.assertFalse(any(c.args[1] == "manage_tasks" for c in call.call_args_list))
 
+    async def test_story_without_new_commit_is_not_closed(self):
+        issue = {"id": "umi-s09", "title": "S09. Next", "issue_type": "story", "external_ref": "yougile:story", "metadata": {"base_commit": "abc"}}
+        def git(*args):
+            return "" if args[1] == "status" else "abcdef"
+        with patch.object(queue, "bd", return_value=json.dumps([issue])) as bd, patch.object(queue, "verify"), \
+             patch.object(queue, "command", side_effect=git), \
+             patch.object(queue, "call", new=AsyncMock(return_value={"taskFullInfo": {"projectId": queue.PROJECT, "boardId": queue.BOARD}})) as call:
+            with self.assertRaisesRegex(RuntimeError, "new story commit"):
+                await queue.complete(None, issue["id"], story=True)
+            self.assertFalse(any(c.args[0] == "close" for c in bd.call_args_list))
+            self.assertFalse(any(c.args[1] == "manage_tasks" for c in call.call_args_list))
+
+    async def test_setup_commit_after_story_does_not_prevent_completion(self):
+        issue = {"id": "umi-s09", "title": "S09. Next", "issue_type": "story", "external_ref": "yougile:story", "metadata": {"base_commit": "base"}}
+        def git(*args):
+            if args[1] == "status": return ""
+            if args[1] == "log": return "chore(agent): configure hooks\nfeat(orders): check basket (S09)"
+            return "new-head" if args[2] == "HEAD" else "old-base"
+        def beads(*args):
+            return json.dumps([issue]) if args[0] == "show" else "[]"
+        with patch.object(queue, "bd", side_effect=beads), patch.object(queue, "verify"), \
+             patch.object(queue, "command", side_effect=git), patch.object(queue, "prepare", new=AsyncMock()) as prepare, \
+             patch.object(queue, "call", new=AsyncMock(return_value={"taskFullInfo": {"projectId": queue.PROJECT, "boardId": queue.BOARD}})) as call:
+            await queue.complete(None, issue["id"], story=True)
+            mutations = [c.args[2] for c in call.call_args_list if c.args[1] == "manage_tasks"]
+            self.assertEqual(mutations[0]["tasks"][0]["columnId"], queue.DONE)
+            prepare.assert_awaited_once()
+
 
 if __name__ == "__main__":
     unittest.main()
