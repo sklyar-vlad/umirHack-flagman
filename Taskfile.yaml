@@ -1,5 +1,9 @@
 version: "3"
 
+vars:
+  COMPOSE_CMD: docker compose --env-file ./infrastructure/.env -f ./infrastructure/compose.yaml
+  GOOSE_CMD: goose -env ./infrastructure/.env -dir ./backend/migrations
+
 tasks:
   default:
     cmds:
@@ -9,12 +13,12 @@ tasks:
 ### START
 
   up:
-    desc: up all containers
+    desc: Поднять БД, применить миграции и запустить приложение
     cmds:
-      - echo "⚠️  starting containers... ⚠️"
-      - docker compose -f ./infrastructure/compose.yaml up -d --build
-      - echo "✅ all containers started ✅"
-    silent: true
+      - '{{.COMPOSE_CMD}} stop frontend backend'
+      - '{{.COMPOSE_CMD}} up -d --wait --wait-timeout 60 db'
+      - task: migrate
+      - '{{.COMPOSE_CMD}} up -d --build traefik backend frontend'
 
 ### STOP
 
@@ -33,37 +37,49 @@ tasks:
     cmds:
       - docker compose -f ./infrastructure/compose.yaml logs -f
 
-### DB
-
 ### DATABASE 
 
   migration:
-    desc: create new migration file. example "task migration NAME=name_of_migration"
-    cmds:
-      - goose -s create {{.NAME}} sql -dir ./backend/migrations
+    desc: Создать SQL-миграцию
     vars:
       NAME: '{{.NAME | default "migration"}}'
+    cmds:
+      - '{{.GOOSE_CMD}} -s create "{{.NAME}}" sql'
 
   migrate:
-    desc: choose last version of migrations
+    desc: Применить все ожидающие миграции
     cmds:
-      - goose -env ./infrastructure/.env up 
-      - echo "Success migrated"
+      - '{{.GOOSE_CMD}} up'
 
   migrate-one:
-    desc: choose next version of migrations 
+    desc: Применить одну следующую миграцию
     cmds:
-      - goose -env ./infrastructure/.env up-by-one 
+      - '{{.GOOSE_CMD}} up-by-one'
 
-  rollback:
-    desc: roll back all migrations
+  migrate-status:
+    desc: Показать состояние миграций
     cmds:
-      - goose -env ./infrastructure/.env reset
+      - '{{.GOOSE_CMD}} status'
+
+  migrate-version:
+    desc: Показать текущую версию схемы
+    cmds:
+      - '{{.GOOSE_CMD}} version'
+
+  migrate-validate:
+    desc: Проверить формат файлов миграций
+    cmds:
+      - '{{.GOOSE_CMD}} validate'
 
   rollback-one:
-    desc: comeback to previous version of migrations
+    desc: Откатить одну последнюю миграцию
     cmds:
-      - goose -env ./infrastructure/.env down 
+      - '{{.GOOSE_CMD}} down'
+
+  rollback:
+    desc: Откатить все миграции
+    cmds:
+      - '{{.GOOSE_CMD}} reset'
 
 
 ### LINTING
