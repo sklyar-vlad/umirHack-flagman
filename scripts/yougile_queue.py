@@ -181,6 +181,13 @@ if __name__ == "__main__":
         # Do not print transport exceptions or request headers containing secrets.
         message = str(error).replace(os.environ.get("YOUGILE_TOKEN", ""), "[REDACTED]")
         if isinstance(error, BaseExceptionGroup):
-            message = "YouGile connection or operation failed; tasks remain unfinished"
+            def causes(group):
+                for item in group.exceptions:
+                    if isinstance(item, BaseExceptionGroup):
+                        yield from causes(item)
+                    else:
+                        yield type(item).__name__ + ": " + str(item)
+            message = "; ".join(causes(error)).replace(os.environ.get("YOUGILE_TOKEN", ""), "[REDACTED]")
+        message = re.sub(r"ygmcp_[A-Za-z0-9_-]+", "[REDACTED]", message)
         print(message, file=sys.stderr)
         sys.exit(1)
