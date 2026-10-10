@@ -11,10 +11,12 @@ const healthcheckSchema = z.object({
 export const baseApi = createApi({
   reducerPath: 'api',
   baseQuery,
+  tagTypes: ['Healthcheck'],
   refetchOnFocus: true,
   refetchOnReconnect: true,
   endpoints: (build) => ({
     healthcheck: build.query<HealthcheckResponse, void>({
+      providesTags: ['Healthcheck'],
       queryFn: async (_arg, _api, _options, query) => {
         const result = await query('/healthcheck')
         if (result.error) return { error: result.error, meta: result.meta }

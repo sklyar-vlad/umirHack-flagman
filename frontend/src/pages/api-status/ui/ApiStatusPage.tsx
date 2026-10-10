@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { isApiError, useHealthcheckQuery } from '@/shared/api'
+import { env } from '@/shared/config'
 import styles from './ApiStatusPage.module.css'
 
 export function ApiStatusPage() {
@@ -12,7 +13,9 @@ export function ApiStatusPage() {
       <header className={styles.header}>
         <p className="text-caption text-muted">Инструмент разработчика</p>
         <h1>Подключение к API</h1>
-        <p className="text-muted">Проверка HTTP-процесса backend. Готовность базы и бизнес-операций проверяется отдельно.</p>
+        <p className="text-muted">{env.mockModeEnabled
+          ? 'Проверка интерфейса на тестовых ответах. Реальный backend не вызывается.'
+          : 'Проверка HTTP-процесса backend. Готовность базы и бизнес-операций проверяется отдельно.'}</p>
       </header>
 
       <section className={`ui-panel ${styles.panel}`} aria-labelledby="connection-title">
@@ -32,7 +35,7 @@ export function ApiStatusPage() {
         <div aria-live="polite" aria-atomic="true">
           {isLoading && <p>Подключаемся к серверу…</p>}
           {isFetching && data && <p>Обновляем ответ сервера…</p>}
-          {data && !isFetching && !error && <p className="ui-badge ui-badge--success">Backend отвечает</p>}
+          {data && !isFetching && !error && <p className="ui-badge ui-badge--success">{env.mockModeEnabled ? 'Моковый ответ получен' : 'Backend отвечает'}</p>}
         </div>
 
         {error && (
