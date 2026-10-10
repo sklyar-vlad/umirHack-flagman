@@ -18,6 +18,7 @@ import (
 	batchhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/batch"
 	inventoryhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/inventory"
 	menuhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/menu"
+	orderhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/order"
 	producthandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/product"
 	supplyhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/supply"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
@@ -33,6 +34,7 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
 	inventoryservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/inventory"
 	menuservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/menu"
+	orderservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/order"
 	productservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/product"
 	supplyservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/supply"
 	customLogger "github.com/sklyar-vlad/umirHack-flagman/logger"
@@ -75,6 +77,7 @@ func main() {
 	inventory := inventoryservice.NewService(inventoryrepository.NewRepository(), repo)
 	batches := batchservice.NewService(batchrepository.NewRepository(), repo)
 	menu := menuservice.NewService(menurepository.NewRepository(), repo)
+	orders := orderservice.NewService(menurepository.NewRepository(), repo)
 	cleanupCtx, cancelCleanup := context.WithCancel(context.Background())
 	cleanupDone := make(chan struct{})
 	go func() {
@@ -108,6 +111,7 @@ func main() {
 	handler.RegisterInventoryRoutes(api, inventoryhandler.NewHandler(inventory), access)
 	handler.RegisterBatchRoutes(api, batchhandler.NewHandler(batches), access)
 	handler.RegisterMenuRoutes(api, menuhandler.NewHandler(menu), access)
+	handler.RegisterOrderCheckRoutes(api, orderhandler.NewHandler(orders), access)
 
 	server := &http.Server{
 		Addr:         net.JoinHostPort("", cfg.Server.Port),

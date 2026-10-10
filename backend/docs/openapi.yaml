@@ -7,7 +7,8 @@ info:
   description: |
     Стартовый контракт S02-T04 на основе REST API из README.md.
     Реализованы GET /healthcheck, GET /products, GET /products/{id}/batches, GET /inventory,
-    POST /supplies, GET /supplies и GET /supplies/{id}.
+    POST /supplies, GET /supplies, GET /supplies/{id}, GET /dishes,
+    GET /dishes/{id}, GET /stop-list и POST /orders/check.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
@@ -666,7 +667,17 @@ paths:
         can_create: false. Неизвестный ID блюда или неверное тело дают 422.
         requirements содержит все ингредиенты, shortages — только недостающие.
         can_create: true только при пустых shortages и issues.
-      x-implementation-status: planned
+        Одна read-only транзакция repeatable-read и один meta.server_time в UTC.
+        Годны только положительные остатки партий с expires_at > server_time.
+        Количества суммируются точно до тысячных; общий остаток продукта учитывается один раз.
+        items сохраняет порядок первого появления блюда, requirements/shortages сортируются по имени продукта и UUID.
+        Расчёт использует актуальные рецептуры всех позиций, включая отключённые и изменённые блюда.
+        Присланная устаревшая или будущая версия даёт issue recipe_changed с актуальной версией.
+        Запрос требует действующую сессию. CSRF, Origin и Idempotency-Key не требуются для чтения.
+        Неверная форма валидного JSON даёт 422; синтаксически некорректный JSON — 400.
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
       requestBody:
         required: true
         content:
@@ -691,6 +702,10 @@ paths:
                   $ref: '#/components/examples/OrderCheckAvailable'
                 shortage:
                   $ref: '#/components/examples/OrderCheckShortage'
+                recipeChanged:
+                  $ref: '#/components/examples/OrderCheckRecipeChanged'
+                unavailable:
+                  $ref: '#/components/examples/OrderCheckUnavailable'
         '400':
           $ref: '#/components/responses/InvalidJSON'
         '401':
@@ -927,6 +942,10 @@ components:
         Три знака после точки; целая часть может превышать numeric(14,3) одной партии.
         Для pcs дробная часть нулевая. Float и округление не используются.
       example: '199999999999.998'
+    AggregateQuantity:
+      description: Точное количество агрегата остатков или потребности корзины; может превышать numeric(14,3) одной строки
+      allOf:
+        - $ref: '#/components/schemas/InventoryQuantity'
     NullableQuantity:
       type: string
       nullable: true
@@ -1401,15 +1420,17 @@ components:
     OrderRequest:
       type: object
       required: [items]
+      additionalProperties: false
       properties:
         items:
           type: array
           minItems: 1
           maxItems: 100
-          description: Повторы блюда объединяются; максимум 1000 порций каждого блюда после объединения
+          description: Повторы блюда объединяются; максимум 1000 порций каждого блюда после объединения. Конфликт явно заданных версий повторов даёт 422.
           items:
             type: object
             required: [dish_id, portions]
+            additionalProperties: false
             properties:
               dish_id:
                 $ref: '#/components/schemas/UUID'
@@ -1417,7 +1438,8 @@ components:
               recipe_version:
                 type: integer
                 minimum: 1
-                description: UI передаёт текущую версию; интеграция может опустить для актуальной рецептуры
+                nullable: true
+                description: UI передаёт текущую версию; интеграция может опустить или передать null для актуальной рецептуры. При повторах пропущенная версия принимает явно заданную.
     OrderItemSnapshot:
       type: object
       required: [dish_id, dish_name, portions, recipe_version]
@@ -1437,11 +1459,11 @@ components:
         unit:
           $ref: '#/components/schemas/Unit'
         required_quantity:
-          $ref: '#/components/schemas/Quantity'
+          $ref: '#/components/schemas/AggregateQuantity'
         available_quantity:
-          $ref: '#/components/schemas/Quantity'
+          $ref: '#/components/schemas/AggregateQuantity'
         missing_quantity:
-          $ref: '#/components/schemas/Quantity'
+          $ref: '#/components/schemas/AggregateQuantity'
     Shortage:
       allOf:
         - $ref: '#/components/schemas/Requirement'
@@ -1449,7 +1471,7 @@ components:
           required: [expired_quantity, reason_code]
           properties:
             expired_quantity:
-              $ref: '#/components/schemas/Quantity'
+              $ref: '#/components/schemas/AggregateQuantity'
             reason_code:
               type: string
               enum: [ingredient_shortage, only_expired_stock]
@@ -1460,7 +1482,7 @@ components:
       properties:
         dish_id:
           $ref: '#/components/schemas/UUID'
-        code: {type: string, description: Код предметной проблемы; уточняется в стори заказов}
+        code: {type: string, enum: [dish_inactive, recipe_missing, recipe_changed], description: Причина недоступности блюда или несовпадения присланной версии с актуальной}
         message: {type: string}
         current_recipe_version: {type: integer, minimum: 1, nullable: true}
     OrderCheck:
@@ -2041,6 +2063,50 @@ components:
             expired_quantity: '0.000'
             reason_code: ingredient_shortage
         issues: []
+        meta: {server_time: '2026-10-09T09:00:00Z'}
+    OrderCheckRecipeChanged:
+      summary: Рецепт изменился; расчёт по новой версии, HTTP 200
+      value:
+        can_create: false
+        items:
+          - dish_id: 66666666-6666-4666-8666-666666666666
+            dish_name: Пицца «Маргарита»
+            portions: 2
+            recipe_version: 2
+        requirements:
+          - product_id: 11111111-1111-4111-8111-111111111111
+            product_name: Моцарелла
+            unit: g
+            required_quantity: '300.000'
+            available_quantity: '1200.000'
+            missing_quantity: '0.000'
+        shortages: []
+        issues:
+          - dish_id: 66666666-6666-4666-8666-666666666666
+            code: recipe_changed
+            message: Рецептура блюда изменилась
+            current_recipe_version: 2
+        meta: {server_time: '2026-10-09T09:00:00Z'}
+    OrderCheckUnavailable:
+      summary: Отключённое блюдо без рецепта; HTTP 200 с двумя issues
+      value:
+        can_create: false
+        items:
+          - dish_id: 66666666-6666-4666-8666-666666666666
+            dish_name: Пицца «Маргарита»
+            portions: 1
+            recipe_version: null
+        requirements: []
+        shortages: []
+        issues:
+          - dish_id: 66666666-6666-4666-8666-666666666666
+            code: dish_inactive
+            message: Блюдо отключено
+            current_recipe_version: null
+          - dish_id: 66666666-6666-4666-8666-666666666666
+            code: recipe_missing
+            message: У блюда нет рецептуры
+            current_recipe_version: null
         meta: {server_time: '2026-10-09T09:00:00Z'}
     OrderDetail:
       summary: Заказ с полным распределением всех трёх ингредиентов по партиям

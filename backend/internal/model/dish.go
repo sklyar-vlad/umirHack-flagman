@@ -23,6 +23,7 @@ type Dish struct {
 
 type DishFilter struct {
 	ID           *uuid.UUID
+	IDs          []uuid.UUID
 	Search       *string
 	IsActive     *bool
 	Availability string

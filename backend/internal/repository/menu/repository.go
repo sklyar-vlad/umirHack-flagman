@@ -29,6 +29,10 @@ func (r *Repository) Load(ctx context.Context, q repository.DBTX, filter model.D
 		args = append(args, filter.ID.String())
 		conditions = append(conditions, fmt.Sprintf("d.id=$%d", len(args)))
 	}
+	if filter.IDs != nil {
+		args = append(args, filter.IDs)
+		conditions = append(conditions, fmt.Sprintf("d.id=ANY($%d::uuid[])", len(args)))
+	}
 	if filter.IsActive != nil {
 		args = append(args, *filter.IsActive)
 		conditions = append(conditions, fmt.Sprintf("d.is_active=$%d", len(args)))
