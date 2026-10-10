@@ -32,3 +32,5 @@ __screenshots__/
 .beads/
 .beads.gate.lock
 .ralph/
+__pycache__/
+*.pyc

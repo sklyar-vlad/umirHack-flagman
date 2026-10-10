@@ -44,3 +44,15 @@ type BatchHandler interface {
 func RegisterBatchRoutes(group *gin.RouterGroup, h BatchHandler, access ProductAccess) {
 	group.GET("/products/:id/batches", access.RequireProductReadAccess, h.ListBatches)
 }
+
+type MenuHandler interface {
+	ListDishes(*gin.Context)
+	GetDish(*gin.Context)
+	StopList(*gin.Context)
+}
+
+func RegisterMenuRoutes(group *gin.RouterGroup, h MenuHandler, access ProductAccess) {
+	group.GET("/dishes", access.RequireProductReadAccess, h.ListDishes)
+	group.GET("/dishes/:id", access.RequireProductReadAccess, h.GetDish)
+	group.GET("/stop-list", access.RequireProductReadAccess, h.StopList)
+}

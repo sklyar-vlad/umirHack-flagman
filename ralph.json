@@ -1,0 +1,12 @@
+{
+  "tool": "codex",
+  "maxIterations": 12,
+  "sandbox": false,
+  "verbose": true,
+  "projectType": "go",
+  "commands": {
+    "test": "go -C backend test ./...",
+    "build": "go -C backend build ./...",
+    "check": "go -C backend vet ./..."
+  }
+}

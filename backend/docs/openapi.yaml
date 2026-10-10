@@ -505,8 +505,13 @@ paths:
       tags: [Dishes]
       operationId: listDishes
       summary: Получить меню с рецептурами и доступностью
-      description: Роли admin, manager, order_operator.
-      x-implementation-status: planned
+      description: |
+        Роли admin, manager, order_operator. Актуальная версия рецепта выбирается
+        по максимальному номеру. Порции — минимум целых отношений годного остатка
+        к расходу ингредиента. Просрочка (expires_at <= meta.server_time) исключена.
+        Поиск — буквальная подстрока названия без учёта регистра. total считается
+        после фильтра доступности и до пагинации; сортировка name, затем ID.
+      x-implementation-status: implemented
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
@@ -535,6 +540,107 @@ paths:
                   $ref: '#/components/examples/DishList'
                 empty:
                   $ref: '#/components/examples/EmptyList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /dishes/{id}:
+    get:
+      tags: [Dishes]
+      operationId: getDish
+      summary: Получить блюдо, актуальный рецепт и доступность
+      description: |
+        Роли admin, manager, order_operator. Расчёт актуален на meta.server_time;
+        годные партии имеют expires_at > server_time. Стоп-лист включает только
+        активные недоступные блюда; отключённые блюда исключены. Причины:
+        ingredient_shortage, only_expired_stock, recipe_missing, dish_inactive.
+        Результат пересчитывается при каждом чтении, включая истечение без записи.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      responses:
+        '200':
+          description: Получить блюдо, актуальный рецепт и доступность
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dish'
+              examples:
+                result:
+                  value:
+                    id: 66666666-6666-4666-8666-666666666666
+                    name: Пицца
+                    description: null
+                    is_active: true
+                    revision: 1
+                    recipe_version: null
+                    recipe: []
+                    is_available: false
+                    available_portions: '0'
+                    shortages: []
+                    unavailability_reasons: [recipe_missing]
+                    meta: {server_time: '2026-10-10T12:00:00Z'}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /stop-list:
+    get:
+      tags: [Dishes]
+      operationId: getStopList
+      summary: Получить автоматический стоп-лист
+      description: |
+        Роли admin, manager, order_operator. Расчёт актуален на meta.server_time;
+        годные партии имеют expires_at > server_time. Стоп-лист включает только
+        активные недоступные блюда; отключённые блюда исключены. Причины:
+        ingredient_shortage, only_expired_stock, recipe_missing, dish_inactive.
+        Результат пересчитывается при каждом чтении, включая истечение без записи.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+        - name: sort
+          in: query
+          schema: {type: string, enum: [name], default: name}
+      responses:
+        '200':
+          description: Получить автоматический стоп-лист
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DishListResponse'
+              examples:
+                result:
+                  $ref: '#/components/examples/DishList'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1279,8 +1385,8 @@ components:
             $ref: '#/components/schemas/Shortage'
         unavailability_reasons:
           type: array
-          description: Коды, включая recipe_missing и dish_inactive; дополняются в стори меню
-          items: {type: string}
+          description: Причины недоступности на одну порцию
+          items: {type: string, enum: [ingredient_shortage, only_expired_stock, recipe_missing, dish_inactive]}
         meta:
           $ref: '#/components/schemas/Meta'
     DishListResponse:

@@ -17,12 +17,14 @@ import (
 	authhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auth"
 	batchhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/batch"
 	inventoryhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/inventory"
+	menuhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/menu"
 	producthandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/product"
 	supplyhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/supply"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 	authrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auth"
 	batchrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/batch"
 	inventoryrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/inventory"
+	menurepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/menu"
 	productrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/product"
 	supplyrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/supply"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service"
@@ -30,6 +32,7 @@ import (
 	batchservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/batch"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
 	inventoryservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/inventory"
+	menuservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/menu"
 	productservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/product"
 	supplyservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/supply"
 	customLogger "github.com/sklyar-vlad/umirHack-flagman/logger"
@@ -71,6 +74,7 @@ func main() {
 	products := productservice.NewService(productrepository.NewRepository(), repo)
 	inventory := inventoryservice.NewService(inventoryrepository.NewRepository(), repo)
 	batches := batchservice.NewService(batchrepository.NewRepository(), repo)
+	menu := menuservice.NewService(menurepository.NewRepository(), repo)
 	cleanupCtx, cancelCleanup := context.WithCancel(context.Background())
 	cleanupDone := make(chan struct{})
 	go func() {
@@ -103,6 +107,7 @@ func main() {
 	handler.RegisterProductRoutes(api, producthandler.NewHandler(products), access)
 	handler.RegisterInventoryRoutes(api, inventoryhandler.NewHandler(inventory), access)
 	handler.RegisterBatchRoutes(api, batchhandler.NewHandler(batches), access)
+	handler.RegisterMenuRoutes(api, menuhandler.NewHandler(menu), access)
 
 	server := &http.Server{
 		Addr:         net.JoinHostPort("", cfg.Server.Port),
