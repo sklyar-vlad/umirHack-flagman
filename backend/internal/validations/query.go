@@ -17,7 +17,7 @@ func ValidateQuery(query url.Values, allowed ...string) error {
 		if len(values) != 1 {
 			return &FieldError{
 				Field:   field,
-				Message: "Параметр должен быть указан один раз",
+				Message: singleValueMessage,
 			}
 		}
 	}
@@ -38,7 +38,7 @@ func readQueryValue(
 	if len(values) != 1 {
 		return "", &FieldError{
 			Field:   field,
-			Message: "Параметр должен быть указан один раз",
+			Message: singleValueMessage,
 		}
 	}
 

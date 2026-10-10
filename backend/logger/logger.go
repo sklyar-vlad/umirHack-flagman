@@ -14,7 +14,7 @@ func NewLogger(cfgLogger config.ConfigLogger) (*zap.Logger, error) {
 	switch cfgLogger.Env {
 	case "production":
 		cfg = zap.NewProductionConfig()
-		cfg.Level = zap.NewAtomicLevelAt(zapcore.WarnLevel)
+		cfg.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
 	case "development":
 		cfg = zap.NewDevelopmentConfig()
 		cfg.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)

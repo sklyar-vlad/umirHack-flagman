@@ -44,7 +44,7 @@ func parsePositiveInt(
 	if len(values) != 1 {
 		return 0, &FieldError{
 			Field:   field,
-			Message: "Параметр должен быть указан один раз",
+			Message: singleValueMessage,
 		}
 	}
 

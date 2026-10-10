@@ -46,8 +46,21 @@ func main() {
 	serv := service.NewService(repo, logger)
 	hand := handler.NewHandler(serv, logger)
 
+	const (
+		maxBodyBytes      int64 = 1 << 20
+		requestsPerSecond       = 10
+		burstRequests           = 20
+	)
+
 	mux := gin.New()
-	mux.Use(gin.Recovery())
+	mux.Use(
+		handler.RequestID(),
+		handler.RequestLogger(logger),
+		handler.Recovery(logger),
+		handler.RateLimit(requestsPerSecond, burstRequests),
+		handler.BodyLimit(maxBodyBytes),
+	)
+	mux.NoRoute(handler.NotFound)
 
 	api := mux.Group("/api/v1")
 	handler.RegisterRoutes(api, hand)

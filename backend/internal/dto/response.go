@@ -9,8 +9,18 @@ type ListResponse[T any] struct {
 }
 
 type ErrorResponse struct {
-	Code      string         `json:"code"`
-	Message   string         `json:"message"`
-	Details   map[string]any `json:"details"`
-	RequestID string         `json:"request_id"`
+	Error     ErrorBody `json:"error"`
+	RequestID string    `json:"request_id"`
+}
+
+type ErrorBody struct {
+	Code    string         `json:"code"`
+	Message string         `json:"message"`
+	Details map[string]any `json:"details"`
+}
+
+type FieldViolation struct {
+	Path    string `json:"path"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
