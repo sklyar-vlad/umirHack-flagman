@@ -10,6 +10,7 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/dto"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
+	batchservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/batch"
 )
 
 func (s *Service) Receive(ctx context.Context, actorID, key uuid.UUID, body []byte) (model.IdempotencyResponse, error) {
@@ -67,7 +68,12 @@ func makeSupplyDetail(details *model.SupplyDetails, now time.Time) dto.SupplyDet
 			value := item.Expiry.ProducedAt.UTC()
 			produced = &value
 		}
-		status, seconds := calculateBatchStatus(item.RemainingQuantity, expires, now, details.ExpiringThresholdHours)
+		status, seconds := batchservice.CalculateStatus(
+			item.RemainingQuantity,
+			expires,
+			now,
+			details.ExpiringThresholdHours,
+		)
 		result.Items = append(result.Items, dto.SupplyDetailItem{
 			Product: dto.ProductBrief{
 				ID:          item.ProductID,
@@ -94,28 +100,4 @@ func makeSupplyDetail(details *model.SupplyDetails, now time.Time) dto.SupplyDet
 		})
 	}
 	return result
-}
-
-func calculateBatchStatus(remainingQtyStr string, expiresAt, now time.Time, thresholdHours int) (string, int64) {
-	// Floor the signed difference without overflowing time.Duration for distant dates.
-	remSec := expiresAt.Unix() - now.Unix()
-	if expiresAt.Nanosecond() < now.Nanosecond() {
-		remSec--
-	}
-
-	// Если остаток 0 -> depleted
-	if remainingQtyStr == "0.000" || remainingQtyStr == "0" {
-		return "depleted", remSec
-	}
-
-	// Если срок истёк -> expired
-	if !expiresAt.After(now) {
-		return "expired", remSec
-	}
-
-	if !expiresAt.After(now.Add(time.Duration(thresholdHours) * time.Hour)) {
-		return "expiring", remSec
-	}
-
-	return "valid", remSec
 }

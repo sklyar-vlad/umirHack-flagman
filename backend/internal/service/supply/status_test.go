@@ -3,6 +3,8 @@ package supply
 import (
 	"testing"
 	"time"
+
+	batchservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/batch"
 )
 
 func TestCalculateBatchStatus(t *testing.T) {
@@ -25,7 +27,7 @@ func TestCalculateBatchStatus(t *testing.T) {
 		{"distant date", "1.125", time.Date(9999, 12, 31, 12, 0, 0, 500000000, time.UTC), "valid", 251610624000},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			status, seconds := calculateBatchStatus(test.quantity, test.expires, now, 48)
+			status, seconds := batchservice.CalculateStatus(test.quantity, test.expires, now, 48)
 			if status != test.status || seconds != test.seconds {
 				t.Fatalf("got %s, %d; want %s, %d", status, seconds, test.status, test.seconds)
 			}

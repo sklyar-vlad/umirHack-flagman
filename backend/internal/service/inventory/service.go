@@ -8,6 +8,7 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/dto"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
+	batchservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/batch"
 )
 
 type Repository interface {
@@ -74,7 +75,7 @@ func (s *Service) ListInventory(ctx context.Context, filter model.InventoryFilte
 		}
 		if it.NearestExpiresAt != nil {
 			value := it.NearestExpiresAt.UTC().Format(time.RFC3339Nano)
-			seconds := remainingSeconds(*it.NearestExpiresAt, now)
+			seconds := batchservice.RemainingSeconds(*it.NearestExpiresAt, now)
 			item.NearestExpiresAt = &value
 			item.RemainingSeconds = &seconds
 		}
@@ -98,7 +99,7 @@ func (s *Service) ListInventory(ctx context.Context, filter model.InventoryFilte
 			Unit:              b.Unit,
 			Status:            status,
 			ExpiresAt:         b.ExpiresAt.UTC().Format(time.RFC3339Nano),
-			RemainingSeconds:  remainingSeconds(b.ExpiresAt, now),
+			RemainingSeconds:  batchservice.RemainingSeconds(b.ExpiresAt, now),
 		})
 	}
 	return &dto.InventoryListResponse{
@@ -112,12 +113,4 @@ func (s *Service) ListInventory(ctx context.Context, filter model.InventoryFilte
 		},
 		AttentionBatches: attention, AttentionTotal: result.AttentionTotal,
 	}, nil
-}
-
-func remainingSeconds(expires, now time.Time) int64 {
-	seconds := expires.Unix() - now.Unix()
-	if expires.Nanosecond() < now.Nanosecond() {
-		seconds--
-	}
-	return seconds
 }

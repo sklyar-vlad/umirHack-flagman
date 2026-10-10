@@ -15,16 +15,19 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/config"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/handler"
 	authhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auth"
+	batchhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/batch"
 	inventoryhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/inventory"
 	producthandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/product"
 	supplyhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/supply"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 	authrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auth"
+	batchrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/batch"
 	inventoryrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/inventory"
 	productrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/product"
 	supplyrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/supply"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service"
 	authservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auth"
+	batchservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/batch"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
 	inventoryservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/inventory"
 	productservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/product"
@@ -67,6 +70,7 @@ func main() {
 	hand := handler.NewHandler(supplyhandler.NewHandler(serv), access, logger)
 	products := productservice.NewService(productrepository.NewRepository(), repo)
 	inventory := inventoryservice.NewService(inventoryrepository.NewRepository(), repo)
+	batches := batchservice.NewService(batchrepository.NewRepository(), repo)
 	cleanupCtx, cancelCleanup := context.WithCancel(context.Background())
 	cleanupDone := make(chan struct{})
 	go func() {
@@ -98,6 +102,7 @@ func main() {
 	handler.RegisterRoutes(api, hand)
 	handler.RegisterProductRoutes(api, producthandler.NewHandler(products), access)
 	handler.RegisterInventoryRoutes(api, inventoryhandler.NewHandler(inventory), access)
+	handler.RegisterBatchRoutes(api, batchhandler.NewHandler(batches), access)
 
 	server := &http.Server{
 		Addr:         net.JoinHostPort("", cfg.Server.Port),

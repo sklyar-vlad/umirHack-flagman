@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
+	batchservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/batch"
 )
 
 type transactionStub struct {
@@ -100,7 +101,7 @@ func TestRemainingSecondsFloorsAndDoesNotOverflowDuration(t *testing.T) {
 		{"far future", time.Date(9999, 12, 31, 0, 0, 0, 0, time.UTC), 251610580799},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			if got := remainingSeconds(test.expires, now); got != test.want {
+			if got := batchservice.RemainingSeconds(test.expires, now); got != test.want {
 				t.Fatalf("seconds %d; want %d", got, test.want)
 			}
 		})

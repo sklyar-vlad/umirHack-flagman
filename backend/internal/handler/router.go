@@ -36,3 +36,11 @@ type InventoryHandler interface {
 func RegisterInventoryRoutes(group *gin.RouterGroup, h InventoryHandler, access ProductAccess) {
 	group.GET("/inventory", access.RequireProductReadAccess, h.ListInventory)
 }
+
+type BatchHandler interface {
+	ListBatches(*gin.Context)
+}
+
+func RegisterBatchRoutes(group *gin.RouterGroup, h BatchHandler, access ProductAccess) {
+	group.GET("/products/:id/batches", access.RequireProductReadAccess, h.ListBatches)
+}

@@ -67,6 +67,7 @@ func (r *Repository) List(
 	if len(conditions) > 0 {
 		where = " WHERE " + strings.Join(conditions, " AND ")
 	}
+	// Search and category define the scope shared by items, counts, and attention batches.
 	selected := `SELECT p.id,p.name,p.unit::text,p.display_unit::text,p.is_active,p.target_stock,
 		c.id AS category_id,c.name AS category_name
 		FROM products p JOIN product_categories c ON c.id=p.category_id` + where
@@ -90,6 +91,7 @@ func (r *Repository) List(
 		Items:            make([]model.InventoryItem, 0),
 		AttentionBatches: make([]model.InventoryAttentionBatch, 0),
 	}
+	// Count overlapping quantity predicates before applying the selected filter or pagination.
 	if err := tx.QueryRow(ctx, cte+`SELECT COUNT(*),COUNT(*) FILTER (WHERE expiring_quantity>0),
 		COUNT(*) FILTER (WHERE expired_quantity>0),COUNT(*) FILTER (WHERE available_quantity=0),
 		COUNT(*) FILTER (WHERE deficit_quantity>0) FROM aggregated`, args...).Scan(
@@ -168,6 +170,7 @@ func (r *Repository) List(
 	return result, nil
 }
 
+// A product's primary badge does not describe all its stock: predicates must use quantities.
 func inventoryCondition(filter string) (string, error) {
 	switch filter {
 	case "", "all":

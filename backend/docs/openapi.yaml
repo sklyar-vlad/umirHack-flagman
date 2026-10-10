@@ -6,7 +6,7 @@ info:
     name: Команда проекта Кладовая
   description: |
     Стартовый контракт S02-T04 на основе REST API из README.md.
-    Реализованы GET /healthcheck, GET /products, GET /inventory,
+    Реализованы GET /healthcheck, GET /products, GET /products/{id}/batches, GET /inventory,
     POST /supplies, GET /supplies и GET /supplies/{id}.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
@@ -158,13 +158,90 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/Unavailable'
+  /products/{id}/batches:
+    get:
+      tags: [Inventory]
+      operationId: listProductBatches
+      summary: Получить партии продукта с текущими остатками и сроками
+      description: |
+        Реализовано в S07-T04. Доступно всем четырём ролям при действующей сессии.
+        Без status возвращаются все ненулевые партии; status=all включает израсходованные.
+        Партии отключённых продуктов доступны. Неизвестный продукт — 404;
+        существующий продукт без подходящих партий — 200 с items: [].
+        supply_id и status объединяются через AND; неизвестная поставка даёт пустой список.
+        По умолчанию expires_at ASC, id ASC; sort=-created_at — created_at DESC, id ASC.
+        total считается после фильтров, до пагинации, в том же снимке, что и страница.
+        Статусы и оставшиеся секунды рассчитываются на одно T = meta.server_time.
+        depleted имеет приоритет при нулевом остатке; иначе expires_at <= T — expired,
+        T < expires_at <= T + expiring_threshold_hours — expiring, позже — valid.
+        При expires_at = T статус expired (или depleted при нуле), remaining_seconds = 0.
+        Порог из настроек ресторана, без строки настроек — 24 часа.
+        remaining_seconds — floor((expires_at - T) / 1s), в том числе у depleted.
+        Фактический срок не пересчитывается по стандарту продукта; даты ответа — UTC.
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          description: Без параметра — ненулевые партии; all включает depleted
+          schema: {type: string, enum: [all, valid, expiring, expired, depleted]}
+          example: all
+        - name: supply_id
+          in: query
+          description: Ограничить партии данного продукта одной поставкой
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: sort
+          in: query
+          schema: {type: string, enum: [expires_at, '-created_at'], default: expires_at}
+      responses:
+        '200':
+          description: Партии после фильтров; пустая выборка также успешна
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchListResponse'
+              examples:
+                batches:
+                  $ref: '#/components/examples/BatchList'
+                empty:
+                  value:
+                    items: []
+                    total: 0
+                    page: 1
+                    page_size: 50
+                    meta: {server_time: '2026-10-10T12:00:00Z'}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
   /inventory:
     get:
       tags: [Inventory]
       operationId: listInventory
       summary: Получить остатки, статусы продуктов и проблемные партии
       description: |
-        Реализовано в S07-T02. Включает продукты без партий и неактивные продукты.
+        Агрегаты реализованы в S07-T02, поиск и фильтры проверены в S07-T03.
+        Включает продукты без партий и неактивные продукты.
         Доступно всем четырём ролям. counts учитывает поиск и категорию,
         но игнорирует filter и пагинацию; фильтры пересекаются.
         attention_batches — первые 20 проблемных партий по expires_at, id
@@ -185,6 +262,11 @@ paths:
         - $ref: '#/components/parameters/CategoryID'
         - name: filter
           in: query
+          description: |
+            Фильтрация по количествам независимо от основного status продукта.
+            expiring: expiring_quantity > 0; expired: expired_quantity > 0;
+            out_of_stock: available_quantity = 0; deficit: deficit_quantity > 0.
+            Продукт может одновременно входить в несколько фильтров.
           schema:
             type: string
             enum: [all, expiring, expired, out_of_stock, deficit]
@@ -942,6 +1024,10 @@ components:
     InventoryCounts:
       type: object
       required: [all, expiring, expired, out_of_stock, deficit]
+      description: |
+        Число продуктов в области search AND category_id до filter и пагинации.
+        Каждый признак считается независимо по тем же количествам, что и фильтр.
+        all — все продукты этой области; остальные счётчики могут пересекаться.
       properties:
         all: {type: integer, format: int64, minimum: 0}
         expiring: {type: integer, format: int64, minimum: 0}
@@ -950,6 +1036,10 @@ components:
         deficit: {type: integer, format: int64, minimum: 0}
     AttentionBatch:
       type: object
+      description: |
+        Партия с положительным текущим остатком и собственным просроченным или
+        истекающим сроком. status относится к партии, независимо от бейджа продукта.
+        remaining_seconds = floor((expires_at - meta.server_time) / 1s).
       required: [batch_id, product_id, product_name, supply_id, supply_number, line_number, remaining_quantity, unit, status, expires_at, remaining_seconds]
       properties:
         batch_id:
@@ -1043,6 +1133,10 @@ components:
         name: {type: string}
     Batch:
       type: object
+      description: |
+        Текущая партия. Статус depleted имеет приоритет при нулевом остатке.
+        expires_at <= meta.server_time означает expired для положительного остатка.
+        Равенство сроку даёт remaining_seconds = 0; просрочка менее секунды — -1.
       required: [id, product_id, unit, supply, line_number, initial_quantity, remaining_quantity, produced_at, shelf_life_hours, expiry_source, expires_at, remaining_seconds, status, created_at]
       properties:
         id:
@@ -1077,6 +1171,20 @@ components:
           type: string
           format: date-time
           description: Время создания записи партии в системе
+    BatchListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ListEnvelope'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Batch'
+            meta:
+              allOf:
+                - $ref: '#/components/schemas/Meta'
+                - type: object
+                  required: [server_time]
     SupplySummary:
       type: object
       required: [id, number, created_at, received_at, items_count, created_by, status]
@@ -1545,6 +1653,82 @@ components:
         page: 1
         page_size: 50
         meta: {}
+    BatchList:
+      summary: status=all — все четыре статуса, включая точную границу срока
+      value:
+        items:
+          - id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1
+            product_id: 11111111-1111-4111-8111-111111111111
+            unit: g
+            supply:
+              id: 44444444-4444-4444-8444-444444444444
+              number: '104'
+              received_at: '2026-10-07T12:00:00Z'
+            line_number: 1
+            initial_quantity: '3.000'
+            remaining_quantity: '0.000'
+            produced_at: null
+            shelf_life_hours: null
+            expiry_source: explicit
+            expires_at: '2026-10-10T11:00:00Z'
+            remaining_seconds: -3600
+            status: depleted
+            created_at: '2026-10-07T12:00:00Z'
+          - id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2
+            product_id: 11111111-1111-4111-8111-111111111111
+            unit: g
+            supply:
+              id: 44444444-4444-4444-8444-444444444444
+              number: '104'
+              received_at: '2026-10-07T12:00:00Z'
+            line_number: 2
+            initial_quantity: '3.000'
+            remaining_quantity: '3.000'
+            produced_at: null
+            shelf_life_hours: null
+            expiry_source: explicit
+            expires_at: '2026-10-10T12:00:00Z'
+            remaining_seconds: 0
+            status: expired
+            created_at: '2026-10-07T12:00:00Z'
+          - id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3
+            product_id: 11111111-1111-4111-8111-111111111111
+            unit: g
+            supply:
+              id: 44444444-4444-4444-8444-444444444444
+              number: '104'
+              received_at: '2026-10-07T12:00:00Z'
+            line_number: 3
+            initial_quantity: '3.000'
+            remaining_quantity: '3.000'
+            produced_at: null
+            shelf_life_hours: null
+            expiry_source: explicit
+            expires_at: '2026-10-11T12:00:00Z'
+            remaining_seconds: 86400
+            status: expiring
+            created_at: '2026-10-07T12:00:00Z'
+          - id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4
+            product_id: 11111111-1111-4111-8111-111111111111
+            unit: g
+            supply:
+              id: 44444444-4444-4444-8444-444444444444
+              number: '104'
+              received_at: '2026-10-07T12:00:00Z'
+            line_number: 4
+            initial_quantity: '3.000'
+            remaining_quantity: '3.000'
+            produced_at: null
+            shelf_life_hours: null
+            expiry_source: explicit
+            expires_at: '2026-10-12T12:00:00Z'
+            remaining_seconds: 172800
+            status: valid
+            created_at: '2026-10-07T12:00:00Z'
+        total: 4
+        page: 1
+        page_size: 50
+        meta: {server_time: '2026-10-10T12:00:00Z'}
     InventoryList:
       summary: Истекающий остаток и рекомендация пополнения до целевого запаса
       value:
