@@ -8,9 +8,15 @@ import (
 	"go.uber.org/zap"
 )
 
-type db interface {
-	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+type DBTX interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+type db interface {
+	DBTX
+	BeginTx(ctx context.Context, options pgx.TxOptions) (pgx.Tx, error)
 }
 
 type repository struct {
@@ -19,5 +25,16 @@ type repository struct {
 }
 
 func NewRepository(pool db, logger *zap.Logger) *repository {
-	return &repository{pool: pool, logger: logger}
+	return &repository{
+		pool:   pool,
+		logger: logger,
+	}
 }
+
+// func (r *repository) executor(tx DBTX) DBTX {
+// 	if tx != nil {
+// 		return tx
+// 	}
+
+// 	return r.pool
+// }

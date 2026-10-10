@@ -1,9 +1,19 @@
 package service
 
-import "go.uber.org/zap"
+import (
+	"context"
 
-// Repository will define the persistence operations used by the service.
-type Repository interface{}
+	"github.com/jackc/pgx/v5"
+	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
+	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
+	"go.uber.org/zap"
+)
+
+type Repository interface {
+	WithinTx(ctx context.Context, options *pgx.TxOptions, fn func(tx repository.DBTX) error) error
+	AppendAudit(ctx context.Context, tx repository.DBTX, entry *model.AuditEntry) error
+	AppendOutbox(ctx context.Context, tx repository.DBTX, event *model.OutboxEvent) error
+}
 
 type service struct {
 	repo   Repository

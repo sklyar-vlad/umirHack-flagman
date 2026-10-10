@@ -305,3 +305,100 @@ UUID-фильтры (`category_id`, `supply_id`, `actor_id`, `entity_id`, `produ
 9. Сформировать `dto.ListResponse` либо единый ответ с ошибкой.
 
 Общий механизм разбора и контракт параметров относятся к S02-T02, подключённые request ID, логирование и преобразование ошибок — к S02-T03, стартовый OpenAPI и правило единого `404` — к S02-T04. Применение этих механизмов к бизнес-спискам реализуется в соответствующих предметных стори вместе с обновлением OpenAPI.
+
+## Транзакционные аудит и outbox — S03-T05
+
+Реализованы операции `Repository.AppendAudit(ctx, tx, entry)` и `Repository.AppendOutbox(ctx, tx, event)`. Их контракт включён в интерфейс repository, используемый service. Типы записей и безопасных снимков находятся в `internal/model/events.go`, SQL и проверки — в `internal/repository/events.go`.
+
+Обе операции требуют явно переданный `pgx.Tx`, полученный, например, внутри `WithinTx`. Передача пула, `nil` или указателя на nil-транзакцию возвращает `repository.ErrTransactionRequired`. Завершённую транзакцию отклоняет pgx при выполнении SQL. Helpers не открывают отдельную транзакцию и не вызывают commit: предметные записи, аудит и outbox должны использовать один и тот же `tx`.
+
+### Автор, request ID и время
+
+- `ActorID` передаётся сервисом из проверенной сервером личности пользователя. Его нельзя брать из JSON запроса. `nil` означает системную операцию; нулевой UUID отклоняется. Автор проверяется FK на `users` при вставке.
+- `request_id` берётся из `requestctx.ID(ctx)`. HTTP middleware уже устанавливает его в контекст. Для фоновой операции можно назначить собственный ID через `requestctx.WithID`; если ID отсутствует, в аудите сохраняется SQL `NULL`, а поле в payload outbox опускается.
+- Request ID ограничен 128 символами согласно схеме; невалидный UTF-8 и нулевой символ отклоняются.
+- `created_at` задаётся базой через `clock_timestamp()`. `occurred_at` в payload outbox задаётся сервером в UTC при подготовке события. Эти поля не принимаются из клиентского запроса.
+
+### Разрешённые данные аудита
+
+`AuditEntry.Before` и `AuditEntry.After` принимают только конкретные указатели на перечисленные ниже снимки. Repository проверяет точный тип снимка и его соответствие `EntityType` перед JSON-сериализацией. Maps, произвольный JSON, расширенные структуры с дополнительными полями и собственными JSON-marshalers не принимаются.
+
+| EntityType | Тип снимка | Разрешённые поля |
+|---|---|---|
+| `product_category` | `CategoryAuditSnapshot` | `name`, `revision` |
+| `product` | `ProductAuditSnapshot` | `name`, `category_id`, `unit`, `display_unit`, `standard_shelf_life_hours`, `target_stock`, `is_active`, `revision` |
+| `dish` | `DishAuditSnapshot` | `name`, `description`, `is_active`, `revision`, `recipe_version_id`, `recipe_version`, `recipe` с `product_id` и `quantity_per_portion` |
+| `supply` | `SupplyAuditSnapshot` | `number`, `received_at`, `batches` с ID, номером строки, количествами и параметрами срока годности |
+| `order` | `OrderAuditSnapshot` | `number`, `items` с ID блюда/версии рецепта, снимком названия и порциями |
+| `stock_movement` | `StockMovementAuditSnapshot` | `batch_id`, `order_item_id`, `type`, `delta_quantity`, `remaining_quantity_after`, `product_name_snapshot`, `unit_snapshot`, `note` |
+| `user` | `UserAuditSnapshot` | `name`, `email`, `role`, `is_active`, `revision` |
+| `settings` | `SettingsAuditSnapshot` | `restaurant_name`, `timezone`, `expiring_threshold_hours`, `auto_writeoff_expired`, `revision` |
+
+Количество в снимках задаётся строками. Снимки строятся явно из уже проверенных/сохранённых данных; helpers не заменяют предметную проверку количеств, порций или сроков. Даты в снимках следует передавать в UTC, а пустые коллекции инициализировать как `[]`.
+
+Для всех объектов, кроме singleton-настроек, нужен ненулевой `EntityID`. Для `settings` передаётся `EntityID: nil`, поскольку ID настроек в схеме — integer `1`, а поле ID объекта аудита — UUID.
+
+| Action | Разрешённые EntityType |
+|---|---|
+| `create` | `product_category`, `product`, `dish`, `supply`, `order`, `user` |
+| `update` | `product_category`, `product`, `dish`, `user`, `settings` |
+| `password_change` | `user` |
+| `manual_writeoff`, `expiration` | `stock_movement` |
+
+Для `create` поле `Before` отсутствует. Для `update` и `password_change` нужны оба снимка. `After` обязателен для всех разрешённых действий. Отсутствующий `Before` сохраняется как SQL `NULL`; указатель на nil-снимок внутри интерфейса отклоняется.
+
+В снимках нет полей `password`, `password_hash`, `initial_password`, `new_password`, токенов сессии/CSRF, cookie или заголовков авторизации. Для смены пароля сохраняются действие и разрешённые пользовательские поля, например изменившаяся ревизия. Передавать секреты через разрешённые текстовые поля тоже нельзя: сервис формирует снимок из конкретных предметных полей, а не из полного запроса или модели хранения.
+
+### Разрешённые события и темы outbox
+
+`OutboxEvent` принимает тип события, автора и списки UUID. Произвольного `payload` или параметра `topics` в операции записи нет. Repository формирует `OutboxPayload`: `occurred_at`, необязательный `request_id`, `topics` и непустые списки `product_ids`, `batch_ids`, `dish_ids`, `category_ids`, `supply_ids`, `order_ids`, `user_ids`. Нулевые UUID отклоняются.
+
+Базовые темы пересчёта склада: `inventory`, `batches`, `dashboard`, `dishes`, `stop-list`, `hot-offers`, `procurement-recommendations`.
+
+| EventType | Темы |
+|---|---|
+| `inventory.changed` | Базовые темы и `stock-movements`; при наличии `supply_ids` добавляется `supplies`, при `order_ids` — `orders` |
+| `inventory.time_changed` | Базовые темы |
+| `products.changed` | Базовые темы и `products` |
+| `product_categories.changed` | `product-categories`, `products` |
+| `dishes.changed` | `dishes`, `stop-list`, `hot-offers`, `dashboard`, `procurement-recommendations` |
+| `settings.changed` | Базовые темы и `settings` |
+| `users.changed` | `users`; нужен хотя бы один `user_ids`, остальные списки ID запрещены |
+
+Неизвестные типы событий отклоняются. `user_ids` разрешены только в событии `users.changed`. Чтобы расширить список событий, полей или тем, нужно явно изменить типы, правила repository и этот контракт.
+
+`cursor` и `published_at` при вставке не задаются и остаются SQL `NULL`. Sequence cursor вызывает будущий сериализованный диспетчер после commit предметной транзакции. Запись outbox не отправляет SSE и не назначает номер доставки.
+
+Outbox — внутреннее хранилище. При реализации SSE диспетчер должен отфильтровать темы и соответствующие списки ID по роли получателя; нельзя отправлять сохранённый payload всем пользователям без проекции доступа. До реализации SSE это ограничение относится к будущему коду доставки.
+
+### Подключение к предметной операции
+
+Следующий фрагмент выполняется в service после создания поставки, партий и движений через тот же `tx`. `actorID` — проверенный автор, `supplyID`, `productIDs`, `batchIDs` и `snapshot` — результаты предметной операции:
+
+```go
+return s.repo.WithinTx(ctx, nil, func(tx repository.DBTX) error {
+    // Здесь создаются поставка, партии и движения через этот же tx.
+
+    if err := s.repo.AppendAudit(ctx, tx, &model.AuditEntry{
+        ActorID:    actorID,
+        Action:     model.AuditCreate,
+        EntityType: model.AuditSupply,
+        EntityID:   &supplyID,
+        After:      snapshot, // *model.SupplyAuditSnapshot
+    }); err != nil {
+        return err
+    }
+
+    return s.repo.AppendOutbox(ctx, tx, &model.OutboxEvent{
+        Type:       model.InventoryChanged,
+        ActorID:    actorID,
+        ProductIDs: productIDs,
+        BatchIDs:   batchIDs,
+        SupplyIDs:  []uuid.UUID{supplyID},
+    })
+})
+```
+
+Ошибка любой записи должна возвращаться из callback: тогда `WithinTx` откатывает всю предметную операцию. Ошибки SQL остаются внутренними; существующий HTTP handler возвращает общий `INTERNAL_ERROR`, а не текст PostgreSQL.
+
+Helpers подготовлены в S03-T05. Их подключение к поставкам, заказам, изменениям справочников/настроек и списаниям выполняется вместе с соответствующими предметными стори. На текущем этапе предметных операций и SSE-диспетчера ещё нет; HTTP-маршруты этим изменением не добавляются.
