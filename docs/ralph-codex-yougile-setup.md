@@ -685,9 +685,14 @@ ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / ".ralph" / "quota.json"
 PAUSED = ROOT / ".ralph" / "paused.json"
 RESERVE = 5
+PAUSE_METADATA = "workflow_pause"
 
 
 class QuotaUnavailable(RuntimeError):
+    pass
+
+
+class TaskStateUnavailable(RuntimeError):
     pass
 
 
@@ -855,17 +860,80 @@ def stop_workflow(process):
             process.wait()
 
 
+def beads(*args):
+    try:
+        result = subprocess.run(["bd", "--sandbox", *args], cwd=ROOT,
+                                capture_output=True, text=True, timeout=10, check=True)
+        return result.stdout
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise TaskStateUnavailable("Could not update local task state") from exc
+
+
+def task_metadata(task):
+    metadata = task.get("metadata") or {}
+    if isinstance(metadata, str):
+        metadata = json.loads(metadata)
+    return dict(metadata)
+
+
+def owned_pause(task):
+    marker = task_metadata(task).get(PAUSE_METADATA)
+    return (isinstance(marker, dict) and marker.get("owner") == "local_workflow"
+            and marker.get("previous_status") == "in_progress")
+
+
+def block_active_tasks(reason):
+    """Block only work owned by this queue; leave waiting and closed tasks intact."""
+    blocked = []
+    for task in json.loads(beads("list", "--all", "--limit", "0", "--json")):
+        if not task.get("external_ref", "").startswith("yougile:"):
+            continue
+        if task["status"] == "blocked" and owned_pause(task):
+            blocked.append(task)
+            continue
+        if task["status"] != "in_progress":
+            continue
+        metadata = task_metadata(task)
+        marker = {"owner": "local_workflow", "previous_status": "in_progress",
+                  "reason": reason["reason"], "paused_at": reason["paused_at"]}
+        if reason.get("window"):
+            marker["window"] = reason["window"]
+        metadata[PAUSE_METADATA] = marker
+        note = "Пауза выполнения: " + reason["reason"] + "."
+        if reason.get("window"):
+            note += " Остаток квоты: " + str(reason["window"]["remaining_percent"]) + "%."
+        beads("update", task["id"], "--if-status", "in_progress", "--status", "blocked",
+              "--metadata", json.dumps(metadata), "--append-notes", note)
+        blocked.append({**task, "status": "blocked", "metadata": metadata})
+    return blocked
+
+
+def resume_paused_tasks():
+    """Restore the guard's own pauses after a successful fresh quota check."""
+    for task in json.loads(beads("list", "--all", "--limit", "0", "--json")):
+        if (task.get("external_ref", "").startswith("yougile:")
+                and task["status"] == "blocked" and owned_pause(task)):
+            beads("update", task["id"], "--if-status", "blocked", "--status", "in_progress",
+                  "--unset-metadata", PAUSE_METADATA, "--append-notes",
+                  "Работа возобновлена после проверки квоты.")
+
+
 def checkpoint(reason):
     value = {"status": "paused", "paused_at": int(time.time()), **reason}
+    # Persist the reason before touching Beads, even if task synchronization fails.
+    write_json(PAUSED, value)
     for name, args in (("head", ["git", "rev-parse", "HEAD"]),
-                       ("working_tree", ["git", "status", "--porcelain"]),
-                       ("tasks", ["bd", "--sandbox", "list", "--status", "in_progress", "--json"])):
+                       ("working_tree", ["git", "status", "--porcelain"])):
         try:
             result = subprocess.run(args, cwd=ROOT, capture_output=True, text=True, timeout=15)
             if result.returncode == 0:
-                value[name] = json.loads(result.stdout) if name == "tasks" else result.stdout.strip()
+                value[name] = result.stdout.strip()
         except (OSError, ValueError, subprocess.TimeoutExpired):
             pass
+    try:
+        value["tasks"] = block_active_tasks(value)
+    except (TaskStateUnavailable, ValueError, TypeError) as exc:
+        value["task_state_error"] = str(exc)
     write_json(PAUSED, value)
     print("Workflow paused; files and unfinished tasks are preserved. Use the resume launcher.", flush=True)
 
@@ -897,6 +965,7 @@ def main():
         if reason:
             checkpoint(reason)
             return 0
+        resume_paused_tasks()
         PAUSED.unlink(missing_ok=True)
         if prepare:
             result = subprocess.run([str(ROOT / "scripts/yougile-queue.sh"), "prepare"],
@@ -925,14 +994,15 @@ def main():
                     break
                 time.sleep(0.5)
         return process.returncode
-    except (QuotaUnavailable, OSError) as exc:
+    except (QuotaUnavailable, TaskStateUnavailable, OSError) as exc:
         if read_only:
             print("Quota status is temporarily unavailable; the running workflow is unchanged.", file=sys.stderr)
             return 1
         if process is not None and process.poll() is None:
             stop_workflow(process)
-        checkpoint({"reason": "quota_unavailable", "detail": str(exc) if isinstance(exc, QuotaUnavailable) else "Local quota reader failed"})
-        return 0
+        reason = "task_state_unavailable" if isinstance(exc, TaskStateUnavailable) else "quota_unavailable"
+        checkpoint({"reason": reason, "detail": str(exc) if isinstance(exc, (QuotaUnavailable, TaskStateUnavailable)) else "Local quota reader failed"})
+        return 1 if isinstance(exc, TaskStateUnavailable) else 0
     finally:
         if client:
             client.close()
@@ -977,7 +1047,7 @@ case "${1:-status}" in
     status)
         systemctl --user show "$unit.service" --property=ActiveState,SubState,MainPID
         if [[ -f .ralph/quota.json ]]; then jq . .ralph/quota.json; fi
-        if [[ -f .ralph/paused.json ]]; then jq '{status,reason,window,detail,paused_at}' .ralph/paused.json; fi
+        if [[ -f .ralph/paused.json ]]; then jq '{status,reason,window,detail,paused_at,task_state_error,tasks:[.tasks[]? | {id,status}]}' .ralph/paused.json; fi
         ;;
     *) printf 'Usage: %s start|resume|pause|status\n' "$0" >&2; exit 1 ;;
 esac
@@ -1068,8 +1138,13 @@ Launcher запускает Ralph через `scripts/quota_guard.py`. Конт�
 перед запуском и раз в 15 секунд. При остатке 5% или меньше в пятичасовом
 или недельном окне текущая сессия Codex прерывается, Ralph останавливается,
 а `.ralph/paused.json` сохраняет причину, HEAD, изменённые файлы и задачи.
-Завершение story не требуется для паузы; текущая остаётся в In progress,
-незавершённый код сохраняется, проверки повторяются после продолжения.
+Завершение story не требуется для паузы. В YouGile она остаётся в In progress.
+В Beads активная story и начатые подзадачи становятся blocked; причина
+сохраняется в notes и metadata workflow_pause. Ожидающие подзадачи остаются
+open, завершённые остаются closed. Незавершённый код сохраняется,
+проверки повторяются после продолжения. При возобновлении только задачи
+с собственным маркером паузы возвращаются в in_progress; другие блокеры
+launcher не снимает.
 При недоступности данных квоты цикл также останавливается с сохранением.
 
 После восстановления квоты:
@@ -1116,6 +1191,7 @@ Exec=/bin/bash /absolute/path/to/project/scripts/workflow-control.sh pause
 ```bash
 bd --sandbox list --all
 bd --sandbox ready
+bd --sandbox list --status blocked
 bd --sandbox blocked
 tail -f .ralph/agent-console.log
 cat .ralph/runs/latest/run.json
@@ -1129,6 +1205,9 @@ git ls-files .serena .beads .beads.gate.lock
 ```
 
 Последняя команда должна ничего не вывести. После остановки изучите причину
+паузы в `bd --sandbox list --status blocked`: команда `bd blocked` в выбранной
+версии показывает блокирующие зависимости, а не все задачи с этим статусом.
+После остановки изучите причину
 в журнале и Beads. Не закрывайте заблокированную story вручную для обхода
 проверки. Исправив окружение или причину, повторно запустите launcher:
 он продолжит с незавершённой локальной story.

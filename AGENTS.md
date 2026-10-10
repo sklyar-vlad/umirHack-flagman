@@ -71,6 +71,11 @@ The user authorizes implementation, tests, commits, and YouGile task transitions
 - The quota guard pauses the workflow when the five-hour or weekly Codex quota
   has at most 5% remaining. Preserve unfinished code and Beads status. On restart,
   inspect the working tree and the current story; repeat verification before closing.
+  During a pause, active stories and subtasks become `blocked` with a
+  `workflow_pause` marker and a recorded reason. After a successful quota check,
+  the launcher restores only its own paused tasks to `in_progress`. Keep other
+  blockers intact. YouGile's unfinished story stays in `In progress`.
+  Resume existing `in_progress` subtasks before claiming new ready work.
 
 Beads uses this repository's local `.beads` database. The local Ralph
 compatibility overrides make Ralph use the same database instead of an

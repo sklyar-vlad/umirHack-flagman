@@ -30,7 +30,7 @@ case "${1:-status}" in
     status)
         systemctl --user show "$unit.service" --property=ActiveState,SubState,MainPID
         if [[ -f .ralph/quota.json ]]; then jq . .ralph/quota.json; fi
-        if [[ -f .ralph/paused.json ]]; then jq '{status,reason,window,detail,paused_at}' .ralph/paused.json; fi
+        if [[ -f .ralph/paused.json ]]; then jq '{status,reason,window,detail,paused_at,task_state_error,tasks:[.tasks[]? | {id,status}]}' .ralph/paused.json; fi
         ;;
     *) printf 'Usage: %s start|resume|pause|status\n' "$0" >&2; exit 1 ;;
 esac
