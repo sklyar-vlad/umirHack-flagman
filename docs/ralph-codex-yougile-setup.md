@@ -202,7 +202,7 @@ __pycache__/
 ```bash
 git rm --cached -r --ignore-unmatch -- .serena .beads .beads.gate.lock
 git add -- .gitignore
-git commit -m "chore(git): ignore local agent state"
+git commit -m "chore(git): exclude local workspace metadata"
 ```
 
 Локальные файлы останутся на диске. История не переписывается. Удаление из
@@ -329,12 +329,16 @@ export MAX_CONSECUTIVE_FAILURES="${MAX_CONSECUTIVE_FAILURES:-3}"
 # Require Serena at startup instead of silently continuing without navigation.
 _build_ai_cmd() {
     local tool="$1" model="$2"
+    if [[ -f "$PROJECT_DIR/.ralph/paused.json" ]]; then
+        log_error "Workflow paused. Start it again after the quota recovers."
+        return 1
+    fi
     if [[ "$tool" != codex ]]; then
         log_error "This configuration supports the Codex executor only."
         return 1
     fi
     _AI_STDIN=0
-    _AI_CMD=(codex exec --approve-for-me -s workspace-write --color never
+    _AI_CMD=(codex exec --approve-for-me --color never
         -c mcp_servers.serena.required=true -c mcp_servers.yougile.required=true)
     [[ -z "$model" ]] || _AI_CMD+=(--model "$model")
     return 0
@@ -377,7 +381,7 @@ backlog_drained() {
 }
 
 commit_task_state() {
-    _bd dolt commit -m "${1:-Agent iteration sync}"
+    _bd dolt commit -m "Workflow iteration sync"
     if [[ "${LAST_VERIFY_OK:-false}" == true ]]; then
         "$PROJECT_DIR/scripts/yougile-queue.sh" prepare
     fi
@@ -615,7 +619,7 @@ if __name__ == "__main__":
 set -euo pipefail
 project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 cd -- "$project_dir"
-for tool in git jq bd codex ralph uvx flock; do
+for tool in git jq bd codex ralph uvx flock python3; do
     command -v "$tool" >/dev/null || { printf 'Missing command: %s\n' "$tool" >&2; exit 1; }
 done
 branch=$(git symbolic-ref --quiet --short HEAD)
@@ -639,15 +643,342 @@ export MENU_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export INVENTORY_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export SUPPLY_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export BATCH_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
-queue_status=$(./scripts/yougile-queue.sh prepare)
-printf '%s\n' "$queue_status"
-if jq -e '.status == "drained"' >/dev/null <<<"$queue_status"; then
-    exit 0
-fi
 if [[ $# -eq 0 ]]; then
     set -- --unattended --no-sandbox --max-iterations 12
 fi
-exec ralph --tool codex "$@"
+exec python3 scripts/quota_guard.py --prepare -- ralph --tool codex "$@"
+```
+
+### Файл `scripts/quota_guard.py`
+
+```python
+#!/usr/bin/env python3
+"""Pause the local workflow with a five-percent subscription quota reserve."""
+from __future__ import annotations
+
+import json
+import math
+import os
+from pathlib import Path
+import select
+import signal
+import subprocess
+import sys
+import time
+
+ROOT = Path(__file__).resolve().parent.parent
+STATE = ROOT / ".ralph" / "quota.json"
+PAUSED = ROOT / ".ralph" / "paused.json"
+RESERVE = 5
+
+
+class QuotaUnavailable(RuntimeError):
+    pass
+
+
+class QuotaClient:
+    """Read usage through the supported app-server account API, without a turn."""
+    def __init__(self):
+        self.process = subprocess.Popen(
+            ["codex", "app-server", "--stdio"], cwd=ROOT,
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, start_new_session=True,
+        )
+        self.buffer = b""
+        self.request_id = 0
+        try:
+            self.request("initialize", {"clientInfo": {
+                "name": "local_quota_guard", "title": "Local quota guard", "version": "1.0.0"
+            }})
+            self.send({"method": "initialized", "params": {}})
+        except Exception:
+            self.close()
+            raise
+
+    def send(self, message):
+        try:
+            self.process.stdin.write((json.dumps(message) + "\n").encode())
+            self.process.stdin.flush()
+        except (BrokenPipeError, OSError) as exc:
+            raise QuotaUnavailable("Quota connection closed") from exc
+
+    def request(self, method, params=None):
+        self.request_id += 1
+        message = {"id": self.request_id, "method": method}
+        if params is not None:
+            message["params"] = params
+        self.send(message)
+        deadline = time.monotonic() + 25
+        while time.monotonic() < deadline:
+            if b"\n" not in self.buffer:
+                readable, _, _ = select.select([self.process.stdout], [], [], max(0, deadline-time.monotonic()))
+                if not readable:
+                    break
+                chunk = os.read(self.process.stdout.fileno(), 65536)
+                if not chunk:
+                    break
+                self.buffer += chunk
+                continue
+            line, self.buffer = self.buffer.split(b"\n", 1)
+            try:
+                response = json.loads(line)
+            except ValueError:
+                continue
+            if response.get("id") != self.request_id:
+                continue
+            if "error" in response:
+                # Never print account responses, authentication or raw server errors.
+                raise QuotaUnavailable("Quota API rejected the request")
+            return response.get("result", {})
+        raise QuotaUnavailable("Quota API did not respond within 25 seconds")
+
+    def read(self):
+        for attempt in range(3):
+            try:
+                return summarize(self.request("account/rateLimits/read"))
+            except QuotaUnavailable:
+                if attempt == 2:
+                    raise
+                time.sleep(1)
+
+    def close(self):
+        if self.process.poll() is None:
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait()
+        for stream in (self.process.stdin, self.process.stdout):
+            if stream:
+                stream.close()
+
+
+def summarize(result):
+    buckets = result.get("rateLimitsByLimitId") or {}
+    bucket = buckets.get("codex") or result.get("rateLimits") or {}
+    windows = []
+    for name in ("primary", "secondary"):
+        value = bucket.get(name)
+        if not isinstance(value, dict):
+            continue
+        used, minutes, reset = value.get("usedPercent"), value.get("windowDurationMins"), value.get("resetsAt")
+        if (isinstance(used, bool) or not isinstance(used, (int, float))
+                or not math.isfinite(used) or not 0 <= used <= 100
+                or not isinstance(minutes, int) or minutes <= 0
+                or not isinstance(reset, int) or reset <= 0):
+            raise QuotaUnavailable("Quota API returned an invalid window")
+        windows.append({"name": name, "used_percent": used,
+                        "remaining_percent": 100-used, "window_minutes": minutes, "resets_at": reset})
+    if not any(window["window_minutes"] == 300 for window in windows):
+        raise QuotaUnavailable("The five-hour quota window is unavailable")
+    return {"checked_at": int(time.time()), "reserve_percent": RESERVE, "windows": windows}
+
+
+def pause_reason(quota):
+    for window in quota["windows"]:
+        if window["remaining_percent"] <= RESERVE:
+            return {"reason": "quota_reserve", "window": window}
+    return None
+
+
+def write_json(filename, value):
+    filename.parent.mkdir(parents=True, exist_ok=True)
+    temporary = filename.with_suffix(".tmp")
+    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
+    os.replace(temporary, filename)
+
+
+def descendants(parent):
+    entries = {}
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            stat = (entry / "stat").read_text().rsplit(")", 1)[1].split()
+            entries[int(entry.name)] = (int(stat[1]), stat[19])
+        except (OSError, ValueError, IndexError):
+            pass
+    children, frontier = {}, {parent}
+    while frontier:
+        next_frontier = {pid for pid, (ppid, _) in entries.items() if ppid in frontier and pid not in children}
+        for pid in next_frontier:
+            children[pid] = entries[pid][1]
+        frontier = next_frontier
+    return children
+
+
+def interrupt_executors(parent):
+    # Interrupt only Codex executors owned by this workflow; other sessions continue.
+    executors = []
+    for pid, start_time in descendants(parent).items():
+        try:
+            entry = Path(f"/proc/{pid}")
+            args = (entry / "cmdline").read_bytes().split(b"\0")
+            current_start = (entry / "stat").read_text().rsplit(")", 1)[1].split()[19]
+            if current_start == start_time and Path(os.fsdecode(args[0])).name == "codex" and b"exec" in args:
+                os.kill(pid, signal.SIGINT)
+                executors.append(pid)
+        except (OSError, ValueError, IndexError):
+            pass
+    # Give Codex time to finish interruption and persist its session.
+    deadline = time.monotonic() + 20
+    while executors and time.monotonic() < deadline:
+        executors = [pid for pid in executors if Path(f"/proc/{pid}").exists()]
+        if executors:
+            time.sleep(0.2)
+
+
+def stop_workflow(process):
+    interrupt_executors(process.pid)
+    if process.poll() is None:
+        process.terminate()  # Ralph's EXIT handler cleans its isolated executor groups.
+        try:
+            process.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+
+
+def checkpoint(reason):
+    value = {"status": "paused", "paused_at": int(time.time()), **reason}
+    for name, args in (("head", ["git", "rev-parse", "HEAD"]),
+                       ("working_tree", ["git", "status", "--porcelain"]),
+                       ("tasks", ["bd", "--sandbox", "list", "--status", "in_progress", "--json"])):
+        try:
+            result = subprocess.run(args, cwd=ROOT, capture_output=True, text=True, timeout=15)
+            if result.returncode == 0:
+                value[name] = json.loads(result.stdout) if name == "tasks" else result.stdout.strip()
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            pass
+    write_json(PAUSED, value)
+    print("Workflow paused; files and unfinished tasks are preserved. Use the resume launcher.", flush=True)
+
+
+def main():
+    args = sys.argv[1:]
+    read_only = args == ["--status"]
+    prepare = args[:1] == ["--prepare"]
+    if prepare:
+        args = args[1:]
+    if args[:1] == ["--"]:
+        args = args[1:]
+    if not read_only and not args:
+        raise SystemExit("Usage: quota_guard.py --status | -- COMMAND [ARGS...]")
+    client, process = None, None
+    requested = []
+    def request_stop(signum, _frame):
+        requested.append(signum)
+    signal.signal(signal.SIGTERM, request_stop)
+    signal.signal(signal.SIGINT, request_stop)
+    try:
+        client = QuotaClient()
+        quota = client.read()
+        write_json(STATE, quota)
+        if read_only:
+            print(json.dumps(quota, ensure_ascii=False, indent=2))
+            return 0
+        reason = pause_reason(quota)
+        if reason:
+            checkpoint(reason)
+            return 0
+        PAUSED.unlink(missing_ok=True)
+        if prepare:
+            result = subprocess.run([str(ROOT / "scripts/yougile-queue.sh"), "prepare"],
+                                    cwd=ROOT, capture_output=True, text=True, check=True, timeout=300)
+            print(result.stdout.strip(), flush=True)
+            if json.loads(result.stdout)["status"] == "drained":
+                return 0
+        process = subprocess.Popen(args, cwd=ROOT, start_new_session=True)
+        print("Quota guard enabled: pause at <=5% remaining; check every 15 seconds.", flush=True)
+        while process.poll() is None:
+            if requested:
+                stop_workflow(process)
+                checkpoint({"reason": "manual_pause"})
+                return 0
+            quota = client.read()
+            write_json(STATE, quota)
+            reason = pause_reason(quota)
+            if reason:
+                # Publish the flag before interruption so retries cannot start another turn.
+                write_json(PAUSED, {"status": "pausing", **reason})
+                stop_workflow(process)
+                checkpoint(reason)
+                return 0
+            for _ in range(30):
+                if process.poll() is not None or requested:
+                    break
+                time.sleep(0.5)
+        return process.returncode
+    except (QuotaUnavailable, OSError) as exc:
+        if process is not None and process.poll() is None:
+            stop_workflow(process)
+        checkpoint({"reason": "quota_unavailable", "detail": str(exc) if isinstance(exc, QuotaUnavailable) else "Local quota reader failed"})
+        return 0
+    finally:
+        if client:
+            client.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+### Файл `scripts/workflow-control.sh`
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+cd -- "$project_dir"
+unit="${WORKFLOW_UNIT:-flagman-backend-agent}"
+case "${1:-status}" in
+    start|resume)
+        if systemctl --user is-active --quiet "$unit.service"; then
+            printf 'Workflow is already running.\n'
+            exit 0
+        fi
+        systemctl --user reset-failed "$unit.service" 2>/dev/null || true
+        systemd-run --user --unit="$unit" --collect \
+            --property="WorkingDirectory=$project_dir" \
+            --property=RuntimeMaxSec=14400 \
+            --property=KillMode=mixed \
+            --property=TimeoutStopSec=120 \
+            --property="StandardOutput=append:$project_dir/.ralph/agent-console.log" \
+            --property=StandardError=inherit \
+            --setenv="PATH=$HOME/.local/bin:$HOME/Apps/go/bin:/usr/local/bin:/usr/bin:/bin" \
+            --setenv="GOPATH=${GOPATH:-$HOME/Apps/go}" \
+            /bin/bash "$project_dir/run-agent.sh" --unattended --no-sandbox --max-iterations 20
+        if command -v notify-send >/dev/null; then
+            notify-send 'Backend workflow' 'Запуск принят. Остаток квоты будет проверен перед работой.' || true
+        fi
+        ;;
+    pause)
+        systemctl --user stop "$unit.service"
+        ;;
+    status)
+        systemctl --user show "$unit.service" --property=ActiveState,SubState,MainPID
+        if [[ -f .ralph/quota.json ]]; then jq . .ralph/quota.json; fi
+        if [[ -f .ralph/paused.json ]]; then jq '{status,reason,window,detail,paused_at}' .ralph/paused.json; fi
+        ;;
+    *) printf 'Usage: %s start|resume|pause|status\n' "$0" >&2; exit 1 ;;
+esac
+```
+
+### Файл `.githooks/commit-msg`
+
+```python
+#!/usr/bin/env python3
+"""Enforce the repository's commit-message convention."""
+import re
+import sys
+from pathlib import Path
+
+message = Path(sys.argv[1]).read_text()
+forbidden = r"(?i)\b(?:agents?|codex|claude|chatgpt|ralph|serena|ai|neural)\b|нейросет|агент|co-authored-by|generated by"
+if re.search(forbidden, message):
+    print("Use a neutral commit message without tool attribution.", file=sys.stderr)
+    sys.exit(1)
 ```
 
 ## 10. Проверка перед автономным запуском
@@ -656,6 +987,8 @@ exec ralph --tool codex "$@"
 
 ```bash
 chmod +x run-agent.sh scripts/yougile-queue.sh
+chmod +x .githooks/commit-msg
+git config --local core.hooksPath .githooks
 bash -n .ralphrc run-agent.sh scripts/yougile-queue.sh
 bd --sandbox info
 codex mcp list
@@ -677,26 +1010,30 @@ story мост требует чистое рабочее дерево.
 
 ```bash
 git status --short
-git add -- AGENTS.md .ralphrc ralph.json run-agent.sh scripts/yougile-queue.sh scripts/yougile_queue.py
+git add -- AGENTS.md .ralphrc ralph.json run-agent.sh scripts/yougile-queue.sh scripts/yougile_queue.py scripts/quota_guard.py scripts/workflow-control.sh .githooks/commit-msg
 # Также явно добавьте нужные файлы skill/hooks, созданные bd setup codex.
-git commit -m "chore(agent): configure autonomous backend workflow"
+git commit -m "chore(workflow): configure backend task processing"
 ./run-agent.sh --once
 ```
 
 После первой итерации проверьте код, тесты, Git author/committer, состояние
 story и подзадач в YouGile. Если всё в порядке:
 
+Commit hook проверяет весь текст сообщения и запрещает упоминания агентов,
+нейросетей, AI-инструментов, соавторские и Generated by подписи.
+Исходный код настройки и документация содержат названия используемых инструментов;
+ограничение относится к сообщениям коммитов.
+
 ```bash
 ./run-agent.sh --unattended --no-sandbox --max-iterations 20
 ```
 
-Для работы после закрытия терминала:
+Для фоновой работы после закрытия терминала используйте systemd user service:
 
 ```bash
-mkdir -p .ralph
-nohup ./run-agent.sh --unattended --no-sandbox --max-iterations 20 \
-  > .ralph/agent-console.log 2>&1 < /dev/null &
-printf '%s\n' "$!" > .ralph/agent.pid
+chmod +x scripts/workflow-control.sh
+./scripts/workflow-control.sh resume
+./scripts/workflow-control.sh status
 ```
 
 `flock` не допускает одновременный второй запуск в том же worktree. Максимум
@@ -704,6 +1041,52 @@ printf '%s\n' "$!" > .ralph/agent.pid
 токенов, 14400 секунд и 3 последовательные неудачи. Лимит токенов Ralph
 оценочный и не равен точному денежному ограничению API. Учитывайте тариф
 и ограничения используемой учётной записи Codex.
+
+### Пауза при остатке 5% и продолжение одним нажатием
+
+Launcher запускает Ralph через `scripts/quota_guard.py`. Контроллер получает
+актуальные значения подписки из официального `account/rateLimits/read`
+локального `codex app-server`, без запроса к модели. Он проверяет остаток
+перед запуском и раз в 15 секунд. При остатке 5% или меньше в пятичасовом
+или недельном окне текущая сессия Codex прерывается, Ralph останавливается,
+а `.ralph/paused.json` сохраняет причину, HEAD, изменённые файлы и задачи.
+Завершение story не требуется для паузы; текущая остаётся в In progress,
+незавершённый код сохраняется, проверки повторяются после продолжения.
+При недоступности данных квоты цикл также останавливается с сохранением.
+
+После восстановления квоты:
+
+```bash
+./scripts/workflow-control.sh resume
+```
+
+Контроллер заново читает квоту и не запускает модель, если резерв ещё исчерпан.
+Для ручной паузы используйте `./scripts/workflow-control.sh pause`.
+Для кнопки в меню приложений создайте desktop-файл, подставив абсолютный
+путь к worktree вместо `/absolute/path/to/project`:
+
+```ini
+[Desktop Entry]
+Type=Application
+Name=Продолжить backend
+Comment=Продолжить текущую story после проверки квоты
+Exec=/bin/bash /absolute/path/to/project/scripts/workflow-control.sh resume
+Icon=media-playback-start
+Terminal=false
+Categories=Development;
+Actions=Pause;
+
+[Desktop Action Pause]
+Name=Поставить на паузу
+Exec=/bin/bash /absolute/path/to/project/scripts/workflow-control.sh pause
+```
+
+Сохраните его как `~/.local/share/applications/backend-workflow.desktop`.
+Закрытие терминала не останавливает systemd user service. Выход из сессии
+может его остановить; автозапуск при загрузке здесь не включён.
+Процент отдаёт сервер: между проверками текущий запрос и другие сессии
+могут расходовать квоту, поэтому математически точный резерв не гарантирован.
+Это порог остатка подписки, отдельный от ограничения длительности Ralph.
 
 ## 11. Где смотреть очередь и результат
 
@@ -718,9 +1101,12 @@ bd --sandbox ready
 bd --sandbox blocked
 tail -f .ralph/agent-console.log
 cat .ralph/runs/latest/run.json
+./scripts/workflow-control.sh status
 git log -5 --format='%h %an <%ae> | %s'
 git log -1 --format=fuller
 git log -1 --format=%B
+# Из исходного каталога, если worktree находится на отдельной ветке:
+git log agent/s08 --format='%h %s'
 git ls-files .serena .beads .beads.gate.lock
 ```
 
@@ -743,12 +1129,16 @@ git ls-files .serena .beads .beads.gate.lock
 | Story не переходит в Done | Все подзадачи закрыты, дерево чистое, после начала story есть коммит с её номером |
 | Нет готовой следующей story | Прочитать зависимости в YouGile; незавершённая зависимость останавливает выбор |
 | Появился запрос системного разрешения | --approve-for-me в команде Codex; решение reviewer нельзя обходить отключением sandbox |
+| Codex сообщает конфликт --approve-for-me и --sandbox | Оставить только --approve-for-me: он уже задаёт workspace-write |
+| Нет коммита story в git log | Проверить ветку worktree; в исходном каталоге посмотреть git log agent/s08 |
+| Кнопка продолжения снова оставила паузу | Проверить .ralph/paused.json и квоту: пока остаётся <=5%, модель не запускается |
 
 ## 13. Первичные источники
 
 - [Codex CLI: MCP](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
 - [Codex: автоматическая проверка разрешений](https://learn.chatgpt.com/docs/sandboxing/auto-review).
 - [Codex: неинтерактивный запуск](https://learn.chatgpt.com/docs/non-interactive-mode).
+- [Codex App Server: чтение квоты](https://learn.chatgpt.com/docs/app-server).
 - [Ralph, выбранная реализация](https://github.com/WomB0ComB0/ralph).
 - [Beads: установка](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md).
 - [Serena 1.7.0](https://github.com/oraios/serena/releases/tag/v1.7.0).

@@ -2,7 +2,7 @@
 set -euo pipefail
 project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 cd -- "$project_dir"
-for tool in git jq bd codex ralph uvx flock; do
+for tool in git jq bd codex ralph uvx flock python3; do
     command -v "$tool" >/dev/null || { printf 'Missing command: %s\n' "$tool" >&2; exit 1; }
 done
 branch=$(git symbolic-ref --quiet --short HEAD)
@@ -25,12 +25,7 @@ export MENU_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export INVENTORY_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export SUPPLY_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
 export BATCH_TEST_DATABASE_URL="$FLAGMAN_TEST_DATABASE_URL"
-queue_status=$(./scripts/yougile-queue.sh prepare)
-printf '%s\n' "$queue_status"
-if jq -e '.status == "drained"' >/dev/null <<<"$queue_status"; then
-    exit 0
-fi
 if [[ $# -eq 0 ]]; then
     set -- --unattended --no-sandbox --max-iterations 12
 fi
-exec ralph --tool codex "$@"
+exec python3 scripts/quota_guard.py --prepare -- ralph --tool codex "$@"

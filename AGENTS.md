@@ -61,10 +61,15 @@ The user authorizes implementation, tests, commits, and YouGile task transitions
 - Use `./scripts/yougile-queue.sh subtask <bd-id>` after a subtask is implemented;
   it verifies backend and marks that subtask complete in both systems.
 - Include the story number (for example S09) in the conventional commit subject.
+  Commit messages must contain no references to agents, neural networks, AI tools,
+  or generated code. Use neutral scopes such as menu, orders, workflow, git or docs.
   After committing, call `./scripts/yougile-queue.sh finish <bd-story-id>`;
   it verifies the commit, closes the story, moves it to Done, and claims the next.
 - New integration tests should use `FLAGMAN_TEST_DATABASE_URL` or the appropriate
   named test URL inherited by the launcher. Never use the application's database.
+- The quota guard pauses the workflow when the five-hour or weekly Codex quota
+  has at most 5% remaining. Preserve unfinished code and Beads status. On restart,
+  inspect the working tree and the current story; repeat verification before closing.
 
 Beads uses the shared database in the original repository; `bd -C` resolves it
 automatically from a Git worktree. The local Ralph compatibility overrides make

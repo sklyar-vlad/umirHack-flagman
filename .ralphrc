@@ -13,12 +13,16 @@ export MAX_CONSECUTIVE_FAILURES="${MAX_CONSECUTIVE_FAILURES:-3}"
 # Require Serena at startup instead of silently continuing without navigation.
 _build_ai_cmd() {
     local tool="$1" model="$2"
+    if [[ -f "$PROJECT_DIR/.ralph/paused.json" ]]; then
+        log_error "Workflow paused. Start it again after the quota recovers."
+        return 1
+    fi
     if [[ "$tool" != codex ]]; then
         log_error "This configuration supports the Codex executor only."
         return 1
     fi
     _AI_STDIN=0
-    _AI_CMD=(codex exec --approve-for-me -s workspace-write --color never
+    _AI_CMD=(codex exec --approve-for-me --color never
         -c mcp_servers.serena.required=true -c mcp_servers.yougile.required=true)
     [[ -z "$model" ]] || _AI_CMD+=(--model "$model")
     return 0
@@ -61,7 +65,7 @@ backlog_drained() {
 }
 
 commit_task_state() {
-    _bd dolt commit -m "${1:-Agent iteration sync}"
+    _bd dolt commit -m "Workflow iteration sync"
     if [[ "${LAST_VERIFY_OK:-false}" == true ]]; then
         "$PROJECT_DIR/scripts/yougile-queue.sh" prepare
     fi
