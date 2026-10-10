@@ -51,6 +51,28 @@ class QuotaTests(unittest.TestCase):
                 launch.assert_not_called()
                 self.assertEqual(checkpoint.call_args.args[0]["reason"], "quota_reserve")
 
+    def test_status_failure_does_not_pause_another_running_workflow(self):
+        with (patch.object(sys, "argv", ["quota_guard.py", "--status"]),
+              patch.object(guard, "QuotaClient") as client,
+              patch.object(guard, "checkpoint") as checkpoint,
+              patch.object(guard, "write_json") as write,
+              patch.object(guard.subprocess, "Popen") as launch):
+            client.return_value.read.side_effect = guard.QuotaUnavailable("timeout")
+            self.assertEqual(guard.main(), 1)
+            checkpoint.assert_not_called()
+            write.assert_not_called()
+            launch.assert_not_called()
+
+    def test_status_at_threshold_does_not_change_workflow_state(self):
+        with (patch.object(sys, "argv", ["quota_guard.py", "--status"]),
+              patch.object(guard, "QuotaClient") as client,
+              patch.object(guard, "checkpoint") as checkpoint,
+              patch.object(guard, "write_json") as write):
+            client.return_value.read.return_value = quota(95)
+            self.assertEqual(guard.main(), 0)
+            checkpoint.assert_not_called()
+            write.assert_not_called()
+
     def test_quota_crossing_interrupts_and_saves_without_closing_tasks(self):
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory)

@@ -889,10 +889,10 @@ def main():
     try:
         client = QuotaClient()
         quota = client.read()
-        write_json(STATE, quota)
         if read_only:
             print(json.dumps(quota, ensure_ascii=False, indent=2))
             return 0
+        write_json(STATE, quota)
         reason = pause_reason(quota)
         if reason:
             checkpoint(reason)
@@ -926,6 +926,9 @@ def main():
                 time.sleep(0.5)
         return process.returncode
     except (QuotaUnavailable, OSError) as exc:
+        if read_only:
+            print("Quota status is temporarily unavailable; the running workflow is unchanged.", file=sys.stderr)
+            return 1
         if process is not None and process.poll() is None:
             stop_workflow(process)
         checkpoint({"reason": "quota_unavailable", "detail": str(exc) if isinstance(exc, QuotaUnavailable) else "Local quota reader failed"})
