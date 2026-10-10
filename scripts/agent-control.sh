@@ -16,8 +16,20 @@ case "${1:-status}" in
     if live_pid || [[ -d .ralph/agent.lock ]]; then echo 'Already running, or lock needs inspection'; exit 1; fi
     logfile="$root/.ralph/background-$(date +%Y%m%d-%H%M%S).log"
     printf '%s\n' "$logfile" > .ralph/current-log
-    nohup caffeinate -i /opt/homebrew/bin/bash "$root/run-agent.sh" --unattended --no-sandbox --max-iterations 20 > "$logfile" 2>&1 < /dev/null &
-    printf '%s\n' "$!" > .ralph/caffeinate.pid
+    python3 - "$root" "$logfile" <<'PY'
+import os, subprocess, sys
+from pathlib import Path
+root, logfile = sys.argv[1:]
+os.umask(0o077)
+with open(logfile, 'ab', buffering=0) as log:
+    process = subprocess.Popen(
+        ['/usr/bin/caffeinate', '-i', '/opt/homebrew/bin/bash', root + '/run-agent.sh',
+         '--unattended', '--no-sandbox', '--max-iterations', '20'],
+        cwd=root, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+        start_new_session=True, close_fds=True,
+    )
+Path(root, '.ralph/caffeinate.pid').write_text(str(process.pid) + '\n')
+PY
     echo "Started; log: $logfile"
     ;;
   status)
