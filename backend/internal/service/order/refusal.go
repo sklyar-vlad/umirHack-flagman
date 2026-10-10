@@ -14,7 +14,13 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
 )
 
-func (s *CreateService) saveRefusal(ctx context.Context, tx repository.DBTX, actor uuid.UUID, check dto.OrderCheck, now time.Time) (idempotency.Outcome, error) {
+func (s *CreateService) saveRefusal(
+	ctx context.Context,
+	tx repository.DBTX,
+	actor uuid.UUID,
+	check *dto.OrderCheck,
+	now time.Time,
+) (idempotency.Outcome, error) {
 	code, message := refusalReason(check)
 	attempt := model.OrderAttempt{ID: uuid.New(), ActorID: actor, CreatedAt: now, ReasonCode: code}
 	var err error
@@ -30,12 +36,20 @@ func (s *CreateService) saveRefusal(ctx context.Context, tx repository.DBTX, act
 	if err != nil {
 		return idempotency.Outcome{}, err
 	}
-	if err := s.repo.InsertAttempt(ctx, tx, attempt); err != nil {
+	if err := s.repo.InsertAttempt(ctx, tx, &attempt); err != nil {
 		return idempotency.Outcome{}, err
 	}
-	body, err := json.Marshal(dto.ErrorResponse{RequestID: requestctx.ID(ctx), Error: dto.ErrorBody{Code: code, Message: message, Details: map[string]any{
-		"attempt_id": attempt.ID, "requirements": check.Requirements, "shortages": check.Shortages, "issues": check.Issues,
-	}}})
+	body, err := json.Marshal(
+		dto.ErrorResponse{
+			RequestID: requestctx.ID(ctx),
+			Error: dto.ErrorBody{Code: code, Message: message, Details: map[string]any{
+				"attempt_id":   attempt.ID,
+				"requirements": check.Requirements,
+				"shortages":    check.Shortages,
+				"issues":       check.Issues,
+			}},
+		},
+	)
 	if err != nil {
 		return idempotency.Outcome{}, err
 	}
@@ -44,7 +58,7 @@ func (s *CreateService) saveRefusal(ctx context.Context, tx repository.DBTX, act
 	return idempotency.Outcome{Response: model.IdempotencyResponse{Status: http.StatusConflict, Body: body}}, nil
 }
 
-func refusalReason(check dto.OrderCheck) (string, string) {
+func refusalReason(check *dto.OrderCheck) (string, string) {
 	for _, issue := range check.Issues {
 		if issue.Code == "recipe_changed" {
 			return "RECIPE_CHANGED", "Рецептура блюда изменилась"

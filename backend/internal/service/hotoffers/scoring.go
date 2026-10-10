@@ -24,12 +24,18 @@ func scoreOffers(offers []simulatedOffer, now time.Time, hours int) ([]scoredOff
 	}
 	horizon := time.Duration(hours) * time.Hour
 	scored := make([]scoredOffer, 0, len(offers))
-	for _, offer := range offers {
+	for i := range offers {
+		offer := &offers[i]
 		if len(offer.problems) == 0 {
 			return nil, fmt.Errorf("hot offer has no consumed expiring batches")
 		}
-		item := scoredOffer{simulatedOffer: offer, score: new(big.Rat), nearest: offer.problems[0].allocation.Batch.ExpiresAt}
-		for _, problem := range offer.problems {
+		item := scoredOffer{
+			simulatedOffer: *offer,
+			score:          new(big.Rat),
+			nearest:        offer.problems[0].allocation.Batch.ExpiresAt,
+		}
+		for j := range offer.problems {
+			problem := &offer.problems[j]
 			allocation := problem.allocation
 			remaining, err := quantity.ParseMilli(allocation.Batch.RemainingQuantity)
 			if err != nil || remaining.Sign() <= 0 {

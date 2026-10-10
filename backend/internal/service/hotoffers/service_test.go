@@ -39,8 +39,15 @@ type menuStub struct {
 	err    error
 }
 
-func (s *menuStub) Load(_ context.Context, _ repository.DBTX, filter model.DishFilter, now time.Time) ([]model.Dish, error) {
-	if filter.IsActive == nil || !*filter.IsActive || filter.Search != s.search || filter.Page != 0 || !now.Equal(s.now) || now.Location() != time.UTC {
+func (s *menuStub) Load(
+	_ context.Context,
+	_ repository.DBTX,
+	filter *model.DishFilter,
+	now time.Time,
+) ([]model.Dish, error) {
+	if filter.IsActive == nil || !*filter.IsActive || filter.Search != s.search || filter.Page != 0 ||
+		!now.Equal(s.now) ||
+		now.Location() != time.UTC {
 		s.t.Fatal("menu filter or timestamp differs")
 	}
 	return s.dishes, s.err
@@ -55,7 +62,12 @@ type batchesStub struct {
 	err      error
 }
 
-func (s *batchesStub) Load(_ context.Context, _ repository.DBTX, products []uuid.UUID, now time.Time) ([]model.OrderBatch, int, error) {
+func (s *batchesStub) Load(
+	_ context.Context,
+	_ repository.DBTX,
+	products []uuid.UUID,
+	now time.Time,
+) ([]model.OrderBatch, int, error) {
 	if !reflect.DeepEqual(products, s.products) || !now.Equal(s.now) || now.Location() != time.UTC {
 		s.t.Fatal("batch products or timestamp differs")
 	}
@@ -69,7 +81,23 @@ func TestListRanksAndErrorHandling(t *testing.T) {
 	dishes := []model.Dish{testDish(a, product, "120.000", "1800.000"), testDish(b, product, "240.000", "1800.000")}
 	search := "Пицца"
 	menu := &menuStub{t: t, dishes: dishes, now: now, search: &search}
-	batches := &batchesStub{t: t, products: []uuid.UUID{product}, now: now, hours: 24, batches: []model.OrderBatch{{ID: uuid.New(), ProductID: product, SupplyID: uuid.New(), SupplyNumber: "104", LineNumber: 1, RemainingQuantity: "1800.000", ExpiresAt: now.Add(18 * time.Hour)}}}
+	batches := &batchesStub{
+		t:        t,
+		products: []uuid.UUID{product},
+		now:      now,
+		hours:    24,
+		batches: []model.OrderBatch{
+			{
+				ID:                uuid.New(),
+				ProductID:         product,
+				SupplyID:          uuid.New(),
+				SupplyNumber:      "104",
+				LineNumber:        1,
+				RemainingQuantity: "1800.000",
+				ExpiresAt:         now.Add(18 * time.Hour),
+			},
+		},
+	}
 	tx := &transactionsStub{t: t}
 	s := NewService(batches, menu, tx)
 	clockCalls := 0
@@ -79,11 +107,18 @@ func TestListRanksAndErrorHandling(t *testing.T) {
 		t.Fatalf("list: %+v %v, clock calls %d", result, err, clockCalls)
 	}
 	item := result.Items[0]
-	if item.Dish.ID != a || item.Dish.RecipeVersion != 1 || item.Rank != 2 || item.PriorityScore != "1.6667" || item.PriorityLevel != "low" || item.AvailablePortions != "15" || result.Meta["server_time"] != now.UTC().Format(time.RFC3339Nano) {
+	if item.Dish.ID != a || item.Dish.RecipeVersion != 1 || item.Rank != 2 || item.PriorityScore != "1.6667" ||
+		item.PriorityLevel != "low" ||
+		item.AvailablePortions != "15" ||
+		result.Meta["server_time"] != now.UTC().Format(time.RFC3339Nano) {
 		t.Fatalf("offer: %+v", result)
 	}
 	p := item.ProblemBatches[0]
-	if p.RemainingQuantity != "1800.000" || p.UsedForOnePortion != "120.000" || p.RemainingSeconds != 64800 || p.ExpiresAt.Location() != time.UTC || !strings.Contains(item.Reason, "120 г") || !strings.Contains(item.Reason, "18 ч") || !strings.Contains(item.Reason, "№104") {
+	if p.RemainingQuantity != "1800.000" || p.UsedForOnePortion != "120.000" || p.RemainingSeconds != 64800 ||
+		p.ExpiresAt.Location() != time.UTC ||
+		!strings.Contains(item.Reason, "120 г") ||
+		!strings.Contains(item.Reason, "18 ч") ||
+		!strings.Contains(item.Reason, "№104") {
 		t.Fatalf("batch facts: %+v reason %q", p, item.Reason)
 	}
 	result, err = s.List(context.Background(), model.HotOffersFilter{Page: 3, PageSize: 1, Search: &search})
@@ -91,7 +126,11 @@ func TestListRanksAndErrorHandling(t *testing.T) {
 		t.Fatalf("empty page: %+v %v", result, err)
 	}
 	calls := tx.calls
-	if _, err := s.List(context.Background(), model.HotOffersFilter{Page: 0, PageSize: 1}); err == nil || tx.calls != calls {
+	if _, err := s.List(
+		context.Background(),
+		model.HotOffersFilter{Page: 0, PageSize: 1},
+	); err == nil ||
+		tx.calls != calls {
 		t.Fatal("invalid pagination opened transaction")
 	}
 	for _, stage := range []string{"menu", "batches", "commit", "quantity"} {

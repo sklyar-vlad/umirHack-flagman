@@ -14,7 +14,13 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 )
 
-const SessionCookieName = "flagman_session"
+const (
+	SessionCookieName = "flagman_session"
+	roleAdmin         = "admin"
+	roleManager       = "manager"
+	roleStorekeeper   = "storekeeper"
+	roleOrderOperator = "order_operator"
+)
 
 type Repository interface {
 	FindActiveSession(context.Context, string) (model.Session, error)
@@ -45,7 +51,7 @@ func (s *Service) AuthorizeSupply(ctx context.Context, token, method, origin, cs
 		return model.Actor{}, err
 	}
 	switch session.Actor.Role {
-	case "admin", "manager", "storekeeper":
+	case roleAdmin, roleManager, roleStorekeeper:
 	default:
 		return model.Actor{}, apperrors.ErrForbidden
 	}
@@ -64,7 +70,7 @@ func (s *Service) AuthorizeProductRead(ctx context.Context, token string) (model
 		return model.Actor{}, err
 	}
 	switch session.Actor.Role {
-	case "admin", "manager", "storekeeper", "order_operator":
+	case roleAdmin, roleManager, roleStorekeeper, roleOrderOperator:
 		return session.Actor, nil
 	default:
 		return model.Actor{}, apperrors.ErrForbidden
@@ -77,11 +83,12 @@ func (s *Service) AuthorizeOrder(ctx context.Context, token, origin, csrf string
 		return model.Actor{}, err
 	}
 	switch session.Actor.Role {
-	case "admin", "manager", "order_operator":
+	case roleAdmin, roleManager, roleOrderOperator:
 	default:
 		return model.Actor{}, apperrors.ErrForbidden
 	}
-	if origin != s.frontendOrigin || session.CSRFToken == "" || subtle.ConstantTimeCompare([]byte(csrf), []byte(session.CSRFToken)) != 1 {
+	if origin != s.frontendOrigin || session.CSRFToken == "" ||
+		subtle.ConstantTimeCompare([]byte(csrf), []byte(session.CSRFToken)) != 1 {
 		return model.Actor{}, apperrors.ErrForbidden
 	}
 	return session.Actor, nil

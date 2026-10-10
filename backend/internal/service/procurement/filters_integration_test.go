@@ -71,7 +71,8 @@ func TestProcurementIntegrationLiteralSearchAndCategory(t *testing.T) {
 	}
 	for _, query := range []string{"?category_id=" + category.String(), "?category_id=" + category.String() + "&search=category"} {
 		result := f.list(t, query)
-		if result.Total != 1 || result.Items[0].ProductID != other || len(result.Items[0].AffectedDishes) != 1 || result.Items[0].AffectedDishes[0].ID != dish {
+		if result.Total != 1 || result.Items[0].ProductID != other || len(result.Items[0].AffectedDishes) != 1 ||
+			result.Items[0].AffectedDishes[0].ID != dish {
 			t.Fatalf("category: %+v", result)
 		}
 	}

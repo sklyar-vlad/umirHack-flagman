@@ -83,9 +83,26 @@ func newMenuFixture(t *testing.T) *menuFixture {
 			t.Fatal(err)
 		}
 	}
-	f := &menuFixture{ctx: ctx, pool: pool, actor: uuid.New(), category: uuid.New(), supply: uuid.New(), token: uuid.NewString() + uuid.NewString(), now: time.Now().UTC().Truncate(time.Microsecond)}
-	f.exec(t, `INSERT INTO users(id,name,email,password_hash,role) VALUES($1,'Operator','menu@example.test','fixture','order_operator')`, f.actor)
-	f.exec(t, `INSERT INTO sessions(user_id,token_hash,csrf_token,expires_at) VALUES($1,$2,'csrf',clock_timestamp()+interval '12 hours')`, f.actor, authservice.SessionTokenHash(f.token))
+	f := &menuFixture{
+		ctx:      ctx,
+		pool:     pool,
+		actor:    uuid.New(),
+		category: uuid.New(),
+		supply:   uuid.New(),
+		token:    uuid.NewString() + uuid.NewString(),
+		now:      time.Now().UTC().Truncate(time.Microsecond),
+	}
+	f.exec(
+		t,
+		`INSERT INTO users(id,name,email,password_hash,role) VALUES($1,'Operator','menu@example.test','fixture','order_operator')`,
+		f.actor,
+	)
+	f.exec(
+		t,
+		`INSERT INTO sessions(user_id,token_hash,csrf_token,expires_at) VALUES($1,$2,'csrf',clock_timestamp()+interval '12 hours')`,
+		f.actor,
+		authservice.SessionTokenHash(f.token),
+	)
 	f.exec(t, `INSERT INTO product_categories(id,name) VALUES($1,'Menu')`, f.category)
 	f.exec(t, `INSERT INTO supplies(id,number,received_at,created_by) VALUES($1,'S08',now(),$2)`, f.supply, f.actor)
 	f.service = NewService(menurepository.NewRepository(), repository.NewRepository(pool, zap.NewNop()))
@@ -97,7 +114,11 @@ func newMenuFixture(t *testing.T) *menuFixture {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(basehandler.RequestID())
-	basehandler.RegisterMenuRoutes(router.Group("/api/v1"), menuhandler.NewHandler(f.service), authhandler.NewHandler(auth))
+	basehandler.RegisterMenuRoutes(
+		router.Group("/api/v1"),
+		menuhandler.NewHandler(f.service),
+		authhandler.NewHandler(auth),
+	)
 	f.router = router
 	return f
 }
@@ -108,30 +129,61 @@ func (f *menuFixture) exec(t *testing.T, query string, args ...any) {
 		t.Fatal(err)
 	}
 }
+
 func (f *menuFixture) product(t *testing.T, name string) uuid.UUID {
 	t.Helper()
 	id := uuid.New()
-	f.exec(t, `INSERT INTO products(id,category_id,name,unit,display_unit)VALUES($1,$2,$3,'g','kg')`, id, f.category, name)
+	f.exec(
+		t,
+		`INSERT INTO products(id,category_id,name,unit,display_unit)VALUES($1,$2,$3,'g','kg')`,
+		id,
+		f.category,
+		name,
+	)
 	return id
 }
+
 func (f *menuFixture) batch(t *testing.T, product uuid.UUID, quantity string, expires time.Time) {
 	t.Helper()
-	f.exec(t, `INSERT INTO batches(supply_id,product_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,(SELECT COALESCE(MAX(line_number),0)+1 FROM batches WHERE supply_id=$1),$3,$3,'explicit',$4)`, f.supply, product, quantity, expires)
+	f.exec(
+		t,
+		`INSERT INTO batches(supply_id,product_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,(SELECT COALESCE(MAX(line_number),0)+1 FROM batches WHERE supply_id=$1),$3,$3,'explicit',$4)`,
+		f.supply,
+		product,
+		quantity,
+		expires,
+	)
 }
+
 func (f *menuFixture) dish(t *testing.T, name string, active bool) uuid.UUID {
 	t.Helper()
 	id := uuid.New()
 	f.exec(t, `INSERT INTO dishes(id,name,is_active)VALUES($1,$2,$3)`, id, name, active)
 	return id
 }
+
 func (f *menuFixture) recipe(t *testing.T, dish uuid.UUID, version int, product uuid.UUID, quantity string) {
 	t.Helper()
 	id := uuid.New()
-	f.exec(t, `INSERT INTO recipe_versions(id,dish_id,version,created_by)VALUES($1,$2,$3,$4)`, id, dish, version, f.actor)
-	f.exec(t, `INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion)VALUES($1,$2,$3)`, id, product, quantity)
+	f.exec(
+		t,
+		`INSERT INTO recipe_versions(id,dish_id,version,created_by)VALUES($1,$2,$3,$4)`,
+		id,
+		dish,
+		version,
+		f.actor,
+	)
+	f.exec(
+		t,
+		`INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion)VALUES($1,$2,$3)`,
+		id,
+		product,
+		quantity,
+	)
 }
+
 func (f *menuFixture) request(endpoint string, authenticated bool) *httptest.ResponseRecorder {
-	request := httptest.NewRequest(http.MethodGet, "/api/v1"+endpoint, nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1"+endpoint, http.NoBody)
 	if authenticated {
 		request.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: f.token})
 	}
@@ -139,6 +191,7 @@ func (f *menuFixture) request(endpoint string, authenticated bool) *httptest.Res
 	f.router.ServeHTTP(response, request)
 	return response
 }
+
 func (f *menuFixture) list(t *testing.T, endpoint string) dto.DishListResponse {
 	t.Helper()
 	response := f.request(endpoint, true)
@@ -175,13 +228,17 @@ func TestMenuIntegrationLatestRecipeAndFilters(t *testing.T) {
 	if all.Total != 4 || len(all.Items) != 4 {
 		t.Fatalf("active list: %+v", all)
 	}
-	if all.Items[0].ID != available || all.Items[0].AvailablePortions != "3" || *all.Items[0].RecipeVersion != 2 || all.Items[0].Recipe[0].ProductID != cheese {
+	if all.Items[0].ID != available || all.Items[0].AvailablePortions != "3" || *all.Items[0].RecipeVersion != 2 ||
+		all.Items[0].Recipe[0].ProductID != cheese {
 		t.Fatalf("latest recipe: %+v", all.Items[0])
 	}
-	if all.Items[1].Shortages[0].ReasonCode != "ingredient_shortage" || all.Items[2].Shortages[0].ReasonCode != "only_expired_stock" || all.Items[3].UnavailabilityReasons[0] != "recipe_missing" {
+	if all.Items[1].Shortages[0].ReasonCode != "ingredient_shortage" ||
+		all.Items[2].Shortages[0].ReasonCode != "only_expired_stock" ||
+		all.Items[3].UnavailabilityReasons[0] != "recipe_missing" {
 		t.Fatalf("shortages: %+v", all.Items)
 	}
-	if all.Items[3].ID != empty || all.Items[3].RecipeVersion != nil || all.Items[3].Recipe == nil || all.Items[3].Shortages == nil {
+	if all.Items[3].ID != empty || all.Items[3].RecipeVersion != nil || all.Items[3].Recipe == nil ||
+		all.Items[3].Shortages == nil {
 		t.Fatal("missing recipe representation")
 	}
 	page := f.list(t, "/dishes?availability=unavailable&page=2&page_size=1")
@@ -191,7 +248,11 @@ func TestMenuIntegrationLatestRecipeAndFilters(t *testing.T) {
 	if result := f.list(t, "/dishes?search=chicken"); result.Total != 1 || result.Items[0].ID != missing {
 		t.Fatalf("search: %+v", result)
 	}
-	if result := f.list(t, "/dishes?is_active=false"); result.Total != 1 || result.Items[0].ID != inactive || result.Items[0].UnavailabilityReasons[0] != "dish_inactive" {
+	if result := f.list(
+		t,
+		"/dishes?is_active=false",
+	); result.Total != 1 || result.Items[0].ID != inactive ||
+		result.Items[0].UnavailabilityReasons[0] != "dish_inactive" {
 		t.Fatalf("inactive: %+v", result)
 	}
 	if result := f.list(t, "/dishes?is_active=all"); result.Total != 5 {
@@ -247,7 +308,8 @@ func TestMenuIntegrationStopListRecalculatesOnReceiptAndExpiry(t *testing.T) {
 	f.recipe(t, active, 1, product, "100.000")
 	f.recipe(t, inactive, 1, product, "100.000")
 	initial := f.list(t, "/stop-list")
-	if initial.Total != 1 || initial.Items[0].ID != active || initial.Items[0].Shortages[0].ReasonCode != "ingredient_shortage" {
+	if initial.Total != 1 || initial.Items[0].ID != active ||
+		initial.Items[0].Shortages[0].ReasonCode != "ingredient_shortage" {
 		t.Fatalf("initial: %+v", initial)
 	}
 	// A new supply batch is visible on the next read without a cached stop-list.
@@ -255,21 +317,32 @@ func TestMenuIntegrationStopListRecalculatesOnReceiptAndExpiry(t *testing.T) {
 	if supplied := f.list(t, "/stop-list"); supplied.Total != 0 || supplied.Items == nil {
 		t.Fatalf("after receipt: %+v", supplied)
 	}
-	if dishes := f.list(t, "/dishes?availability=available"); dishes.Total != 1 || dishes.Items[0].AvailablePortions != "3" {
+	if dishes := f.list(
+		t,
+		"/dishes?availability=available",
+	); dishes.Total != 1 ||
+		dishes.Items[0].AvailablePortions != "3" {
 		t.Fatalf("after receipt menu: %+v", dishes)
 	}
 	// Advance the calculation clock without changing a single database row.
 	f.now = f.now.Add(time.Hour)
 	expired := f.list(t, "/stop-list")
-	if expired.Total != 1 || expired.Items[0].ID != active || expired.Items[0].Shortages[0].ReasonCode != "only_expired_stock" || expired.Items[0].Shortages[0].AvailableQuantity != "0.000" {
+	if expired.Total != 1 || expired.Items[0].ID != active ||
+		expired.Items[0].Shortages[0].ReasonCode != "only_expired_stock" ||
+		expired.Items[0].Shortages[0].AvailableQuantity != "0.000" {
 		t.Fatalf("expiry boundary: %+v", expired)
 	}
-	if expired.Meta["server_time"] != f.now.Format(time.RFC3339Nano) || expired.Items[0].Meta["server_time"] != expired.Meta["server_time"] {
+	if expired.Meta["server_time"] != f.now.Format(time.RFC3339Nano) ||
+		expired.Items[0].Meta["server_time"] != expired.Meta["server_time"] {
 		t.Fatal("inconsistent calculation time")
 	}
 	// Mixed valid stock remains usable, while expired stock never fills a deficit.
 	f.batch(t, product, "50.000", f.now.Add(time.Hour))
-	if mixed := f.list(t, "/stop-list"); mixed.Items[0].Shortages[0].ReasonCode != "ingredient_shortage" || mixed.Items[0].Shortages[0].MissingQuantity != "50.000" {
+	if mixed := f.list(
+		t,
+		"/stop-list",
+	); mixed.Items[0].Shortages[0].ReasonCode != "ingredient_shortage" ||
+		mixed.Items[0].Shortages[0].MissingQuantity != "50.000" {
 		t.Fatalf("mixed: %+v", mixed)
 	}
 }

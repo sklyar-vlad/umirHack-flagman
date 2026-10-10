@@ -22,7 +22,13 @@ import (
 func (f *offersFixture) receipt(t *testing.T, product uuid.UUID, amount string, expires time.Time) {
 	t.Helper()
 	expiry := expires.Format(time.RFC3339Nano)
-	body, err := json.Marshal(dto.CreateSupplyRequest{Number: uuid.NewString(), ReceivedAt: f.now.Format(time.RFC3339Nano), Items: []dto.CreateSupplyItem{{ProductID: product.String(), Quantity: amount, ExpiresAt: &expiry}}})
+	body, err := json.Marshal(
+		dto.CreateSupplyRequest{
+			Number:     uuid.NewString(),
+			ReceivedAt: f.now.Format(time.RFC3339Nano),
+			Items:      []dto.CreateSupplyItem{{ProductID: product.String(), Quantity: amount, ExpiresAt: &expiry}},
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +73,13 @@ func TestOffersIntegrationReceiptOrderReplayAndRecipeRecalculate(t *testing.T) {
 		t.Fatalf("order: %+v %v", order, err)
 	}
 	check(0, "") // still available, but no expiring batch is consumed.
-	if replay, err := orders.CreateIdempotent(f.ctx, f.actor, key, body); err != nil || string(replay.Body) != string(order.Body) {
+	if replay, err := orders.CreateIdempotent(
+		f.ctx,
+		f.actor,
+		key,
+		body,
+	); err != nil ||
+		string(replay.Body) != string(order.Body) {
 		t.Fatalf("order replay: %+v %v", replay, err)
 	}
 	check(0, "")
@@ -92,7 +104,12 @@ type menuHook struct {
 	afterLoad func()
 }
 
-func (m menuHook) Load(ctx context.Context, tx repository.DBTX, filter model.DishFilter, now time.Time) ([]model.Dish, error) {
+func (m menuHook) Load(
+	ctx context.Context,
+	tx repository.DBTX,
+	filter *model.DishFilter,
+	now time.Time,
+) ([]model.Dish, error) {
 	dishes, err := m.MenuRepository.Load(ctx, tx, filter, now)
 	if err == nil {
 		m.afterLoad()
@@ -116,11 +133,18 @@ func TestOffersIntegrationConsistentSnapshot(t *testing.T) {
 		f.exec(t, `INSERT INTO restaurant_settings(restaurant_name,expiring_threshold_hours)VALUES('Test',48)`)
 	}}
 	result := f.list(t, "")
-	if result.Total != 1 || result.Items[0].Dish.RecipeVersion != 1 || result.Items[0].PriorityScore != "50.0000" || result.Items[0].PriorityLevel != "medium" || result.Items[0].AvailablePortions != "1" || len(result.Items[0].ProblemBatches) != 1 || result.Items[0].ProblemBatches[0].BatchID != batch {
+	if result.Total != 1 || result.Items[0].Dish.RecipeVersion != 1 || result.Items[0].PriorityScore != "50.0000" ||
+		result.Items[0].PriorityLevel != "medium" ||
+		result.Items[0].AvailablePortions != "1" ||
+		len(result.Items[0].ProblemBatches) != 1 ||
+		result.Items[0].ProblemBatches[0].BatchID != batch {
 		t.Fatalf("mixed snapshot: %+v", result)
 	}
 	result = f.list(t, "")
-	if result.Total != 1 || result.Items[0].Dish.RecipeVersion != 2 || result.Items[0].PriorityScore != "75.0000" || result.Items[0].PriorityLevel != "high" || result.Items[0].AvailablePortions != "1" || len(result.Items[0].ProblemBatches) != 2 {
+	if result.Total != 1 || result.Items[0].Dish.RecipeVersion != 2 || result.Items[0].PriorityScore != "75.0000" ||
+		result.Items[0].PriorityLevel != "high" ||
+		result.Items[0].AvailablePortions != "1" ||
+		len(result.Items[0].ProblemBatches) != 2 {
 		t.Fatalf("new snapshot: %+v", result)
 	}
 }

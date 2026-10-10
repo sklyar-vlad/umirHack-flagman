@@ -21,7 +21,12 @@ func TestOrderHistoryIntegrationImmutableDetails(t *testing.T) {
 	first, second := f.dish(t, "Saved first", true), f.dish(t, "Saved second", true)
 	f.recipe(t, first, 1, map[uuid.UUID]string{shared: "0.300", other: "0.500"})
 	f.recipe(t, second, 3, map[uuid.UUID]string{shared: "0.300"})
-	created := createHistoryOrder(t, f, dto.OrderRequestItem{DishID: first.String(), Portions: 1}, dto.OrderRequestItem{DishID: second.String(), Portions: 1})
+	created := createHistoryOrder(
+		t,
+		f,
+		dto.OrderRequestItem{DishID: first.String(), Portions: 1},
+		dto.OrderRequestItem{DishID: second.String(), Portions: 1},
+	)
 	createHistoryOrder(t, f, dto.OrderRequestItem{DishID: first.String(), Portions: 2})
 	f.exec(t, `UPDATE dishes SET name=name||' changed',is_active=false`)
 	f.recipe(t, first, 2, map[uuid.UUID]string{other: "9.000"})
@@ -41,10 +46,12 @@ func TestOrderHistoryIntegrationImmutableDetails(t *testing.T) {
 		for _, allocation := range item.Allocations {
 			count++
 			var current string
-			if err := f.pool.QueryRow(f.ctx, `SELECT remaining_quantity::text FROM batches WHERE id=$1`, allocation.BatchID).Scan(&current); err != nil {
+			if err := f.pool.QueryRow(f.ctx, `SELECT remaining_quantity::text FROM batches WHERE id=$1`, allocation.BatchID).
+				Scan(&current); err != nil {
 				t.Fatal(err)
 			}
-			if allocation.ProductID == shared && allocation.BatchRemainingQuantityAfter != "0.000" && current == allocation.BatchRemainingQuantityAfter {
+			if allocation.ProductID == shared && allocation.BatchRemainingQuantityAfter != "0.000" &&
+				current == allocation.BatchRemainingQuantityAfter {
 				t.Fatal("fixture must demonstrate historical balance differs from current balance")
 			}
 		}
@@ -78,8 +85,11 @@ func TestOrderHistoryIntegrationDetailsAccessAndErrors(t *testing.T) {
 		path string
 		code int
 	}{
-		{uuid.NewString(), 404}, {"invalid", 422}, {uuid.NewString() + "?search=1", 422},
-		{uuid.NewString() + "?q=%ZZ", 422}, {strings.ReplaceAll(uuid.NewString(), "-", ""), 422},
+		{uuid.NewString(), 404},
+		{"invalid", 422},
+		{uuid.NewString() + "?search=1", 422},
+		{uuid.NewString() + "?q=%ZZ", 422},
+		{strings.ReplaceAll(uuid.NewString(), "-", ""), 422},
 	} {
 		if response := historyRequest(f, "/orders/"+scenario.path, true); response.Code != scenario.code {
 			t.Fatalf("%s: %d %s", scenario.path, response.Code, response.Body.String())

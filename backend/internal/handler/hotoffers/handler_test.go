@@ -31,12 +31,14 @@ func serve(role, query string, service *serviceStub) *httptest.ResponseRecorder 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		if role != "" {
-			c.Request = c.Request.WithContext(requestctx.WithActor(c.Request.Context(), model.Actor{ID: uuid.New(), Role: role}))
+			c.Request = c.Request.WithContext(
+				requestctx.WithActor(c.Request.Context(), model.Actor{ID: uuid.New(), Role: role}),
+			)
 		}
 	})
 	router.GET("/hot-offers", NewHandler(service).List)
 	response := httptest.NewRecorder()
-	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/hot-offers"+query, nil))
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/hot-offers"+query, http.NoBody))
 	return response
 }
 
@@ -46,11 +48,12 @@ func TestAuthorizationBeforeParsing(t *testing.T) {
 			service := &serviceStub{}
 			response := serve(role, query, service)
 			want := http.StatusOK
-			if role == "" {
+			switch {
+			case role == "":
 				want = http.StatusUnauthorized
-			} else if role == "unknown" || role == "storekeeper" {
+			case role == "unknown" || role == "storekeeper":
 				want = http.StatusForbidden
-			} else if query != "" {
+			case query != "":
 				want = http.StatusUnprocessableEntity
 			}
 			if response.Code != want || (want != http.StatusOK && service.calls != 0) {

@@ -17,7 +17,7 @@ type Repository interface {
 }
 
 type MenuRepository interface {
-	Load(context.Context, repository.DBTX, model.DishFilter, time.Time) ([]model.Dish, error)
+	Load(context.Context, repository.DBTX, *model.DishFilter, time.Time) ([]model.Dish, error)
 }
 
 type Transactions interface {
@@ -44,17 +44,21 @@ func (s *Service) List(ctx context.Context, filter model.HotOffersFilter) (dto.H
 	var batches []model.OrderBatch
 	var hours int
 	var now time.Time
-	err = s.transactions.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx repository.DBTX) error {
-		now = s.now().UTC()
-		active := true
-		var err error
-		dishes, err = s.menu.Load(ctx, tx, model.DishFilter{IsActive: &active, Search: filter.Search}, now)
-		if err != nil {
+	err = s.transactions.WithinTx(
+		ctx,
+		&pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
+		func(tx repository.DBTX) error {
+			now = s.now().UTC()
+			active := true
+			var err error
+			dishes, err = s.menu.Load(ctx, tx, &model.DishFilter{IsActive: &active, Search: filter.Search}, now)
+			if err != nil {
+				return err
+			}
+			batches, hours, err = s.repo.Load(ctx, tx, ingredientProducts(dishes), now)
 			return err
-		}
-		batches, hours, err = s.repo.Load(ctx, tx, ingredientProducts(dishes), now)
-		return err
-	})
+		},
+	)
 	if err != nil {
 		return dto.HotOffersListResponse{}, err
 	}
@@ -74,10 +78,16 @@ func (s *Service) List(ctx context.Context, filter model.HotOffersFilter) (dto.H
 			end = total
 		}
 		for i := offset; i < end; i++ {
-			items = append(items, renderOffer(scored[i], i+1, now))
+			items = append(items, renderOffer(&scored[i], i+1, now))
 		}
 	}
-	return dto.HotOffersListResponse{Items: items, Total: total, Page: filter.Page, PageSize: filter.PageSize, Meta: map[string]any{"server_time": now.Format(time.RFC3339Nano)}}, nil
+	return dto.HotOffersListResponse{
+		Items:    items,
+		Total:    total,
+		Page:     filter.Page,
+		PageSize: filter.PageSize,
+		Meta:     map[string]any{"server_time": now.Format(time.RFC3339Nano)},
+	}, nil
 }
 
 func ingredientProducts(dishes []model.Dish) []uuid.UUID {

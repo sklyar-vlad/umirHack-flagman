@@ -43,7 +43,8 @@ func Plan(demands []Demand, batches []model.OrderBatch, now time.Time) ([]Alloca
 	})
 	remaining := make(map[uuid.UUID]*big.Int, len(ordered))
 	byProduct := make(map[uuid.UUID][]model.OrderBatch)
-	for _, b := range ordered {
+	for i := range ordered {
+		b := &ordered[i]
 		if b.ID == uuid.Nil || b.ProductID == uuid.Nil {
 			return nil, fmt.Errorf("invalid FEFO batch identity")
 		}
@@ -56,7 +57,7 @@ func Plan(demands []Demand, batches []model.OrderBatch, now time.Time) ([]Alloca
 		}
 		remaining[b.ID] = value
 		if value.Sign() > 0 && b.ExpiresAt.After(now) {
-			byProduct[b.ProductID] = append(byProduct[b.ProductID], b)
+			byProduct[b.ProductID] = append(byProduct[b.ProductID], *b)
 		}
 	}
 	plan := []Allocation{}
@@ -65,7 +66,9 @@ func Plan(demands []Demand, batches []model.OrderBatch, now time.Time) ([]Alloca
 		if err != nil || need.Sign() <= 0 || demand.ItemID == uuid.Nil || demand.ProductID == uuid.Nil {
 			return nil, fmt.Errorf("invalid FEFO demand")
 		}
-		for _, b := range byProduct[demand.ProductID] {
+		productBatches := byProduct[demand.ProductID]
+		for i := range productBatches {
+			b := &productBatches[i]
 			balance := remaining[b.ID]
 			if balance.Sign() == 0 {
 				continue
@@ -76,13 +79,26 @@ func Plan(demands []Demand, batches []model.OrderBatch, now time.Time) ([]Alloca
 			}
 			balance.Sub(balance, used)
 			need.Sub(need, used)
-			plan = append(plan, Allocation{ItemID: demand.ItemID, Batch: b, Quantity: quantity.FormatMilli(used), RemainingQuantityAfter: quantity.FormatMilli(balance)})
+			plan = append(
+				plan,
+				Allocation{
+					ItemID:                 demand.ItemID,
+					Batch:                  *b,
+					Quantity:               quantity.FormatMilli(used),
+					RemainingQuantityAfter: quantity.FormatMilli(balance),
+				},
+			)
 			if need.Sign() == 0 {
 				break
 			}
 		}
 		if need.Sign() > 0 {
-			return nil, fmt.Errorf("%w: product %s missing %s", ErrInsufficientStock, demand.ProductID, quantity.FormatMilli(need))
+			return nil, fmt.Errorf(
+				"%w: product %s missing %s",
+				ErrInsufficientStock,
+				demand.ProductID,
+				quantity.FormatMilli(need),
+			)
 		}
 	}
 	return plan, nil

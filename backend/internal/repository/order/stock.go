@@ -59,7 +59,16 @@ func (r *Repository) LockBatches(ctx context.Context, q repository.DBTX, ids []u
 	batches := []model.OrderBatch{}
 	for rows.Next() {
 		var b model.OrderBatch
-		if err := rows.Scan(&b.ID, &b.ProductID, &b.SupplyID, &b.SupplyNumber, &b.LineNumber, &b.RemainingQuantity, &b.ExpiresAt, &b.ReceivedAt); err != nil {
+		if err := rows.Scan(
+			&b.ID,
+			&b.ProductID,
+			&b.SupplyID,
+			&b.SupplyNumber,
+			&b.LineNumber,
+			&b.RemainingQuantity,
+			&b.ExpiresAt,
+			&b.ReceivedAt,
+		); err != nil {
 			return nil, err
 		}
 		batches = append(batches, b)

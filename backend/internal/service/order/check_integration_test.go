@@ -48,7 +48,8 @@ func newOrderFixture(t *testing.T) *orderFixture {
 	if err != nil {
 		t.Fatal("invalid test database configuration")
 	}
-	if (cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "::1" && cfg.ConnConfig.Host != "localhost") || !strings.Contains(cfg.ConnConfig.Database, "test") {
+	if (cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "::1" && cfg.ConnConfig.Host != "localhost") ||
+		!strings.Contains(cfg.ConnConfig.Database, "test") {
 		t.Fatal("order integration tests require a dedicated local test database")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
@@ -90,9 +91,26 @@ func newOrderFixture(t *testing.T) *orderFixture {
 			t.Fatal(err)
 		}
 	}
-	f := &orderFixture{ctx: ctx, pool: pool, actor: uuid.New(), category: uuid.New(), supply: uuid.New(), token: uuid.NewString() + uuid.NewString(), now: time.Now().UTC().Truncate(time.Microsecond)}
-	f.exec(t, `INSERT INTO users(id,name,email,password_hash,role)VALUES($1,'Operator','order-check@example.test','fixture','order_operator')`, f.actor)
-	f.exec(t, `INSERT INTO sessions(user_id,token_hash,csrf_token,expires_at)VALUES($1,$2,'csrf',clock_timestamp()+interval '12 hours')`, f.actor, authservice.SessionTokenHash(f.token))
+	f := &orderFixture{
+		ctx:      ctx,
+		pool:     pool,
+		actor:    uuid.New(),
+		category: uuid.New(),
+		supply:   uuid.New(),
+		token:    uuid.NewString() + uuid.NewString(),
+		now:      time.Now().UTC().Truncate(time.Microsecond),
+	}
+	f.exec(
+		t,
+		`INSERT INTO users(id,name,email,password_hash,role)VALUES($1,'Operator','order-check@example.test','fixture','order_operator')`,
+		f.actor,
+	)
+	f.exec(
+		t,
+		`INSERT INTO sessions(user_id,token_hash,csrf_token,expires_at)VALUES($1,$2,'csrf',clock_timestamp()+interval '12 hours')`,
+		f.actor,
+		authservice.SessionTokenHash(f.token),
+	)
 	f.exec(t, `INSERT INTO product_categories(id,name)VALUES($1,'Order check')`, f.category)
 	f.exec(t, `INSERT INTO supplies(id,number,received_at,created_by)VALUES($1,'S09',now(),$2)`, f.supply, f.actor)
 	f.service = NewService(menurepository.NewRepository(), repository.NewRepository(pool, zap.NewNop()))
@@ -104,7 +122,11 @@ func newOrderFixture(t *testing.T) *orderFixture {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(basehandler.RequestID(), basehandler.BodyLimit(1<<20))
-	basehandler.RegisterOrderCheckRoutes(router.Group("/api/v1"), orderhandler.NewHandler(f.service), authhandler.NewHandler(auth))
+	basehandler.RegisterOrderCheckRoutes(
+		router.Group("/api/v1"),
+		orderhandler.NewHandler(f.service),
+		authhandler.NewHandler(auth),
+	)
 	f.router = router
 	return f
 }
@@ -119,13 +141,26 @@ func (f *orderFixture) exec(t *testing.T, query string, args ...any) {
 func (f *orderFixture) product(t *testing.T, name string) uuid.UUID {
 	t.Helper()
 	id := uuid.New()
-	f.exec(t, `INSERT INTO products(id,category_id,name,unit,display_unit)VALUES($1,$2,$3,'g','kg')`, id, f.category, name)
+	f.exec(
+		t,
+		`INSERT INTO products(id,category_id,name,unit,display_unit)VALUES($1,$2,$3,'g','kg')`,
+		id,
+		f.category,
+		name,
+	)
 	return id
 }
 
 func (f *orderFixture) batch(t *testing.T, product uuid.UUID, quantity string, expires time.Time) {
 	t.Helper()
-	f.exec(t, `INSERT INTO batches(supply_id,product_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at)VALUES($1,$2,(SELECT COALESCE(MAX(line_number),0)+1 FROM batches WHERE supply_id=$1),$3,$3,'explicit',$4)`, f.supply, product, quantity, expires)
+	f.exec(
+		t,
+		`INSERT INTO batches(supply_id,product_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at)VALUES($1,$2,(SELECT COALESCE(MAX(line_number),0)+1 FROM batches WHERE supply_id=$1),$3,$3,'explicit',$4)`,
+		f.supply,
+		product,
+		quantity,
+		expires,
+	)
 }
 
 func (f *orderFixture) dish(t *testing.T, name string, active bool) uuid.UUID {
@@ -138,9 +173,22 @@ func (f *orderFixture) dish(t *testing.T, name string, active bool) uuid.UUID {
 func (f *orderFixture) recipe(t *testing.T, dish uuid.UUID, version int, ingredients map[uuid.UUID]string) {
 	t.Helper()
 	id := uuid.New()
-	f.exec(t, `INSERT INTO recipe_versions(id,dish_id,version,created_by)VALUES($1,$2,$3,$4)`, id, dish, version, f.actor)
+	f.exec(
+		t,
+		`INSERT INTO recipe_versions(id,dish_id,version,created_by)VALUES($1,$2,$3,$4)`,
+		id,
+		dish,
+		version,
+		f.actor,
+	)
 	for product, quantity := range ingredients {
-		f.exec(t, `INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion)VALUES($1,$2,$3)`, id, product, quantity)
+		f.exec(
+			t,
+			`INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion)VALUES($1,$2,$3)`,
+			id,
+			product,
+			quantity,
+		)
 	}
 }
 
@@ -169,7 +217,8 @@ func (f *orderFixture) check(t *testing.T, items ...dto.OrderRequestItem) dto.Or
 	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	if result.Items == nil || result.Requirements == nil || result.Shortages == nil || result.Issues == nil || result.Meta["server_time"] != f.now.Format(time.RFC3339Nano) {
+	if result.Items == nil || result.Requirements == nil || result.Shortages == nil || result.Issues == nil ||
+		result.Meta["server_time"] != f.now.Format(time.RFC3339Nano) {
 		t.Fatalf("invalid response arrays/time: %s", response.Body.String())
 	}
 	return result
@@ -203,12 +252,22 @@ func TestOrderCheckIntegrationSharedDeficitAndNoWrites(t *testing.T) {
 		}
 	}
 	for range 2 {
-		result := f.check(t, dto.OrderRequestItem{DishID: first.String(), Portions: 1}, dto.OrderRequestItem{DishID: second.String(), Portions: 2}, dto.OrderRequestItem{DishID: strings.ToUpper(first.String()), Portions: 1})
-		if result.CanCreate || len(result.Requirements) != 1 || len(result.Shortages) != 1 || len(result.Issues) != 0 || result.Items[0].DishID != first || result.Items[0].Portions != 2 || result.Items[1].DishID != second {
+		result := f.check(
+			t,
+			dto.OrderRequestItem{DishID: first.String(), Portions: 1},
+			dto.OrderRequestItem{DishID: second.String(), Portions: 2},
+			dto.OrderRequestItem{DishID: strings.ToUpper(first.String()), Portions: 1},
+		)
+		if result.CanCreate || len(result.Requirements) != 1 || len(result.Shortages) != 1 || len(result.Issues) != 0 ||
+			result.Items[0].DishID != first ||
+			result.Items[0].Portions != 2 ||
+			result.Items[1].DishID != second {
 			t.Fatalf("shared basket: %+v", result)
 		}
 		requirement := result.Requirements[0]
-		if requirement.RequiredQuantity != "1.200" || requirement.AvailableQuantity != "1.000" || requirement.MissingQuantity != "0.200" || result.Shortages[0].ReasonCode != "ingredient_shortage" {
+		if requirement.RequiredQuantity != "1.200" || requirement.AvailableQuantity != "1.000" ||
+			requirement.MissingQuantity != "0.200" ||
+			result.Shortages[0].ReasonCode != "ingredient_shortage" {
 			t.Fatalf("wrong aggregate: %+v", result)
 		}
 	}
@@ -224,7 +283,19 @@ func TestOrderCheckIntegrationSharedDeficitAndNoWrites(t *testing.T) {
 
 func TestOrderCheckIntegrationStockExpiryAndLargeSums(t *testing.T) {
 	f := newOrderFixture(t)
-	atBoundary, mixed, sufficient, large := f.product(t, "Boundary"), f.product(t, "Mixed"), f.product(t, "Sufficient"), f.product(t, "Large")
+	atBoundary, mixed, sufficient, large := f.product(
+		t,
+		"Boundary",
+	), f.product(
+		t,
+		"Mixed",
+	), f.product(
+		t,
+		"Sufficient",
+	), f.product(
+		t,
+		"Large",
+	)
 	f.batch(t, atBoundary, "10.000", f.now)
 	f.batch(t, mixed, "0.500", f.now.Add(time.Hour))
 	f.batch(t, mixed, "10.000", f.now.Add(-time.Second))
@@ -242,10 +313,16 @@ func TestOrderCheckIntegrationStockExpiryAndLargeSums(t *testing.T) {
 	for _, requirement := range result.Requirements {
 		byID[requirement.ProductID] = requirement
 	}
-	if byID[atBoundary].AvailableQuantity != "0.000" || byID[sufficient].MissingQuantity != "0.000" || byID[large].AvailableQuantity != "199999999999.998" || byID[large].RequiredQuantity != "0.001" {
+	if byID[atBoundary].AvailableQuantity != "0.000" || byID[sufficient].MissingQuantity != "0.000" ||
+		byID[large].AvailableQuantity != "199999999999.998" ||
+		byID[large].RequiredQuantity != "0.001" {
 		t.Fatalf("boundary/large stock: %+v", result.Requirements)
 	}
-	if result.Shortages[0].ProductID != atBoundary || result.Shortages[0].ReasonCode != "only_expired_stock" || result.Shortages[0].ExpiredQuantity != "10.000" || result.Shortages[1].ProductID != mixed || result.Shortages[1].ReasonCode != "ingredient_shortage" || result.Shortages[1].MissingQuantity != "0.500" {
+	if result.Shortages[0].ProductID != atBoundary || result.Shortages[0].ReasonCode != "only_expired_stock" ||
+		result.Shortages[0].ExpiredQuantity != "10.000" ||
+		result.Shortages[1].ProductID != mixed ||
+		result.Shortages[1].ReasonCode != "ingredient_shortage" ||
+		result.Shortages[1].MissingQuantity != "0.500" {
 		t.Fatalf("expiry reasons: %+v", result.Shortages)
 	}
 	if f.snapshot(t) != before {
@@ -260,7 +337,12 @@ type snapshotProbe struct {
 	product uuid.UUID
 }
 
-func (p snapshotProbe) Load(ctx context.Context, q repository.DBTX, filter model.DishFilter, now time.Time) ([]model.Dish, error) {
+func (p snapshotProbe) Load(
+	ctx context.Context,
+	q repository.DBTX,
+	filter *model.DishFilter,
+	now time.Time,
+) ([]model.Dish, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return nil, err
@@ -300,15 +382,20 @@ func TestOrderCheckIntegrationRepeatableRead(t *testing.T) {
 	f.batch(t, product, "1.000", f.now.Add(time.Hour))
 	dish := f.dish(t, "Pizza", true)
 	f.recipe(t, dish, 1, map[uuid.UUID]string{product: "1.000"})
-	service := NewService(snapshotProbe{t: t, fixture: f, dish: dish, product: product}, repository.NewRepository(f.pool, zap.NewNop()))
+	service := NewService(
+		snapshotProbe{t: t, fixture: f, dish: dish, product: product},
+		repository.NewRepository(f.pool, zap.NewNop()),
+	)
 	service.now = f.service.now
 	request := dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: dish.String(), Portions: 1}}}
 	first, err := service.Check(f.ctx, request)
-	if err != nil || !first.CanCreate || *first.Items[0].RecipeVersion != 1 || first.Requirements[0].AvailableQuantity != "1.000" {
+	if err != nil || !first.CanCreate || *first.Items[0].RecipeVersion != 1 ||
+		first.Requirements[0].AvailableQuantity != "1.000" {
 		t.Fatalf("original snapshot: %+v %v", first, err)
 	}
 	second := f.check(t, request.Items...)
-	if second.CanCreate || *second.Items[0].RecipeVersion != 2 || second.Requirements[0].RequiredQuantity != "2.000" || second.Requirements[0].AvailableQuantity != "0.000" {
+	if second.CanCreate || *second.Items[0].RecipeVersion != 2 || second.Requirements[0].RequiredQuantity != "2.000" ||
+		second.Requirements[0].AvailableQuantity != "0.000" {
 		t.Fatalf("next check did not see committed changes: %+v", second)
 	}
 }
@@ -326,20 +413,34 @@ func TestOrderCheckIntegrationRecipeChangesAndUnavailableDishes(t *testing.T) {
 	}
 	f.recipe(t, dish, 2, map[uuid.UUID]string{currentProduct: "0.300"})
 	before := f.snapshot(t)
-	stale := f.check(t, dto.OrderRequestItem{DishID: dish.String(), Portions: 2, RecipeVersion: initial.Items[0].RecipeVersion})
-	if stale.CanCreate || len(stale.Issues) != 1 || stale.Issues[0].Code != "recipe_changed" || *stale.Issues[0].CurrentRecipeVersion != 2 || *stale.Items[0].RecipeVersion != 2 || len(stale.Requirements) != 1 || stale.Requirements[0].ProductID != currentProduct || stale.Requirements[0].RequiredQuantity != "0.600" {
+	stale := f.check(
+		t,
+		dto.OrderRequestItem{DishID: dish.String(), Portions: 2, RecipeVersion: initial.Items[0].RecipeVersion},
+	)
+	if stale.CanCreate || len(stale.Issues) != 1 || stale.Issues[0].Code != "recipe_changed" ||
+		*stale.Issues[0].CurrentRecipeVersion != 2 ||
+		*stale.Items[0].RecipeVersion != 2 ||
+		len(stale.Requirements) != 1 ||
+		stale.Requirements[0].ProductID != currentProduct ||
+		stale.Requirements[0].RequiredQuantity != "0.600" {
 		t.Fatalf("stale version did not use latest recipe: %+v", stale)
 	}
 	if f.snapshot(t) != before {
 		t.Fatal("recipe issue check wrote storage")
 	}
-	if current := f.check(t, dto.OrderRequestItem{DishID: dish.String(), Portions: 2}); !current.CanCreate || *current.Items[0].RecipeVersion != 2 {
+	if current := f.check(
+		t,
+		dto.OrderRequestItem{DishID: dish.String(), Portions: 2},
+	); !current.CanCreate ||
+		*current.Items[0].RecipeVersion != 2 {
 		t.Fatalf("omitted version should accept latest recipe: %+v", current)
 	}
 	f.exec(t, `UPDATE dishes SET is_active=false WHERE id=$1`, dish)
 	before = f.snapshot(t)
 	inactive := f.check(t, dto.OrderRequestItem{DishID: dish.String(), Portions: 2})
-	if inactive.CanCreate || len(inactive.Issues) != 1 || inactive.Issues[0].Code != "dish_inactive" || len(inactive.Shortages) != 0 || inactive.Requirements[0].RequiredQuantity != "0.600" {
+	if inactive.CanCreate || len(inactive.Issues) != 1 || inactive.Issues[0].Code != "dish_inactive" ||
+		len(inactive.Shortages) != 0 ||
+		inactive.Requirements[0].RequiredQuantity != "0.600" {
 		t.Fatalf("inactive dish: %+v", inactive)
 	}
 	if f.snapshot(t) != before {
@@ -352,7 +453,9 @@ func TestOrderCheckIntegrationRecipeChangesAndUnavailableDishes(t *testing.T) {
 	before = f.snapshot(t)
 	for _, id := range []uuid.UUID{missing, empty} {
 		result := f.check(t, dto.OrderRequestItem{DishID: id.String(), Portions: 1})
-		if result.CanCreate || len(result.Issues) != 1 || result.Issues[0].Code != "recipe_missing" || len(result.Requirements) != 0 || len(result.Shortages) != 0 {
+		if result.CanCreate || len(result.Issues) != 1 || result.Issues[0].Code != "recipe_missing" ||
+			len(result.Requirements) != 0 ||
+			len(result.Shortages) != 0 {
 			t.Fatalf("missing/empty recipe: %+v", result)
 		}
 	}
@@ -402,7 +505,11 @@ func TestOrderCheckIntegrationAccessAndInvalidInput(t *testing.T) {
 			t.Fatalf("body %s: %d %s", tc.body, response.Code, response.Body.String())
 		}
 		var result dto.ErrorResponse
-		if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil || result.RequestID != response.Header().Get("X-Request-ID") {
+		if err := json.Unmarshal(
+			response.Body.Bytes(),
+			&result,
+		); err != nil ||
+			result.RequestID != response.Header().Get("X-Request-ID") {
 			t.Fatalf("error request ID: %s %v", response.Body.String(), err)
 		}
 	}

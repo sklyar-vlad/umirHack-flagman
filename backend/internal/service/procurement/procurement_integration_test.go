@@ -48,7 +48,8 @@ func newProcurementFixture(t *testing.T) *procurementFixture {
 	if err != nil {
 		t.Fatal("invalid test database configuration")
 	}
-	if (cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "::1" && cfg.ConnConfig.Host != "localhost") || !strings.Contains(cfg.ConnConfig.Database, "test") {
+	if (cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "::1" && cfg.ConnConfig.Host != "localhost") ||
+		!strings.Contains(cfg.ConnConfig.Database, "test") {
 		t.Fatal("procurement integration tests require a dedicated local test database")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
@@ -90,12 +91,33 @@ func newProcurementFixture(t *testing.T) *procurementFixture {
 			t.Fatal(err)
 		}
 	}
-	f := &procurementFixture{ctx: ctx, pool: pool, actor: uuid.New(), category: uuid.New(), supply: uuid.New(), token: uuid.NewString() + uuid.NewString(), now: time.Now().UTC().Truncate(time.Microsecond)}
-	f.exec(t, `INSERT INTO users(id,name,email,password_hash,role)VALUES($1,'Operator','order-check@example.test','fixture','manager')`, f.actor)
-	f.exec(t, `INSERT INTO sessions(user_id,token_hash,csrf_token,expires_at)VALUES($1,$2,'csrf',clock_timestamp()+interval '12 hours')`, f.actor, authservice.SessionTokenHash(f.token))
+	f := &procurementFixture{
+		ctx:      ctx,
+		pool:     pool,
+		actor:    uuid.New(),
+		category: uuid.New(),
+		supply:   uuid.New(),
+		token:    uuid.NewString() + uuid.NewString(),
+		now:      time.Now().UTC().Truncate(time.Microsecond),
+	}
+	f.exec(
+		t,
+		`INSERT INTO users(id,name,email,password_hash,role)VALUES($1,'Operator','order-check@example.test','fixture','manager')`,
+		f.actor,
+	)
+	f.exec(
+		t,
+		`INSERT INTO sessions(user_id,token_hash,csrf_token,expires_at)VALUES($1,$2,'csrf',clock_timestamp()+interval '12 hours')`,
+		f.actor,
+		authservice.SessionTokenHash(f.token),
+	)
 	f.exec(t, `INSERT INTO product_categories(id,name)VALUES($1,'Order check')`, f.category)
 	f.exec(t, `INSERT INTO supplies(id,number,received_at,created_by)VALUES($1,'S09',now(),$2)`, f.supply, f.actor)
-	f.service = NewService(procurementrepository.NewRepository(), menurepository.NewRepository(), repository.NewRepository(pool, zap.NewNop()))
+	f.service = NewService(
+		procurementrepository.NewRepository(),
+		menurepository.NewRepository(),
+		repository.NewRepository(pool, zap.NewNop()),
+	)
 	f.service.now = func() time.Time { return f.now }
 	auth, err := authservice.NewService(authrepository.NewRepository(pool), "http://flagman.localhost")
 	if err != nil {
@@ -104,7 +126,11 @@ func newProcurementFixture(t *testing.T) *procurementFixture {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(basehandler.RequestID(), basehandler.BodyLimit(1<<20))
-	basehandler.RegisterProcurementRoutes(router.Group("/api/v1"), procurementhandler.NewHandler(f.service), authhandler.NewHandler(auth))
+	basehandler.RegisterProcurementRoutes(
+		router.Group("/api/v1"),
+		procurementhandler.NewHandler(f.service),
+		authhandler.NewHandler(auth),
+	)
 	f.router = router
 	return f
 }
@@ -119,17 +145,32 @@ func (f *procurementFixture) exec(t *testing.T, query string, args ...any) {
 func (f *procurementFixture) product(t *testing.T, name string, target *string) uuid.UUID {
 	t.Helper()
 	id := uuid.New()
-	f.exec(t, `INSERT INTO products(id,category_id,name,unit,display_unit,target_stock)VALUES($1,$2,$3,'g','kg',$4)`, id, f.category, name, target)
+	f.exec(
+		t,
+		`INSERT INTO products(id,category_id,name,unit,display_unit,target_stock)VALUES($1,$2,$3,'g','kg',$4)`,
+		id,
+		f.category,
+		name,
+		target,
+	)
 	return id
 }
 
 func (f *procurementFixture) batch(t *testing.T, product uuid.UUID, amount string, expires time.Time) {
 	t.Helper()
-	f.exec(t, `INSERT INTO batches(supply_id,product_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,(SELECT COALESCE(MAX(line_number),0)+1 FROM batches WHERE supply_id=$1),$3,$3,'explicit',$4)`, f.supply, product, amount, expires)
+	f.exec(
+		t,
+		`INSERT INTO batches(supply_id,product_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,(SELECT COALESCE(MAX(line_number),0)+1 FROM batches WHERE supply_id=$1),$3,$3,'explicit',$4)`,
+		f.supply,
+		product,
+		amount,
+		expires,
+	)
 }
 
 func (f *procurementFixture) request(query string, cookie bool) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/procurement-recommendations"+query, nil).WithContext(f.ctx)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/procurement-recommendations"+query, http.NoBody).
+		WithContext(f.ctx)
 	if cookie {
 		req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: f.token})
 	}
@@ -182,7 +223,10 @@ func TestProcurementIntegrationTargetsAndExpiry(t *testing.T) {
 	for _, item := range result.Items {
 		byID[item.ProductID] = item
 	}
-	if byID[mixed].RecommendedQuantity != "0.001" || byID[mixed].AvailableQuantity != "0.999" || byID[mixed].ExpiredQuantity != "50.000" || byID[expired].RecommendedQuantity != "1.000" || byID[empty].RecommendedQuantity != "1.000" {
+	if byID[mixed].RecommendedQuantity != "0.001" || byID[mixed].AvailableQuantity != "0.999" ||
+		byID[mixed].ExpiredQuantity != "50.000" ||
+		byID[expired].RecommendedQuantity != "1.000" ||
+		byID[empty].RecommendedQuantity != "1.000" {
 		t.Fatalf("stock calculation: %+v", result.Items)
 	}
 	if byID[largeExpired].ExpiredQuantity != "199999999999.998" || byID[largeExpired].RecommendedQuantity != "1.000" {
@@ -209,12 +253,26 @@ func (f *procurementFixture) dish(t *testing.T, name string, active bool) uuid.U
 	f.exec(t, `INSERT INTO dishes(id,name,is_active)VALUES($1,$2,$3)`, id, name, active)
 	return id
 }
+
 func (f *procurementFixture) recipe(t *testing.T, dish uuid.UUID, version int, ingredients map[uuid.UUID]string) {
 	t.Helper()
 	id := uuid.New()
-	f.exec(t, `INSERT INTO recipe_versions(id,dish_id,version,created_by)VALUES($1,$2,$3,$4)`, id, dish, version, f.actor)
+	f.exec(
+		t,
+		`INSERT INTO recipe_versions(id,dish_id,version,created_by)VALUES($1,$2,$3,$4)`,
+		id,
+		dish,
+		version,
+		f.actor,
+	)
 	for product, amount := range ingredients {
-		f.exec(t, `INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion)VALUES($1,$2,$3)`, id, product, amount)
+		f.exec(
+			t,
+			`INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion)VALUES($1,$2,$3)`,
+			id,
+			product,
+			amount,
+		)
 	}
 }
 
@@ -251,16 +309,24 @@ func TestProcurementIntegrationReasonsAndCurrentShortages(t *testing.T) {
 			t.Fatalf("missing explanation: %+v", item)
 		}
 	}
-	if !reflect.DeepEqual(byID[x].ReasonCodes, []string{"below_target"}) || !reflect.DeepEqual(byID[y].ReasonCodes, []string{"below_target", "no_valid_stock", "only_expired_stock"}) || !reflect.DeepEqual(byID[z].ReasonCodes, []string{"below_target", "no_valid_stock"}) {
+	if !reflect.DeepEqual(byID[x].ReasonCodes, []string{"below_target"}) ||
+		!reflect.DeepEqual(byID[y].ReasonCodes, []string{"below_target", "no_valid_stock", "only_expired_stock"}) ||
+		!reflect.DeepEqual(byID[z].ReasonCodes, []string{"below_target", "no_valid_stock"}) {
 		t.Fatalf("reason codes: %+v", result.Items)
 	}
-	if !reflect.DeepEqual(byID[x].AffectedDishes, []dto.AffectedDish{{ID: blocked, Name: "A blocked"}}) || !reflect.DeepEqual(byID[y].AffectedDishes, []dto.AffectedDish{{ID: blocked, Name: "A blocked"}, {ID: latest, Name: "C latest"}}) || !reflect.DeepEqual(byID[z].AffectedDishes, []dto.AffectedDish{{ID: sufficient, Name: "B sufficient"}}) {
+	if !reflect.DeepEqual(byID[x].AffectedDishes, []dto.AffectedDish{{ID: blocked, Name: "A blocked"}}) ||
+		!reflect.DeepEqual(
+			byID[y].AffectedDishes,
+			[]dto.AffectedDish{{ID: blocked, Name: "A blocked"}, {ID: latest, Name: "C latest"}},
+		) ||
+		!reflect.DeepEqual(byID[z].AffectedDishes, []dto.AffectedDish{{ID: sufficient, Name: "B sufficient"}}) {
 		t.Fatalf("current shortage links: %+v", result.Items)
 	}
 	f.now = f.now.Add(time.Hour)
 	after := f.list(t, "")
 	for _, item := range after.Items {
-		if item.ProductID == x && (item.RecommendedQuantity != "10.000" || len(item.ReasonCodes) != 3 || len(item.AffectedDishes) != 3) {
+		if item.ProductID == x &&
+			(item.RecommendedQuantity != "10.000" || len(item.ReasonCodes) != 3 || len(item.AffectedDishes) != 3) {
 			t.Fatalf("expiry recalculation: %+v", item)
 		}
 	}
@@ -287,7 +353,10 @@ func TestProcurementIntegrationCurrentPermissionsAndSessions(t *testing.T) {
 		t.Fatalf("disabled user: %d", response.Code)
 	}
 	f.exec(t, `UPDATE users SET is_active=true WHERE id=$1`, f.actor)
-	f.exec(t, `UPDATE sessions SET created_at=clock_timestamp()-interval '2 hours',expires_at=clock_timestamp()-interval '1 hour'`)
+	f.exec(
+		t,
+		`UPDATE sessions SET created_at=clock_timestamp()-interval '2 hours',expires_at=clock_timestamp()-interval '1 hour'`,
+	)
 	if response := f.request("?page=0", true); response.Code != http.StatusUnauthorized {
 		t.Fatalf("expired session: %d", response.Code)
 	}

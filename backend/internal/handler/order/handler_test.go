@@ -36,7 +36,9 @@ type checkAccess struct{ role string }
 
 func (a checkAccess) RequireProductReadAccess(c *gin.Context) {
 	if a.role != "" {
-		c.Request = c.Request.WithContext(requestctx.WithActor(c.Request.Context(), model.Actor{ID: uuid.New(), Role: a.role}))
+		c.Request = c.Request.WithContext(
+			requestctx.WithActor(c.Request.Context(), model.Actor{ID: uuid.New(), Role: a.role}),
+		)
 	}
 	c.Next()
 }
@@ -98,7 +100,10 @@ func TestCheckHTTPFailures(t *testing.T) {
 			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 				t.Fatal(err)
 			}
-			if response.Code != tc.status || body.Error.Code != tc.code || service.calls != tc.calls || body.RequestID == "" || body.RequestID != response.Header().Get("X-Request-ID") || strings.Contains(response.Body.String(), "sensitive SQL") {
+			if response.Code != tc.status || body.Error.Code != tc.code || service.calls != tc.calls ||
+				body.RequestID == "" ||
+				body.RequestID != response.Header().Get("X-Request-ID") ||
+				strings.Contains(response.Body.String(), "sensitive SQL") {
 				t.Fatalf("status=%d calls=%d body=%s", response.Code, service.calls, response.Body.String())
 			}
 		})
@@ -108,10 +113,17 @@ func TestCheckHTTPFailures(t *testing.T) {
 func TestCheckHTTPShortageIs200(t *testing.T) {
 	id := uuid.New()
 	service := &checkService{response: dto.OrderCheck{
-		Items: []dto.OrderItemSnapshot{}, Requirements: []dto.Requirement{}, Shortages: []dto.Shortage{{ProductID: id, ReasonCode: "ingredient_shortage"}},
-		Issues: []dto.OrderIssue{}, Meta: map[string]any{},
+		Items:        []dto.OrderItemSnapshot{},
+		Requirements: []dto.Requirement{},
+		Shortages:    []dto.Shortage{{ProductID: id, ReasonCode: "ingredient_shortage"}},
+		Issues:       []dto.OrderIssue{},
+		Meta:         map[string]any{},
 	}}
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/orders/check", strings.NewReader(`{"items":[{"dish_id":"`+id.String()+`","portions":2}]}`))
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/orders/check",
+		strings.NewReader(`{"items":[{"dish_id":"`+id.String()+`","portions":2}]}`),
+	)
 	request.Header.Set("Content-Type", "application/json; charset=utf-8")
 	response := httptest.NewRecorder()
 	checkRouter(service, "order_operator").ServeHTTP(response, request)
@@ -119,7 +131,11 @@ func TestCheckHTTPShortageIs200(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if response.Code != http.StatusOK || body.CanCreate || len(body.Shortages) != 1 || body.Issues == nil || service.calls != 1 || service.request.Items[0].DishID != id.String() || service.request.Items[0].Portions != 2 || requestctx.ID(service.ctx) != response.Header().Get("X-Request-ID") {
+	if response.Code != http.StatusOK || body.CanCreate || len(body.Shortages) != 1 || body.Issues == nil ||
+		service.calls != 1 ||
+		service.request.Items[0].DishID != id.String() ||
+		service.request.Items[0].Portions != 2 ||
+		requestctx.ID(service.ctx) != response.Header().Get("X-Request-ID") {
 		t.Fatalf("unexpected response: %d %s", response.Code, response.Body.String())
 	}
 }

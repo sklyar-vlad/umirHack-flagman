@@ -10,7 +10,11 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
-func (r *Repository) ListAttempts(ctx context.Context, q repository.DBTX, filter model.OrderHistoryFilter) ([]model.OrderAttemptHistory, int64, error) {
+func (r *Repository) ListAttempts(
+	ctx context.Context,
+	q repository.DBTX,
+	filter model.OrderHistoryFilter,
+) ([]model.OrderAttemptHistory, int64, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return nil, 0, err

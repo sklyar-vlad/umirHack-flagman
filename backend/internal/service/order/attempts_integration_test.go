@@ -45,13 +45,36 @@ func TestOrderHistoryIntegrationAttempts(t *testing.T) {
 	f := newHistoryFixture(t)
 	product := f.product(t, "Ingredient")
 	f.batch(t, product, "5.000", f.now.Add(time.Hour))
-	dish, second, unavailable := f.dish(t, `Snapshot%_\ Pizza`, true), f.dish(t, "Other snapshot", true), f.dish(t, "Unavailable", false)
+	dish, second, unavailable := f.dish(
+		t,
+		`Snapshot%_\ Pizza`,
+		true,
+	), f.dish(
+		t,
+		"Other snapshot",
+		true,
+	), f.dish(
+		t,
+		"Unavailable",
+		false,
+	)
 	f.recipe(t, dish, 1, map[uuid.UUID]string{product: "1.000"})
 	f.recipe(t, second, 1, map[uuid.UUID]string{product: "1.000"})
 	createHistoryOrder(t, f, dto.OrderRequestItem{DishID: dish.String(), Portions: 1})
-	shortage := createHistoryAttempt(t, f, uuid.New(), dto.OrderRequestItem{DishID: dish.String(), Portions: 50}, dto.OrderRequestItem{DishID: second.String(), Portions: 1})
+	shortage := createHistoryAttempt(
+		t,
+		f,
+		uuid.New(),
+		dto.OrderRequestItem{DishID: dish.String(), Portions: 50},
+		dto.OrderRequestItem{DishID: second.String(), Portions: 1},
+	)
 	version := 2
-	changed := createHistoryAttempt(t, f, uuid.New(), dto.OrderRequestItem{DishID: dish.String(), Portions: 1, RecipeVersion: &version})
+	changed := createHistoryAttempt(
+		t,
+		f,
+		uuid.New(),
+		dto.OrderRequestItem{DishID: dish.String(), Portions: 1, RecipeVersion: &version},
+	)
 	disabled := createHistoryAttempt(t, f, uuid.New(), dto.OrderRequestItem{DishID: unavailable.String(), Portions: 1})
 	f.exec(t, `UPDATE dishes SET name=name||' renamed',is_active=false`)
 	f.recipe(t, dish, 3, map[uuid.UUID]string{product: "2.000"})
@@ -98,21 +121,32 @@ func TestOrderHistoryIntegrationAttempts(t *testing.T) {
 			got := make([]uuid.UUID, 0, len(result.Items))
 			for _, attempt := range result.Items {
 				got = append(got, attempt.ID)
-				if attempt.CreatedBy.ID != f.actor || attempt.CreatedBy.Name != "Operator" || !attempt.CreatedAt.Equal(f.now) || attempt.Items == nil || attempt.Shortages == nil || attempt.Issues == nil {
+				if attempt.CreatedBy.ID != f.actor || attempt.CreatedBy.Name != "Operator" ||
+					!attempt.CreatedAt.Equal(f.now) ||
+					attempt.Items == nil ||
+					attempt.Shortages == nil ||
+					attempt.Issues == nil {
 					t.Fatalf("bad attempt projection: %+v", attempt)
 				}
-				position := slices.IndexFunc(attempt.Items, func(item dto.OrderItemSnapshot) bool { return item.DishID == dish })
-				if attempt.ID == shortage && (attempt.ReasonCode != "INSUFFICIENT_STOCK" || len(attempt.Items) != 2 || position < 0 || attempt.Items[position].DishName != `Snapshot%_\ Pizza` || attempt.Items[position].Portions != 50 || len(attempt.Shortages) != 1 || attempt.Shortages[0].ProductName != "Ingredient" || attempt.Shortages[0].MissingQuantity != "47.000") {
+				position := slices.IndexFunc(
+					attempt.Items,
+					func(item dto.OrderItemSnapshot) bool { return item.DishID == dish },
+				)
+				if attempt.ID == shortage &&
+					(attempt.ReasonCode != "INSUFFICIENT_STOCK" || len(attempt.Items) != 2 || position < 0 || attempt.Items[position].DishName != `Snapshot%_\ Pizza` || attempt.Items[position].Portions != 50 || len(attempt.Shortages) != 1 || attempt.Shortages[0].ProductName != "Ingredient" || attempt.Shortages[0].MissingQuantity != "47.000") {
 					t.Fatalf("changed shortage snapshot: %+v", attempt)
 				}
-				if attempt.ID == changed && (attempt.ReasonCode != "RECIPE_CHANGED" || len(attempt.Issues) != 1 || attempt.Issues[0].CurrentRecipeVersion == nil || *attempt.Issues[0].CurrentRecipeVersion != 1) {
+				if attempt.ID == changed &&
+					(attempt.ReasonCode != "RECIPE_CHANGED" || len(attempt.Issues) != 1 || attempt.Issues[0].CurrentRecipeVersion == nil || *attempt.Issues[0].CurrentRecipeVersion != 1) {
 					t.Fatalf("changed issue snapshot: %+v", attempt)
 				}
-				if attempt.ID == disabled && (attempt.ReasonCode != "DISH_UNAVAILABLE" || attempt.Items[0].RecipeVersion != nil) {
+				if attempt.ID == disabled &&
+					(attempt.ReasonCode != "DISH_UNAVAILABLE" || attempt.Items[0].RecipeVersion != nil) {
 					t.Fatalf("unavailable snapshot: %+v", attempt)
 				}
 			}
-			if result.Total != scenario.total || !reflect.DeepEqual(got, scenario.ids) || result.Items == nil || result.Meta == nil {
+			if result.Total != scenario.total || !reflect.DeepEqual(got, scenario.ids) || result.Items == nil ||
+				result.Meta == nil {
 				t.Fatalf("attempt total/order/shape: %+v want %v", result, scenario.ids)
 			}
 			var raw map[string]json.RawMessage
@@ -160,7 +194,7 @@ func TestOrderHistoryIntegrationExcludesEarlyAndTechnicalFailures(t *testing.T) 
 		t.Fatal("access failure expected")
 	}
 	f.exec(t, `UPDATE users SET role='order_operator' WHERE id=$1`, f.actor)
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/orders", nil).WithContext(f.ctx)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/orders", http.NoBody).WithContext(f.ctx)
 	request.Body = historyBrokenBody{}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Origin", "http://flagman.localhost")
@@ -179,7 +213,10 @@ func TestOrderHistoryIntegrationExcludesEarlyAndTechnicalFailures(t *testing.T) 
 	f.exec(t, `ALTER TABLE idempotency_keys DROP CONSTRAINT history_reject_write`)
 	response = historyRequest(f, "/order-attempts", true)
 	var result dto.ListResponse[dto.OrderAttempt]
-	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &result) != nil || result.Total != 0 || result.Items == nil || len(result.Items) != 0 || f.count(t, "idempotency_keys") != 0 {
+	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &result) != nil || result.Total != 0 ||
+		result.Items == nil ||
+		len(result.Items) != 0 ||
+		f.count(t, "idempotency_keys") != 0 {
 		t.Fatalf("non-domain failures entered history: %d %s", response.Code, response.Body.String())
 	}
 }

@@ -21,17 +21,29 @@ type historyRepositoryStub struct {
 	tx       repository.DBTX
 }
 
-func (r *historyRepositoryStub) ListOrders(ctx context.Context, tx repository.DBTX, _ model.OrderHistoryFilter) ([]model.OrderHistory, int64, error) {
+func (r *historyRepositoryStub) ListOrders(
+	ctx context.Context,
+	tx repository.DBTX,
+	_ model.OrderHistoryFilter,
+) ([]model.OrderHistory, int64, error) {
 	r.ctx, r.tx = ctx, tx
 	return []model.OrderHistory{r.order}, 1, r.err
 }
 
-func (r *historyRepositoryStub) FindOrder(ctx context.Context, tx repository.DBTX, _ uuid.UUID) (model.OrderHistory, error) {
+func (r *historyRepositoryStub) FindOrder(
+	ctx context.Context,
+	tx repository.DBTX,
+	_ uuid.UUID,
+) (model.OrderHistory, error) {
 	r.ctx, r.tx = ctx, tx
 	return r.order, r.err
 }
 
-func (r *historyRepositoryStub) ListAttempts(ctx context.Context, tx repository.DBTX, _ model.OrderHistoryFilter) ([]model.OrderAttemptHistory, int64, error) {
+func (r *historyRepositoryStub) ListAttempts(
+	ctx context.Context,
+	tx repository.DBTX,
+	_ model.OrderHistoryFilter,
+) ([]model.OrderAttemptHistory, int64, error) {
 	r.ctx, r.tx = ctx, tx
 	return r.attempts, 1, r.err
 }
@@ -43,7 +55,9 @@ func TestHistoryUsesReadOnlySnapshotAndDiscardsFailedResults(t *testing.T) {
 			t.Run(method+"/"+source, func(t *testing.T) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				r := &historyRepositoryStub{order: model.OrderHistory{OrderRecord: model.OrderRecord{ID: uuid.New(), Number: 42}}}
+				r := &historyRepositoryStub{
+					order: model.OrderHistory{OrderRecord: model.OrderRecord{ID: uuid.New(), Number: 42}},
+				}
 				tx := &checkTransactions{}
 				if source == "repository" {
 					r.err = fmt.Errorf("read: %w", failure)
@@ -85,7 +99,10 @@ func TestHistoryUsesReadOnlySnapshotAndDiscardsFailedResults(t *testing.T) {
 				if source == "none" && err != nil || source != "none" && !errors.Is(err, failure) {
 					t.Fatalf("error propagation: %v", err)
 				}
-				if tx.calls != 1 || tx.options.IsoLevel != pgx.RepeatableRead || tx.options.AccessMode != pgx.ReadOnly || r.ctx != ctx || r.tx != tx.tx {
+				if tx.calls != 1 || tx.options.IsoLevel != pgx.RepeatableRead ||
+					tx.options.AccessMode != pgx.ReadOnly ||
+					r.ctx != ctx ||
+					r.tx != tx.tx {
 					t.Fatalf("inconsistent read transaction: %+v", tx)
 				}
 			})
@@ -94,7 +111,13 @@ func TestHistoryUsesReadOnlySnapshotAndDiscardsFailedResults(t *testing.T) {
 }
 
 func TestHistoryAttemptSnapshotDecodeFailsWithoutPartialResponse(t *testing.T) {
-	good := model.OrderAttemptHistory{OrderAttempt: model.OrderAttempt{ItemsSnapshot: json.RawMessage(`[]`), Shortages: json.RawMessage(`[]`), Issues: json.RawMessage(`[]`)}}
+	good := model.OrderAttemptHistory{
+		OrderAttempt: model.OrderAttempt{
+			ItemsSnapshot: json.RawMessage(`[]`),
+			Shortages:     json.RawMessage(`[]`),
+			Issues:        json.RawMessage(`[]`),
+		},
+	}
 	for _, field := range []string{"items", "shortages", "issues"} {
 		t.Run(field, func(t *testing.T) {
 			bad := good
@@ -107,14 +130,20 @@ func TestHistoryAttemptSnapshotDecodeFailsWithoutPartialResponse(t *testing.T) {
 				bad.Issues = json.RawMessage(`{}`)
 			}
 			r := &historyRepositoryStub{attempts: []model.OrderAttemptHistory{good, bad}}
-			items, total, err := NewHistoryService(r, &checkTransactions{}).ListAttempts(context.Background(), model.OrderHistoryFilter{})
+			items, total, err := NewHistoryService(
+				r,
+				&checkTransactions{},
+			).ListAttempts(context.Background(), model.OrderHistoryFilter{})
 			if err == nil || items != nil || total != 0 {
 				t.Fatal("corrupt snapshot returned a partial success")
 			}
 		})
 	}
 	r := &historyRepositoryStub{attempts: []model.OrderAttemptHistory{good}}
-	items, _, err := NewHistoryService(r, &checkTransactions{}).ListAttempts(context.Background(), model.OrderHistoryFilter{})
+	items, _, err := NewHistoryService(
+		r,
+		&checkTransactions{},
+	).ListAttempts(context.Background(), model.OrderHistoryFilter{})
 	if err != nil || len(items) != 1 || items[0].Items == nil || items[0].Shortages == nil || items[0].Issues == nil {
 		t.Fatalf("empty snapshot arrays: %+v %v", items, err)
 	}

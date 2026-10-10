@@ -25,7 +25,13 @@ type lockedStock struct {
 	serverTime time.Time
 }
 
-func lockBasket(ctx context.Context, repo StockRepository, tx repository.DBTX, items []basketItem, now func() time.Time) (lockedStock, error) {
+func lockBasket(
+	ctx context.Context,
+	repo StockRepository,
+	tx repository.DBTX,
+	items []basketItem,
+	now func() time.Time,
+) (lockedStock, error) {
 	ids := make([]uuid.UUID, len(items))
 	for i, item := range items {
 		ids[i] = item.dishID
@@ -34,7 +40,7 @@ func lockBasket(ctx context.Context, repo StockRepository, tx repository.DBTX, i
 		return lockedStock{}, err
 	}
 	// Dish locks stabilize the latest recipe while discovering product locks.
-	dishes, err := repo.Load(ctx, tx, model.DishFilter{IDs: ids}, time.Time{})
+	dishes, err := repo.Load(ctx, tx, &model.DishFilter{IDs: ids}, time.Time{})
 	if err != nil {
 		return lockedStock{}, err
 	}
@@ -48,7 +54,10 @@ func lockBasket(ctx context.Context, repo StockRepository, tx repository.DBTX, i
 	}
 	for _, item := range items {
 		if !known[item.dishID] {
-			return lockedStock{}, &validations.FieldError{Field: fmt.Sprintf("items[%d].dish_id", item.inputIndex), Message: "Блюдо не найдено"}
+			return lockedStock{}, &validations.FieldError{
+				Field:   fmt.Sprintf("items[%d].dish_id", item.inputIndex),
+				Message: "Блюдо не найдено",
+			}
 		}
 	}
 	slices.SortFunc(products, func(a, b uuid.UUID) int { return slices.Compare(a[:], b[:]) })
@@ -61,7 +70,7 @@ func lockBasket(ctx context.Context, repo StockRepository, tx repository.DBTX, i
 		return lockedStock{}, err
 	}
 	serverTime := now().UTC()
-	dishes, err = repo.Load(ctx, tx, model.DishFilter{IDs: ids}, serverTime)
+	dishes, err = repo.Load(ctx, tx, &model.DishFilter{IDs: ids}, serverTime)
 	if err != nil {
 		return lockedStock{}, err
 	}

@@ -13,7 +13,8 @@ func TestDecodeRequest(t *testing.T) {
 	id := uuid.NewString()
 	valid := `{"items":[{"dish_id":"` + id + `","portions":2,"recipe_version":1}]}`
 	request, err := decodeRequest([]byte(valid))
-	if err != nil || len(request.Items) != 1 || request.Items[0].DishID != id || request.Items[0].Portions != 2 || *request.Items[0].RecipeVersion != 1 {
+	if err != nil || len(request.Items) != 1 || request.Items[0].DishID != id || request.Items[0].Portions != 2 ||
+		*request.Items[0].RecipeVersion != 1 {
 		t.Fatalf("decode valid request: %+v %v", request, err)
 	}
 	for _, raw := range []string{"", "{", valid + `{}`, `{"items":`} {

@@ -11,16 +11,26 @@ import (
 
 func testDish(id, product uuid.UUID, required, available string) model.Dish {
 	version := 1
-	return model.Dish{ID: id, Name: "Блюдо", IsActive: true, RecipeVersion: &version,
-		Recipe: []model.RecipeIngredient{{ProductID: product, ProductName: "Моцарелла", Unit: "g",
-			QuantityPerPortion: required, AvailableQuantity: available, ExpiredQuantity: "0.000"}}}
+	return model.Dish{
+		ID: id, Name: "Блюдо", IsActive: true, RecipeVersion: &version,
+		Recipe: []model.RecipeIngredient{{
+			ProductID: product, ProductName: "Моцарелла", Unit: "g",
+			QuantityPerPortion: required, AvailableQuantity: available, ExpiredQuantity: "0.000",
+		}},
+	}
 }
 
 func TestSimulationUsesOnlyConsumedExpiringBatches(t *testing.T) {
 	now := time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC)
 	product := uuid.New()
 	batch := func(id, amount string, expiry, receipt time.Time) model.OrderBatch {
-		return model.OrderBatch{ID: uuid.MustParse(id), ProductID: product, RemainingQuantity: amount, ExpiresAt: expiry, ReceivedAt: receipt}
+		return model.OrderBatch{
+			ID:                uuid.MustParse(id),
+			ProductID:         product,
+			RemainingQuantity: amount,
+			ExpiresAt:         expiry,
+			ReceivedAt:        receipt,
+		}
 	}
 	batches := []model.OrderBatch{
 		batch("00000000-0000-0000-0000-000000000006", "10.000", now.Add(25*time.Hour), now),
@@ -31,7 +41,10 @@ func TestSimulationUsesOnlyConsumedExpiringBatches(t *testing.T) {
 		batch("00000000-0000-0000-0000-000000000001", "50.000", now, now),
 	}
 	before := append([]model.OrderBatch{}, batches...)
-	dishes := []model.Dish{testDish(uuid.New(), product, "0.500", "18.600"), testDish(uuid.New(), product, "0.500", "18.600")}
+	dishes := []model.Dish{
+		testDish(uuid.New(), product, "0.500", "18.600"),
+		testDish(uuid.New(), product, "0.500", "18.600"),
+	}
 	offers, err := simulate(dishes, batches, now, 24)
 	if err != nil || len(offers) != 2 {
 		t.Fatalf("offers: %+v, %v", offers, err)
@@ -75,7 +88,9 @@ func TestSimulationEligibilityAndThreshold(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dish := testDish(uuid.New(), product, tc.required, tc.amount)
 			dish.IsActive = tc.active
-			batches := []model.OrderBatch{{ID: uuid.New(), ProductID: product, RemainingQuantity: tc.amount, ExpiresAt: now.Add(tc.delta)}}
+			batches := []model.OrderBatch{
+				{ID: uuid.New(), ProductID: product, RemainingQuantity: tc.amount, ExpiresAt: now.Add(tc.delta)},
+			}
 			got, err := simulate([]model.Dish{dish}, batches, now, 24)
 			if err != nil || len(got) != tc.want {
 				t.Fatalf("eligibility: %+v, %v", got, err)

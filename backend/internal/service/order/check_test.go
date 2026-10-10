@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -26,9 +25,14 @@ type checkRepository struct {
 	tx     repository.DBTX
 }
 
-func (r *checkRepository) Load(ctx context.Context, tx repository.DBTX, filter model.DishFilter, now time.Time) ([]model.Dish, error) {
+func (r *checkRepository) Load(
+	ctx context.Context,
+	tx repository.DBTX,
+	filter *model.DishFilter,
+	now time.Time,
+) ([]model.Dish, error) {
 	r.calls++
-	r.filter, r.now, r.ctx, r.tx = filter, now, ctx, tx
+	r.filter, r.now, r.ctx, r.tx = *filter, now, ctx, tx
 	return r.dishes, r.err
 }
 
@@ -73,10 +77,24 @@ func TestCheckAggregatesSharedIngredients(t *testing.T) {
 			}
 			r := &checkRepository{dishes: []model.Dish{
 				{ID: second, Name: "A", IsActive: true, RecipeVersion: &version, Recipe: []model.RecipeIngredient{
-					{ProductID: product, ProductName: "Cheese", Unit: "g", QuantityPerPortion: tc.secondQuantity, AvailableQuantity: tc.stock, ExpiredQuantity: tc.expired},
+					{
+						ProductID:          product,
+						ProductName:        "Cheese",
+						Unit:               "g",
+						QuantityPerPortion: tc.secondQuantity,
+						AvailableQuantity:  tc.stock,
+						ExpiredQuantity:    tc.expired,
+					},
 				}},
 				{ID: first, Name: "Z", IsActive: true, RecipeVersion: &version, Recipe: []model.RecipeIngredient{
-					{ProductID: product, ProductName: "Cheese", Unit: "g", QuantityPerPortion: tc.firstQuantity, AvailableQuantity: tc.stock, ExpiredQuantity: tc.expired},
+					{
+						ProductID:          product,
+						ProductName:        "Cheese",
+						Unit:               "g",
+						QuantityPerPortion: tc.firstQuantity,
+						AvailableQuantity:  tc.stock,
+						ExpiredQuantity:    tc.expired,
+					},
 				}},
 			}}
 			s := NewService(r, &checkTransactions{})
@@ -86,13 +104,16 @@ func TestCheckAggregatesSharedIngredients(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(response.Requirements) != 1 || response.Requirements[0].RequiredQuantity != tc.required || response.Requirements[0].AvailableQuantity != tc.stock || response.Requirements[0].MissingQuantity != tc.missing {
+			if len(response.Requirements) != 1 || response.Requirements[0].RequiredQuantity != tc.required ||
+				response.Requirements[0].AvailableQuantity != tc.stock ||
+				response.Requirements[0].MissingQuantity != tc.missing {
 				t.Fatalf("requirements: %+v", response.Requirements)
 			}
 			if response.CanCreate != (tc.reason == "") || len(response.Issues) != 0 || response.Shortages == nil {
 				t.Fatalf("unexpected result: %+v", response)
 			}
-			if tc.reason != "" && (len(response.Shortages) != 1 || response.Shortages[0].ReasonCode != tc.reason || response.Shortages[0].ExpiredQuantity != tc.expired) {
+			if tc.reason != "" &&
+				(len(response.Shortages) != 1 || response.Shortages[0].ReasonCode != tc.reason || response.Shortages[0].ExpiredQuantity != tc.expired) {
 				t.Fatalf("shortages: %+v", response.Shortages)
 			}
 			if response.Items[0].DishID != first || response.Items[1].DishID != second {
@@ -117,17 +138,34 @@ func TestCheckSnapshotAndValidation(t *testing.T) {
 	if err == nil || transactions.calls != 0 || r.calls != 0 || clockCalls != 0 {
 		t.Fatalf("invalid basket read the database: %v", err)
 	}
-	response, err := s.Check(ctx, dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: first.String(), Portions: 2}, {DishID: first.String(), Portions: 3}}})
+	response, err := s.Check(
+		ctx,
+		dto.OrderRequest{
+			Items: []dto.OrderRequestItem{{DishID: first.String(), Portions: 2}, {DishID: first.String(), Portions: 3}},
+		},
+	)
 	if err != nil || response.Items[0].Portions != 5 {
 		t.Fatalf("merged basket: %+v %v", response, err)
 	}
-	if transactions.calls != 1 || r.calls != 1 || clockCalls != 1 || r.ctx != ctx || r.now.Location() != time.UTC || !r.now.Equal(now) || !reflect.DeepEqual(r.filter.IDs, []uuid.UUID{first}) {
+	if transactions.calls != 1 || r.calls != 1 || clockCalls != 1 || r.ctx != ctx || r.now.Location() != time.UTC ||
+		!r.now.Equal(now) ||
+		!reflect.DeepEqual(r.filter.IDs, []uuid.UUID{first}) {
 		t.Fatalf("inconsistent snapshot: %+v %+v", r, transactions)
 	}
-	if transactions.options.IsoLevel != pgx.RepeatableRead || transactions.options.AccessMode != pgx.ReadOnly || response.Meta["server_time"] != now.UTC().Format(time.RFC3339Nano) {
+	if transactions.options.IsoLevel != pgx.RepeatableRead || transactions.options.AccessMode != pgx.ReadOnly ||
+		response.Meta["server_time"] != now.UTC().Format(time.RFC3339Nano) {
 		t.Fatalf("snapshot options/time: %+v %+v", transactions.options, response.Meta)
 	}
-	_, err = s.Check(ctx, dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: first.String(), Portions: 1}, {DishID: first.String(), Portions: 1}, {DishID: second.String(), Portions: 1}}})
+	_, err = s.Check(
+		ctx,
+		dto.OrderRequest{
+			Items: []dto.OrderRequestItem{
+				{DishID: first.String(), Portions: 1},
+				{DishID: first.String(), Portions: 1},
+				{DishID: second.String(), Portions: 1},
+			},
+		},
+	)
 	var fieldError *validations.FieldError
 	if !errors.As(err, &fieldError) || fieldError.Field != "items[2].dish_id" {
 		t.Fatalf("unknown dish must reference original input index: %v", err)
@@ -140,7 +178,12 @@ func TestCheckPropagatesFailures(t *testing.T) {
 	sentinel := errors.New("database failed")
 	for _, stage := range []string{"load", "commit", "recipe", "stock", "expired stock"} {
 		t.Run(stage, func(t *testing.T) {
-			ingredient := model.RecipeIngredient{ProductID: product, QuantityPerPortion: "0.001", AvailableQuantity: "1.000", ExpiredQuantity: "0.000"}
+			ingredient := model.RecipeIngredient{
+				ProductID:          product,
+				QuantityPerPortion: "0.001",
+				AvailableQuantity:  "1.000",
+				ExpiredQuantity:    "0.000",
+			}
 			r := &checkRepository{}
 			transactions := &checkTransactions{}
 			switch stage {
@@ -155,8 +198,13 @@ func TestCheckPropagatesFailures(t *testing.T) {
 			case "expired stock":
 				ingredient.ExpiredQuantity = "bad"
 			}
-			r.dishes = []model.Dish{{ID: id, IsActive: true, RecipeVersion: &version, Recipe: []model.RecipeIngredient{ingredient}}}
-			response, err := NewService(r, transactions).Check(context.Background(), dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: id.String(), Portions: 1}}})
+			r.dishes = []model.Dish{
+				{ID: id, IsActive: true, RecipeVersion: &version, Recipe: []model.RecipeIngredient{ingredient}},
+			}
+			response, err := NewService(
+				r,
+				transactions,
+			).Check(context.Background(), dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: id.String(), Portions: 1}}})
 			if err == nil || response.Items != nil || response.CanCreate {
 				t.Fatalf("failure produced a successful/partial result: %+v %v", response, err)
 			}
@@ -172,15 +220,37 @@ func TestCheckRequirementsHaveStableOrder(t *testing.T) {
 	version := 1
 	low := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	high := uuid.MustParse("00000000-0000-0000-0000-000000000002")
-	r := &checkRepository{dishes: []model.Dish{{ID: id, IsActive: true, RecipeVersion: &version, Recipe: []model.RecipeIngredient{
-		{ProductID: high, ProductName: "Same", Unit: "pcs", QuantityPerPortion: "1.000", AvailableQuantity: "0.000", ExpiredQuantity: "0.000"},
-		{ProductID: low, ProductName: "Same", Unit: "g", QuantityPerPortion: "1.000", AvailableQuantity: "0.000", ExpiredQuantity: "0.000"},
-	}}}}
-	response, err := NewService(r, &checkTransactions{}).Check(context.Background(), dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: id.String(), Portions: 1}}})
-	if err != nil || len(response.Requirements) != 2 || response.Requirements[0].ProductID != low || response.Requirements[1].ProductID != high || response.Shortages[0].ProductID != low || response.Shortages[1].ProductID != high {
+	r := &checkRepository{
+		dishes: []model.Dish{{ID: id, IsActive: true, RecipeVersion: &version, Recipe: []model.RecipeIngredient{
+			{
+				ProductID:          high,
+				ProductName:        "Same",
+				Unit:               "pcs",
+				QuantityPerPortion: "1.000",
+				AvailableQuantity:  "0.000",
+				ExpiredQuantity:    "0.000",
+			},
+			{
+				ProductID:          low,
+				ProductName:        "Same",
+				Unit:               "g",
+				QuantityPerPortion: "1.000",
+				AvailableQuantity:  "0.000",
+				ExpiredQuantity:    "0.000",
+			},
+		}}},
+	}
+	response, err := NewService(
+		r,
+		&checkTransactions{},
+	).Check(context.Background(), dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: id.String(), Portions: 1}}})
+	if err != nil || len(response.Requirements) != 2 || response.Requirements[0].ProductID != low ||
+		response.Requirements[1].ProductID != high ||
+		response.Shortages[0].ProductID != low ||
+		response.Shortages[1].ProductID != high {
 		t.Fatalf("unstable order: %+v %v", response, err)
 	}
-	if strings.Join([]string{response.Requirements[0].Unit, response.Requirements[1].Unit}, ",") != "g,pcs" {
+	if response.Requirements[0].Unit+","+response.Requirements[1].Unit != "g,pcs" {
 		t.Fatal("different products/units were aggregated together")
 	}
 }
@@ -207,14 +277,31 @@ func TestCheckRecipeIssuesAndVersions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dish := model.Dish{ID: id, Name: "Pizza", IsActive: tc.active, RecipeVersion: tc.current}
 			if tc.recipe {
-				dish.Recipe = []model.RecipeIngredient{{ProductID: product, ProductName: "Cheese", Unit: "g", QuantityPerPortion: "0.300", AvailableQuantity: "1.000", ExpiredQuantity: "0.000"}}
+				dish.Recipe = []model.RecipeIngredient{
+					{
+						ProductID:          product,
+						ProductName:        "Cheese",
+						Unit:               "g",
+						QuantityPerPortion: "0.300",
+						AvailableQuantity:  "1.000",
+						ExpiredQuantity:    "0.000",
+					},
+				}
 			}
-			response, err := NewService(&checkRepository{dishes: []model.Dish{dish}}, &checkTransactions{}).Check(context.Background(), dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: id.String(), Portions: 2, RecipeVersion: tc.sent}}})
-			if err != nil || response.CanCreate != (len(tc.codes) == 0) || len(response.Issues) != len(tc.codes) || !reflect.DeepEqual(response.Items[0].RecipeVersion, tc.current) || response.Shortages == nil || response.Requirements == nil || response.Issues == nil {
+			response, err := NewService(
+				&checkRepository{dishes: []model.Dish{dish}},
+				&checkTransactions{},
+			).Check(context.Background(), dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: id.String(), Portions: 2, RecipeVersion: tc.sent}}})
+			if err != nil || response.CanCreate != (len(tc.codes) == 0) || len(response.Issues) != len(tc.codes) ||
+				!reflect.DeepEqual(response.Items[0].RecipeVersion, tc.current) ||
+				response.Shortages == nil ||
+				response.Requirements == nil ||
+				response.Issues == nil {
 				t.Fatalf("issues/versions: %+v %v", response, err)
 			}
 			for i, issue := range response.Issues {
-				if issue.Code != tc.codes[i] || issue.DishID != id || issue.Message == "" || !reflect.DeepEqual(issue.CurrentRecipeVersion, tc.current) {
+				if issue.Code != tc.codes[i] || issue.DishID != id || issue.Message == "" ||
+					!reflect.DeepEqual(issue.CurrentRecipeVersion, tc.current) {
 					t.Fatalf("wrong issue: %+v", issue)
 				}
 			}

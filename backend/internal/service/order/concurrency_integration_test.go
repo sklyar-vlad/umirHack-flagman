@@ -43,10 +43,13 @@ func TestOrderCreateIntegrationConcurrentOrdersShareProduct(t *testing.T) {
 		t.Fatalf("concurrent statuses: %+v", statuses)
 	}
 	var remaining string
-	if err := f.pool.QueryRow(f.ctx, `SELECT remaining_quantity::text FROM batches WHERE product_id=$1`, product).Scan(&remaining); err != nil {
+	if err := f.pool.QueryRow(f.ctx, `SELECT remaining_quantity::text FROM batches WHERE product_id=$1`, product).
+		Scan(&remaining); err != nil {
 		t.Fatal(err)
 	}
-	if remaining != "0.000" || f.count(t, "orders") != 1 || f.count(t, "stock_movements") != 1 || f.count(t, "order_attempts") != 1 || f.count(t, "idempotency_keys") != 2 {
+	if remaining != "0.000" || f.count(t, "orders") != 1 || f.count(t, "stock_movements") != 1 ||
+		f.count(t, "order_attempts") != 1 ||
+		f.count(t, "idempotency_keys") != 2 {
 		t.Fatal("concurrent orders spent the same balance or lost refusal facts")
 	}
 }
@@ -62,7 +65,11 @@ func TestOrderCreateIntegrationOppositeBasketOrder(t *testing.T) {
 	start := make(chan struct{})
 	results := make(chan *httptest.ResponseRecorder, 2)
 	for _, dishes := range [][]uuid.UUID{{d1, d2}, {d2, d1}} {
-		body := orderBody(t, dto.OrderRequestItem{DishID: dishes[0].String(), Portions: 1}, dto.OrderRequestItem{DishID: dishes[1].String(), Portions: 1})
+		body := orderBody(
+			t,
+			dto.OrderRequestItem{DishID: dishes[0].String(), Portions: 1},
+			dto.OrderRequestItem{DishID: dishes[1].String(), Portions: 1},
+		)
 		go func() { <-start; results <- f.createRequest(body, uuid.New()) }()
 	}
 	close(start)
@@ -122,7 +129,8 @@ func TestOrderCreateIntegrationInFlightKeyThenExactReplay(t *testing.T) {
 		t.Fatal("order did not acquire idempotency lock")
 	}
 	inFlight := f.createRequest(body, key)
-	if inFlight.Code != http.StatusConflict || !strings.Contains(inFlight.Body.String(), "REQUEST_IN_PROGRESS") || inFlight.Header().Get("Retry-After") != "1" {
+	if inFlight.Code != http.StatusConflict || !strings.Contains(inFlight.Body.String(), "REQUEST_IN_PROGRESS") ||
+		inFlight.Header().Get("Retry-After") != "1" {
 		t.Fatalf("in-flight key: %d %s", inFlight.Code, inFlight.Body.String())
 	}
 	if err := holder.Commit(f.ctx); err != nil {
@@ -136,11 +144,14 @@ func TestOrderCreateIntegrationInFlightKeyThenExactReplay(t *testing.T) {
 	f.recipe(t, dish, 2, map[uuid.UUID]string{product: "2.000"})
 	before := f.snapshot(t)
 	repeat := f.createRequest(body, key)
-	if repeat.Code != first.Code || !bytes.Equal(repeat.Body.Bytes(), first.Body.Bytes()) || repeat.Header().Get("Location") != first.Header().Get("Location") || f.snapshot(t) != before {
+	if repeat.Code != first.Code || !bytes.Equal(repeat.Body.Bytes(), first.Body.Bytes()) ||
+		repeat.Header().Get("Location") != first.Header().Get("Location") ||
+		f.snapshot(t) != before {
 		t.Fatal("completed order was recomputed or rewritten on replay")
 	}
 	conflict := f.createRequest(body+" ", key)
-	if conflict.Code != http.StatusConflict || !strings.Contains(conflict.Body.String(), "IDEMPOTENCY_CONFLICT") || f.snapshot(t) != before {
+	if conflict.Code != http.StatusConflict || !strings.Contains(conflict.Body.String(), "IDEMPOTENCY_CONFLICT") ||
+		f.snapshot(t) != before {
 		t.Fatal("changed raw body did not conflict")
 	}
 }
@@ -158,7 +169,11 @@ func TestOrderCreateIntegrationExpiryAfterProductWait(t *testing.T) {
 	if _, err := holder.Exec(f.ctx, `SELECT id FROM products WHERE id=$1 FOR UPDATE`, product); err != nil {
 		t.Fatal(err)
 	}
-	probe := &signaledOrderRepository{Repository: orderrepository.NewRepository(), entered: make(chan struct{}), products: true}
+	probe := &signaledOrderRepository{
+		Repository: orderrepository.NewRepository(),
+		entered:    make(chan struct{}),
+		products:   true,
+	}
 	f.create.repo = probe
 	clock := make(chan time.Time, 1)
 	f.create.now = func() time.Time { return <-clock }
@@ -175,7 +190,9 @@ func TestOrderCreateIntegrationExpiryAfterProductWait(t *testing.T) {
 		t.Fatal(err)
 	}
 	response := <-finished
-	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), "only_expired_stock") || f.count(t, "orders") != 0 || f.count(t, "stock_movements") != 0 {
+	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), "only_expired_stock") ||
+		f.count(t, "orders") != 0 ||
+		f.count(t, "stock_movements") != 0 {
 		t.Fatalf("expiry after wait: %d %s", response.Code, response.Body.String())
 	}
 }
@@ -205,10 +222,21 @@ func TestOrderCreateIntegrationRecipeChangeAfterDishWait(t *testing.T) {
 		t.Fatal("order did not reach dish lock")
 	}
 	recipe := uuid.New()
-	if _, err := holder.Exec(f.ctx, `INSERT INTO recipe_versions(id,dish_id,version,created_by)VALUES($1,$2,2,$3)`, recipe, dish, f.actor); err != nil {
+	if _, err := holder.Exec(
+		f.ctx,
+		`INSERT INTO recipe_versions(id,dish_id,version,created_by)VALUES($1,$2,2,$3)`,
+		recipe,
+		dish,
+		f.actor,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := holder.Exec(f.ctx, `INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion)VALUES($1,$2,'2.000')`, recipe, product); err != nil {
+	if _, err := holder.Exec(
+		f.ctx,
+		`INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion)VALUES($1,$2,'2.000')`,
+		recipe,
+		product,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if err := holder.Commit(f.ctx); err != nil {
@@ -219,7 +247,9 @@ func TestOrderCreateIntegrationRecipeChangeAfterDishWait(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &refusal); err != nil {
 		t.Fatal(err)
 	}
-	if response.Code != http.StatusConflict || refusal.Error.Code != "RECIPE_CHANGED" || f.count(t, "orders") != 0 || f.count(t, "stock_movements") != 0 || f.count(t, "order_attempts") != 1 {
+	if response.Code != http.StatusConflict || refusal.Error.Code != "RECIPE_CHANGED" || f.count(t, "orders") != 0 ||
+		f.count(t, "stock_movements") != 0 ||
+		f.count(t, "order_attempts") != 1 {
 		t.Fatalf("recipe changed after wait: %d %s", response.Code, response.Body.String())
 	}
 }

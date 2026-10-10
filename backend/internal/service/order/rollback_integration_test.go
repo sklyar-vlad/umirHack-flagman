@@ -49,8 +49,14 @@ func TestOrderCreateIntegrationRollsBackCommitFailure(t *testing.T) {
 	product, dish := f.product(t, "Ingredient"), f.dish(t, "Dish", true)
 	f.batch(t, product, "2.000", f.now.Add(time.Hour))
 	f.recipe(t, dish, 1, map[uuid.UUID]string{product: "1.000"})
-	f.exec(t, `CREATE FUNCTION test_reject_commit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test commit failure'; END $$`)
-	f.exec(t, `CREATE CONSTRAINT TRIGGER test_reject_commit AFTER INSERT ON idempotency_keys DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION test_reject_commit()`)
+	f.exec(
+		t,
+		`CREATE FUNCTION test_reject_commit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test commit failure'; END $$`,
+	)
+	f.exec(
+		t,
+		`CREATE CONSTRAINT TRIGGER test_reject_commit AFTER INSERT ON idempotency_keys DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION test_reject_commit()`,
+	)
 	before := f.snapshot(t)
 	key := uuid.New()
 	body := orderBody(t, dto.OrderRequestItem{DishID: dish.String(), Portions: 1})

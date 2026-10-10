@@ -53,9 +53,19 @@ func (r *Repository) FindOrder(ctx context.Context, q repository.DBTX, id uuid.U
 	for rows.Next() {
 		var itemID uuid.UUID
 		var allocation model.OrderHistoryAllocation
-		if err := rows.Scan(&itemID, &allocation.MovementID, &allocation.ProductID,
-			&allocation.ProductName, &allocation.Unit, &allocation.BatchID, &allocation.SupplyID,
-			&allocation.SupplyNumber, &allocation.LineNumber, &allocation.Quantity, &allocation.RemainingQuantityAfter); err != nil {
+		if err := rows.Scan(
+			&itemID,
+			&allocation.MovementID,
+			&allocation.ProductID,
+			&allocation.ProductName,
+			&allocation.Unit,
+			&allocation.BatchID,
+			&allocation.SupplyID,
+			&allocation.SupplyNumber,
+			&allocation.LineNumber,
+			&allocation.Quantity,
+			&allocation.RemainingQuantityAfter,
+		); err != nil {
 			return model.OrderHistory{}, fmt.Errorf("scan order allocation: %w", err)
 		}
 		i, exists := positions[itemID]

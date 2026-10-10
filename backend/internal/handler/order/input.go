@@ -23,7 +23,10 @@ func decodeRequest(body []byte) (dto.OrderRequest, error) {
 	decoder.DisallowUnknownFields()
 	var request dto.OrderRequest
 	if err := decoder.Decode(&request); err != nil {
-		return dto.OrderRequest{}, &validations.FieldError{Field: "body", Message: "Некорректная структура корзины: ожидаются items, dish_id, целые portions и recipe_version"}
+		return dto.OrderRequest{}, &validations.FieldError{
+			Field:   "body",
+			Message: "Некорректная структура корзины: ожидаются items, dish_id, целые portions и recipe_version",
+		}
 	}
 	return request, nil
 }

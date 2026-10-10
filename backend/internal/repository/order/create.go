@@ -10,7 +10,12 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 )
 
-func (r *Repository) InsertOrder(ctx context.Context, q repository.DBTX, id, actor uuid.UUID, now time.Time) (model.OrderRecord, error) {
+func (r *Repository) InsertOrder(
+	ctx context.Context,
+	q repository.DBTX,
+	id, actor uuid.UUID,
+	now time.Time,
+) (model.OrderRecord, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return model.OrderRecord{}, err
@@ -26,7 +31,7 @@ func (r *Repository) InsertOrder(ctx context.Context, q repository.DBTX, id, act
 	return result, nil
 }
 
-func (r *Repository) InsertItem(ctx context.Context, q repository.DBTX, item model.NewOrderItem) error {
+func (r *Repository) InsertItem(ctx context.Context, q repository.DBTX, item *model.NewOrderItem) error {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return err
@@ -39,7 +44,7 @@ func (r *Repository) InsertItem(ctx context.Context, q repository.DBTX, item mod
 	return nil
 }
 
-func (r *Repository) Consume(ctx context.Context, q repository.DBTX, movement model.OrderConsumption) error {
+func (r *Repository) Consume(ctx context.Context, q repository.DBTX, movement *model.OrderConsumption) error {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return err
@@ -67,13 +72,23 @@ func (r *Repository) Consume(ctx context.Context, q repository.DBTX, movement mo
 	return nil
 }
 
-func (r *Repository) InsertAttempt(ctx context.Context, q repository.DBTX, attempt model.OrderAttempt) error {
+func (r *Repository) InsertAttempt(ctx context.Context, q repository.DBTX, attempt *model.OrderAttempt) error {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO order_attempts(id,created_by,created_at,reason_code,items_snapshot,shortages,issues)
-		VALUES($1,$2,$3,$4,$5,$6,$7)`, attempt.ID, attempt.ActorID, attempt.CreatedAt, attempt.ReasonCode, attempt.ItemsSnapshot, attempt.Shortages, attempt.Issues)
+	_, err = tx.Exec(
+		ctx,
+		`INSERT INTO order_attempts(id,created_by,created_at,reason_code,items_snapshot,shortages,issues)
+		VALUES($1,$2,$3,$4,$5,$6,$7)`,
+		attempt.ID,
+		attempt.ActorID,
+		attempt.CreatedAt,
+		attempt.ReasonCode,
+		attempt.ItemsSnapshot,
+		attempt.Shortages,
+		attempt.Issues,
+	)
 	if err != nil {
 		return fmt.Errorf("insert order attempt: %w", err)
 	}

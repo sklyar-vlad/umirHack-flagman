@@ -37,12 +37,19 @@ func normalizeBasket(request dto.OrderRequest) ([]basketItem, error) {
 			return nil, err
 		}
 		if item.RecipeVersion != nil && *item.RecipeVersion < 1 {
-			return nil, &validations.FieldError{Field: field + ".recipe_version", Message: "Версия рецепта должна быть положительным целым числом"}
+			return nil, &validations.FieldError{
+				Field:   field + ".recipe_version",
+				Message: "Версия рецепта должна быть положительным целым числом",
+			}
 		}
 		if position, exists := positions[id]; exists {
 			previous := &items[position]
-			if previous.recipeVersion != nil && item.RecipeVersion != nil && *previous.recipeVersion != *item.RecipeVersion {
-				return nil, &validations.FieldError{Field: field + ".recipe_version", Message: "Повторы блюда должны иметь одинаковую версию рецепта"}
+			if previous.recipeVersion != nil && item.RecipeVersion != nil &&
+				*previous.recipeVersion != *item.RecipeVersion {
+				return nil, &validations.FieldError{
+					Field:   field + ".recipe_version",
+					Message: "Повторы блюда должны иметь одинаковую версию рецепта",
+				}
 			}
 			if err := validations.ValidatePortions(field+".portions", previous.portions+item.Portions); err != nil {
 				return nil, err
@@ -54,7 +61,10 @@ func normalizeBasket(request dto.OrderRequest) ([]basketItem, error) {
 			continue
 		}
 		positions[id] = len(items)
-		items = append(items, basketItem{dishID: id, portions: item.Portions, recipeVersion: item.RecipeVersion, inputIndex: i})
+		items = append(
+			items,
+			basketItem{dishID: id, portions: item.Portions, recipeVersion: item.RecipeVersion, inputIndex: i},
+		)
 	}
 	return items, nil
 }

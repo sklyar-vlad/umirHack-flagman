@@ -34,7 +34,7 @@ func requireHistoryActor(c *gin.Context) bool {
 		return false
 	}
 	switch actor.Role {
-	case "admin", "manager", "order_operator":
+	case roleAdmin, roleManager, roleOrderOperator:
 		return true
 	default:
 		basehandler.WriteError(c, apperrors.ErrForbidden)
@@ -56,8 +56,10 @@ func (h *HistoryHandler) ListOrders(c *gin.Context) {
 		basehandler.WriteError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.ListResponse[dto.OrderSummary]{Items: items, Total: total,
-		Page: filter.Page, PageSize: filter.PageSize, Meta: map[string]any{}})
+	c.JSON(http.StatusOK, dto.ListResponse[dto.OrderSummary]{
+		Items: items, Total: total,
+		Page: filter.Page, PageSize: filter.PageSize, Meta: map[string]any{},
+	})
 }
 
 func (h *HistoryHandler) GetOrder(c *gin.Context) {
@@ -66,7 +68,7 @@ func (h *HistoryHandler) GetOrder(c *gin.Context) {
 	}
 	query, err := url.ParseQuery(c.Request.URL.RawQuery)
 	if err != nil {
-		basehandler.WriteError(c, &validations.FieldError{Field: "query", Message: "Некорректные параметры запроса"})
+		basehandler.WriteError(c, &validations.FieldError{Field: queryField, Message: invalidQueryMessage})
 		return
 	}
 	if err := validations.ValidateQuery(query); err != nil {
@@ -104,16 +106,21 @@ func (h *HistoryHandler) ListAttempts(c *gin.Context) {
 		basehandler.WriteError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.ListResponse[dto.OrderAttempt]{Items: items, Total: total,
-		Page: filter.Page, PageSize: filter.PageSize, Meta: map[string]any{}})
+	c.JSON(http.StatusOK, dto.ListResponse[dto.OrderAttempt]{
+		Items: items, Total: total,
+		Page: filter.Page, PageSize: filter.PageSize, Meta: map[string]any{},
+	})
 }
 
 func parseHistoryQuery(raw string, attempts bool) (model.OrderHistoryFilter, error) {
 	query, err := url.ParseQuery(raw)
 	if err != nil {
-		return model.OrderHistoryFilter{}, &validations.FieldError{Field: "query", Message: "Некорректные параметры запроса"}
+		return model.OrderHistoryFilter{}, &validations.FieldError{
+			Field:   queryField,
+			Message: invalidQueryMessage,
+		}
 	}
-	allowed := []string{"page", "page_size", "search", "from", "to", "sort"}
+	allowed := []string{"page", "page_size", "search", dateFromField, dateToField, "sort"}
 	if attempts {
 		allowed = append(allowed, "reason_code")
 	}
@@ -127,20 +134,31 @@ func parseHistoryQuery(raw string, attempts bool) (model.OrderHistoryFilter, err
 	if _, err := validations.ParseSort(query, "-created_at", "-created_at"); err != nil {
 		return model.OrderHistoryFilter{}, err
 	}
-	filter := model.OrderHistoryFilter{Page: pagination.Page, PageSize: pagination.PageSize, Search: query.Get("search")}
+	filter := model.OrderHistoryFilter{
+		Page:     pagination.Page,
+		PageSize: pagination.PageSize,
+		Search:   query.Get("search"),
+	}
 	if _, exists := query["reason_code"]; attempts && exists {
-		filter.ReasonCode, err = validations.ParseEnum(query, "reason_code", "", "INSUFFICIENT_STOCK", "RECIPE_CHANGED", "DISH_UNAVAILABLE")
+		filter.ReasonCode, err = validations.ParseEnum(
+			query,
+			"reason_code",
+			"",
+			"INSUFFICIENT_STOCK",
+			"RECIPE_CHANGED",
+			"DISH_UNAVAILABLE",
+		)
 		if err != nil {
 			return model.OrderHistoryFilter{}, err
 		}
 	}
-	for _, field := range []string{"from", "to"} {
+	for _, field := range []string{dateFromField, dateToField} {
 		if values, exists := query[field]; exists {
 			value, err := validations.ParseDateTime(field, values[0])
 			if err != nil {
 				return model.OrderHistoryFilter{}, err
 			}
-			if field == "from" {
+			if field == dateFromField {
 				filter.DateFrom = &value
 			} else {
 				filter.DateTo = &value
@@ -148,7 +166,10 @@ func parseHistoryQuery(raw string, attempts bool) (model.OrderHistoryFilter, err
 		}
 	}
 	if filter.DateFrom != nil && filter.DateTo != nil && filter.DateFrom.After(*filter.DateTo) {
-		return model.OrderHistoryFilter{}, &validations.FieldError{Field: "to", Message: "Конец интервала не может быть раньше начала"}
+		return model.OrderHistoryFilter{}, &validations.FieldError{
+			Field:   dateToField,
+			Message: "Конец интервала не может быть раньше начала",
+		}
 	}
 	return filter, nil
 }

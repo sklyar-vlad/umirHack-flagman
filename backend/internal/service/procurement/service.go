@@ -28,7 +28,7 @@ type Transactions interface {
 }
 
 type MenuRepository interface {
-	Load(context.Context, repository.DBTX, model.DishFilter, time.Time) ([]model.Dish, error)
+	Load(context.Context, repository.DBTX, *model.DishFilter, time.Time) ([]model.Dish, error)
 }
 
 type Service struct {
@@ -38,8 +38,8 @@ type Service struct {
 	now          func() time.Time
 }
 
-func NewService(repo Repository, menu MenuRepository, transactions Transactions) *Service {
-	return &Service{repo: repo, menu: menu, transactions: transactions, now: time.Now}
+func NewService(repo Repository, menuRepo MenuRepository, transactions Transactions) *Service {
+	return &Service{repo: repo, menu: menuRepo, transactions: transactions, now: time.Now}
 }
 
 func (s *Service) List(ctx context.Context, filter model.ProcurementFilter) (dto.ProcurementListResponse, error) {
@@ -50,17 +50,21 @@ func (s *Service) List(ctx context.Context, filter model.ProcurementFilter) (dto
 	var stock []model.ProcurementStock
 	var dishes []model.Dish
 	var now time.Time
-	err = s.transactions.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx repository.DBTX) error {
-		now = s.now().UTC()
-		var err error
-		stock, err = s.repo.Load(ctx, tx, filter, now)
-		if err != nil {
+	err = s.transactions.WithinTx(
+		ctx,
+		&pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
+		func(tx repository.DBTX) error {
+			now = s.now().UTC()
+			var err error
+			stock, err = s.repo.Load(ctx, tx, filter, now)
+			if err != nil {
+				return err
+			}
+			active := true
+			dishes, err = s.menu.Load(ctx, tx, &model.DishFilter{IsActive: &active}, now)
 			return err
-		}
-		active := true
-		dishes, err = s.menu.Load(ctx, tx, model.DishFilter{IsActive: &active}, now)
-		return err
-	})
+		},
+	)
 	if err != nil {
 		return dto.ProcurementListResponse{}, err
 	}
@@ -87,8 +91,10 @@ func (s *Service) List(ctx context.Context, filter model.ProcurementFilter) (dto
 		}
 		page = items[offset:end]
 	}
-	return dto.ProcurementListResponse{Items: page, Total: total, Page: filter.Page, PageSize: filter.PageSize,
-		Meta: map[string]any{"server_time": now.Format(time.RFC3339Nano)}}, nil
+	return dto.ProcurementListResponse{
+		Items: page, Total: total, Page: filter.Page, PageSize: filter.PageSize,
+		Meta: map[string]any{"server_time": now.Format(time.RFC3339Nano)},
+	}, nil
 }
 
 func sortRecommendations(items []dto.ProcurementItem) {
@@ -112,7 +118,8 @@ func sortRecommendations(items []dto.ProcurementItem) {
 
 func recommendations(stock []model.ProcurementStock) ([]dto.ProcurementItem, error) {
 	items := make([]dto.ProcurementItem, 0, len(stock))
-	for _, row := range stock {
+	for i := range stock {
+		row := &stock[i]
 		p := row.Product
 		if p.TargetStock == nil {
 			continue
@@ -148,11 +155,19 @@ func recommendations(stock []model.ProcurementStock) ([]dto.ProcurementItem, err
 		}
 		formattedTarget := strings.TrimRight(strings.TrimRight(quantity.FormatMilli(target), "0"), ".")
 		items = append(items, dto.ProcurementItem{
-			ProductID: p.ID, ProductName: p.Name, Unit: p.Unit, DisplayUnit: p.DisplayUnit,
-			TargetStock: quantity.FormatMilli(target), AvailableQuantity: quantity.FormatMilli(available),
-			ExpiredQuantity: quantity.FormatMilli(expired), RecommendedQuantity: quantity.FormatMilli(new(big.Int).Sub(target, available)),
-			ReasonCodes: codes, Reason: fmt.Sprintf("%s; пополнить до целевого запаса %s %s", reason, formattedTarget, unit),
-			AffectedDishes: []dto.AffectedDish{},
+			ProductID:         p.ID,
+			ProductName:       p.Name,
+			Unit:              p.Unit,
+			DisplayUnit:       p.DisplayUnit,
+			TargetStock:       quantity.FormatMilli(target),
+			AvailableQuantity: quantity.FormatMilli(available),
+			ExpiredQuantity: quantity.FormatMilli(
+				expired,
+			),
+			RecommendedQuantity: quantity.FormatMilli(new(big.Int).Sub(target, available)),
+			ReasonCodes:         codes,
+			Reason:              fmt.Sprintf("%s; пополнить до целевого запаса %s %s", reason, formattedTarget, unit),
+			AffectedDishes:      []dto.AffectedDish{},
 		})
 	}
 	return items, nil
@@ -167,8 +182,12 @@ func affectedDishes(dishes []model.Dish) (map[uuid.UUID][]dto.AffectedDish, erro
 		if err != nil {
 			return nil, fmt.Errorf("calculate procurement availability for %s: %w", dish.ID, err)
 		}
-		for _, shortage := range availability.Shortages {
-			linked[shortage.ProductID] = append(linked[shortage.ProductID], dto.AffectedDish{ID: dish.ID, Name: dish.Name})
+		for i := range availability.Shortages {
+			shortage := &availability.Shortages[i]
+			linked[shortage.ProductID] = append(
+				linked[shortage.ProductID],
+				dto.AffectedDish{ID: dish.ID, Name: dish.Name},
+			)
 		}
 	}
 	for productID, dishes := range linked {

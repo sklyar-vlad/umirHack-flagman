@@ -16,13 +16,19 @@ func NewRepository() *Repository { return &Repository{} }
 
 // Load reads all valid ingredient batches, including those beyond the warning
 // threshold: a one-portion plan may need both expiring and later batches.
-func (r *Repository) Load(ctx context.Context, q repository.DBTX, products []uuid.UUID, now time.Time) ([]model.OrderBatch, int, error) {
+func (r *Repository) Load(
+	ctx context.Context,
+	q repository.DBTX,
+	products []uuid.UUID,
+	now time.Time,
+) ([]model.OrderBatch, int, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return nil, 0, err
 	}
 	var hours int
-	if err := tx.QueryRow(ctx, `SELECT COALESCE((SELECT expiring_threshold_hours FROM restaurant_settings WHERE id=1),24)`).Scan(&hours); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT COALESCE((SELECT expiring_threshold_hours FROM restaurant_settings WHERE id=1),24)`).
+		Scan(&hours); err != nil {
 		return nil, 0, fmt.Errorf("read hot offers threshold: %w", err)
 	}
 	rows, err := tx.Query(ctx, `SELECT b.id,b.product_id,b.supply_id,s.number,b.line_number,

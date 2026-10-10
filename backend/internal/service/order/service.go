@@ -14,7 +14,7 @@ import (
 )
 
 type Repository interface {
-	Load(context.Context, repository.DBTX, model.DishFilter, time.Time) ([]model.Dish, error)
+	Load(context.Context, repository.DBTX, *model.DishFilter, time.Time) ([]model.Dish, error)
 }
 
 type Transactions interface {
@@ -44,12 +44,16 @@ func (s *Service) Check(ctx context.Context, request dto.OrderRequest) (dto.Orde
 	}
 	var dishes []model.Dish
 	var now time.Time
-	err = s.transactions.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx repository.DBTX) error {
-		now = s.now().UTC()
-		var err error
-		dishes, err = s.repo.Load(ctx, tx, model.DishFilter{IDs: ids}, now)
-		return err
-	})
+	err = s.transactions.WithinTx(
+		ctx,
+		&pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
+		func(tx repository.DBTX) error {
+			now = s.now().UTC()
+			var err error
+			dishes, err = s.repo.Load(ctx, tx, &model.DishFilter{IDs: ids}, now)
+			return err
+		},
+	)
 	if err != nil {
 		return dto.OrderCheck{}, err
 	}

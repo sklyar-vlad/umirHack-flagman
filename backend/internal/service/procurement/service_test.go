@@ -30,7 +30,9 @@ func TestRecommendationsExactTargets(t *testing.T) {
 			if tc.target != "" {
 				p.TargetStock = &tc.target
 			}
-			items, err := recommendations([]model.ProcurementStock{{Product: p, AvailableQuantity: tc.available, ExpiredQuantity: tc.expired}})
+			items, err := recommendations(
+				[]model.ProcurementStock{{Product: p, AvailableQuantity: tc.available, ExpiredQuantity: tc.expired}},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -40,7 +42,9 @@ func TestRecommendationsExactTargets(t *testing.T) {
 				}
 				return
 			}
-			if len(items) != 1 || items[0].RecommendedQuantity != tc.want || items[0].TargetStock != tc.target || items[0].ProductID != p.ID || items[0].AffectedDishes == nil {
+			if len(items) != 1 || items[0].RecommendedQuantity != tc.want || items[0].TargetStock != tc.target ||
+				items[0].ProductID != p.ID ||
+				items[0].AffectedDishes == nil {
 				t.Fatalf("recommendation: %+v", items)
 			}
 		})
@@ -49,7 +53,15 @@ func TestRecommendationsExactTargets(t *testing.T) {
 
 func TestRecommendationsRejectCorruptQuantities(t *testing.T) {
 	for _, values := range [][3]string{{"-1", "0", "0"}, {"1", "broken", "0"}, {"1", "0", "0.0001"}} {
-		_, err := recommendations([]model.ProcurementStock{{Product: model.Product{TargetStock: &values[0]}, AvailableQuantity: values[1], ExpiredQuantity: values[2]}})
+		_, err := recommendations(
+			[]model.ProcurementStock{
+				{
+					Product:           model.Product{TargetStock: &values[0]},
+					AvailableQuantity: values[1],
+					ExpiredQuantity:   values[2],
+				},
+			},
+		)
 		if err == nil {
 			t.Fatalf("accepted corrupt quantities: %v", values)
 		}
@@ -78,7 +90,12 @@ type stockStub struct {
 	err   error
 }
 
-func (r stockStub) Load(context.Context, repository.DBTX, model.ProcurementFilter, time.Time) ([]model.ProcurementStock, error) {
+func (r stockStub) Load(
+	context.Context,
+	repository.DBTX,
+	model.ProcurementFilter,
+	time.Time,
+) ([]model.ProcurementStock, error) {
 	return r.items, r.err
 }
 
@@ -92,10 +109,15 @@ func TestListPaginationAndErrors(t *testing.T) {
 	s := NewService(r, menuStub{}, tx)
 	s.now = func() time.Time { return time.Date(2026, 10, 11, 3, 0, 0, 0, time.FixedZone("MSK", 3*3600)) }
 	result, err := s.List(context.Background(), model.ProcurementFilter{Page: 3, PageSize: 1})
-	if err != nil || result.Total != 2 || result.Items == nil || len(result.Items) != 0 || result.Meta["server_time"] != "2026-10-11T00:00:00Z" {
+	if err != nil || result.Total != 2 || result.Items == nil || len(result.Items) != 0 ||
+		result.Meta["server_time"] != "2026-10-11T00:00:00Z" {
 		t.Fatalf("empty page: %+v %v", result, err)
 	}
-	if _, err := s.List(context.Background(), model.ProcurementFilter{Page: 0, PageSize: 1}); err == nil || tx.calls != 1 {
+	if _, err := s.List(
+		context.Background(),
+		model.ProcurementFilter{Page: 0, PageSize: 1},
+	); err == nil ||
+		tx.calls != 1 {
 		t.Fatalf("invalid page reached transaction: %v", err)
 	}
 	failure := errors.New("read failure")
@@ -112,12 +134,22 @@ type menuStub struct {
 	err    error
 }
 
-func (r menuStub) Load(context.Context, repository.DBTX, model.DishFilter, time.Time) ([]model.Dish, error) {
+func (r menuStub) Load(context.Context, repository.DBTX, *model.DishFilter, time.Time) ([]model.Dish, error) {
 	return r.dishes, r.err
 }
 
 func TestAffectedDishesRejectCorruptRecipe(t *testing.T) {
-	_, err := affectedDishes([]model.Dish{{ID: uuid.New(), IsActive: true, Recipe: []model.RecipeIngredient{{QuantityPerPortion: "0.000", AvailableQuantity: "1.000", ExpiredQuantity: "0.000"}}}})
+	_, err := affectedDishes(
+		[]model.Dish{
+			{
+				ID:       uuid.New(),
+				IsActive: true,
+				Recipe: []model.RecipeIngredient{
+					{QuantityPerPortion: "0.000", AvailableQuantity: "1.000", ExpiredQuantity: "0.000"},
+				},
+			},
+		},
+	)
 	if err == nil {
 		t.Fatal("invalid recipe produced an explanation")
 	}

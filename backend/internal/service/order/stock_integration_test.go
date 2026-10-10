@@ -20,7 +20,8 @@ func waitOrderBlocked(t *testing.T, f *orderFixture, pid uint32) {
 	defer tick.Stop()
 	for {
 		var blocked bool
-		if err := f.pool.QueryRow(f.ctx, `SELECT cardinality(pg_blocking_pids($1))>0`, int32(pid)).Scan(&blocked); err != nil {
+		if err := f.pool.QueryRow(f.ctx, `SELECT cardinality(pg_blocking_pids($1))>0`, int32(pid)).
+			Scan(&blocked); err != nil {
 			t.Fatal(err)
 		}
 		if blocked {
@@ -59,7 +60,9 @@ func TestOrderStockIntegrationFreshTimeAfterLocks(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer tx.Rollback(f.ctx)
-			items, err := normalizeBasket(dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: dish.String(), Portions: 1}}})
+			items, err := normalizeBasket(
+				dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: dish.String(), Portions: 1}}},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -67,7 +70,13 @@ func TestOrderStockIntegrationFreshTimeAfterLocks(t *testing.T) {
 			result := make(chan lockedStock, 1)
 			errors := make(chan error, 1)
 			go func() {
-				state, err := lockBasket(f.ctx, orderrepository.NewRepository(), tx, items, func() time.Time { return <-clock })
+				state, err := lockBasket(
+					f.ctx,
+					orderrepository.NewRepository(),
+					tx,
+					items,
+					func() time.Time { return <-clock },
+				)
 				result <- state
 				errors <- err
 			}()
@@ -85,7 +94,8 @@ func TestOrderStockIntegrationFreshTimeAfterLocks(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if state.serverTime != fresh || check.CanCreate || len(check.Shortages) != 1 || check.Shortages[0].ReasonCode != "only_expired_stock" {
+			if state.serverTime != fresh || check.CanCreate || len(check.Shortages) != 1 ||
+				check.Shortages[0].ReasonCode != "only_expired_stock" {
 				t.Fatalf("stale locked stock: %+v %+v", state, check)
 			}
 		})
@@ -116,7 +126,9 @@ func TestOrderStockIntegrationRecipeAfterDishWait(t *testing.T) {
 	}
 	defer tx.Rollback(f.ctx)
 	version := 1
-	items, _ := normalizeBasket(dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: dish.String(), Portions: 1, RecipeVersion: &version}}})
+	items, _ := normalizeBasket(
+		dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: dish.String(), Portions: 1, RecipeVersion: &version}}},
+	)
 	result := make(chan lockedStock, 1)
 	errors := make(chan error, 1)
 	go func() {
@@ -126,10 +138,21 @@ func TestOrderStockIntegrationRecipeAfterDishWait(t *testing.T) {
 	}()
 	waitOrderBlocked(t, f, conn.Conn().PgConn().PID())
 	recipe := uuid.New()
-	if _, err := holder.Exec(f.ctx, `INSERT INTO recipe_versions(id,dish_id,version,created_by)VALUES($1,$2,2,$3)`, recipe, dish, f.actor); err != nil {
+	if _, err := holder.Exec(
+		f.ctx,
+		`INSERT INTO recipe_versions(id,dish_id,version,created_by)VALUES($1,$2,2,$3)`,
+		recipe,
+		dish,
+		f.actor,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := holder.Exec(f.ctx, `INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion)VALUES($1,$2,'2.000')`, recipe, product); err != nil {
+	if _, err := holder.Exec(
+		f.ctx,
+		`INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion)VALUES($1,$2,'2.000')`,
+		recipe,
+		product,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if err := holder.Commit(f.ctx); err != nil {
@@ -143,7 +166,9 @@ func TestOrderStockIntegrationRecipeAfterDishWait(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if check.CanCreate || len(check.Issues) != 1 || check.Issues[0].Code != "recipe_changed" || check.Requirements[0].RequiredQuantity != "2.000" || *state.dishes[dish].RecipeVersionID != recipe {
+	if check.CanCreate || len(check.Issues) != 1 || check.Issues[0].Code != "recipe_changed" ||
+		check.Requirements[0].RequiredQuantity != "2.000" ||
+		*state.dishes[dish].RecipeVersionID != recipe {
 		t.Fatalf("stale recipe: %+v", check)
 	}
 }

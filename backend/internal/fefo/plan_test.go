@@ -28,7 +28,12 @@ func TestPlanExpiryTieBreakSharedBalanceAndExactDecimals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan) != 4 || plan[0].Batch.ID != low || plan[0].Quantity != "0.100" || plan[1].Batch.ID != high || plan[1].RemainingQuantityAfter != "0.200" || plan[2].ItemID != second || plan[2].Quantity != "0.150" || plan[2].RemainingQuantityAfter != "0.050" || plan[3].RemainingQuantityAfter != "0.009" {
+	if len(plan) != 4 || plan[0].Batch.ID != low || plan[0].Quantity != "0.100" || plan[1].Batch.ID != high ||
+		plan[1].RemainingQuantityAfter != "0.200" ||
+		plan[2].ItemID != second ||
+		plan[2].Quantity != "0.150" ||
+		plan[2].RemainingQuantityAfter != "0.050" ||
+		plan[3].RemainingQuantityAfter != "0.009" {
 		t.Fatalf("plan: %+v", plan)
 	}
 	if !reflect.DeepEqual(before, batches) {
@@ -43,7 +48,10 @@ func TestPlanExpiryTieBreakSharedBalanceAndExactDecimals(t *testing.T) {
 func TestPlanLargeDemandAndNoPartialResult(t *testing.T) {
 	now := time.Now()
 	product, item := uuid.New(), uuid.New()
-	batches := []model.OrderBatch{{ID: uuid.New(), ProductID: product, RemainingQuantity: "99999999999.999", ExpiresAt: now.Add(time.Hour)}, {ID: uuid.New(), ProductID: product, RemainingQuantity: "99999999999.999", ExpiresAt: now.Add(2 * time.Hour)}}
+	batches := []model.OrderBatch{
+		{ID: uuid.New(), ProductID: product, RemainingQuantity: "99999999999.999", ExpiresAt: now.Add(time.Hour)},
+		{ID: uuid.New(), ProductID: product, RemainingQuantity: "99999999999.999", ExpiresAt: now.Add(2 * time.Hour)},
+	}
 	plan, err := Plan([]Demand{{item, product, "199999999999.998"}}, batches, now)
 	if err != nil || len(plan) != 2 || plan[1].RemainingQuantityAfter != "0.000" {
 		t.Fatalf("large allocation: %+v %v", plan, err)
@@ -79,7 +87,13 @@ func TestPlanReceiptTimePrecedesBatchID(t *testing.T) {
 	earlierID := uuid.MustParse("00000000-0000-4000-8000-000000000002")
 	batches := []model.OrderBatch{
 		{ID: laterID, ProductID: product, RemainingQuantity: "1.000", ExpiresAt: now.Add(time.Hour), ReceivedAt: now},
-		{ID: earlierID, ProductID: product, RemainingQuantity: "1.000", ExpiresAt: now.Add(time.Hour), ReceivedAt: now.Add(-time.Hour)},
+		{
+			ID:                earlierID,
+			ProductID:         product,
+			RemainingQuantity: "1.000",
+			ExpiresAt:         now.Add(time.Hour),
+			ReceivedAt:        now.Add(-time.Hour),
+		},
 	}
 	plan, err := Plan([]Demand{{item, product, "1.000"}}, batches, now)
 	if err != nil || len(plan) != 1 || plan[0].Batch.ID != earlierID {

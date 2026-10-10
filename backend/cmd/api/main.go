@@ -87,7 +87,11 @@ func main() {
 	orders := orderservice.NewService(menurepository.NewRepository(), repo)
 	orderCreation := orderservice.NewCreateService(orderrepository.NewRepository(), repo, idem)
 	orderHistory := orderservice.NewHistoryService(orderrepository.NewRepository(), repo)
-	procurement := procurementservice.NewService(procurementrepository.NewRepository(), menurepository.NewRepository(), repo)
+	procurement := procurementservice.NewService(
+		procurementrepository.NewRepository(),
+		menurepository.NewRepository(),
+		repo,
+	)
 	hotOffers := offersservice.NewService(offersrepository.NewRepository(), menurepository.NewRepository(), repo)
 	cleanupCtx, cancelCleanup := context.WithCancel(context.Background())
 	cleanupDone := make(chan struct{})

@@ -27,14 +27,25 @@ func TestOffersIntegrationResponseAndExpiry(t *testing.T) {
 			t.Fatalf("offers: %+v", result)
 		}
 		item := result.Items[0]
-		if item.Dish.ID != dish || item.Dish.RecipeVersion != 1 || item.Rank != 1 || item.PriorityScore != score || item.PriorityLevel != level || item.AvailablePortions != "30" || len(item.ProblemBatches) != 1 {
+		if item.Dish.ID != dish || item.Dish.RecipeVersion != 1 || item.Rank != 1 || item.PriorityScore != score ||
+			item.PriorityLevel != level ||
+			item.AvailablePortions != "30" ||
+			len(item.ProblemBatches) != 1 {
 			t.Fatalf("offer: %+v", item)
 		}
 		p := item.ProblemBatches[0]
-		if p.BatchID != batch || p.ProductID != product || p.ProductName != "Моцарелла" || p.SupplyID != f.supply || p.SupplyNumber != "S13-1" || p.LineNumber != 1 || p.Unit != "g" || p.RemainingQuantity != "1800.000" || p.UsedForOnePortion != "120.000" || !p.ExpiresAt.Equal(expires) || p.RemainingSeconds != seconds {
+		if p.BatchID != batch || p.ProductID != product || p.ProductName != "Моцарелла" || p.SupplyID != f.supply ||
+			p.SupplyNumber != "S13-1" ||
+			p.LineNumber != 1 ||
+			p.Unit != "g" ||
+			p.RemainingQuantity != "1800.000" ||
+			p.UsedForOnePortion != "120.000" ||
+			!p.ExpiresAt.Equal(expires) ||
+			p.RemainingSeconds != seconds {
 			t.Fatalf("batch facts: %+v", p)
 		}
-		if !strings.Contains(item.Reason, "Моцарелла") || !strings.Contains(item.Reason, "№S13-1, строка 1") || !strings.Contains(item.Reason, "120 г из этой партии") {
+		if !strings.Contains(item.Reason, "Моцарелла") || !strings.Contains(item.Reason, "№S13-1, строка 1") ||
+			!strings.Contains(item.Reason, "120 г из этой партии") {
 			t.Fatal(item.Reason)
 		}
 		return item
@@ -73,7 +84,8 @@ func TestOffersIntegrationPriorityPaginationAndLiteralSearch(t *testing.T) {
 			t.Fatal("dish IDs must break exact ties")
 		}
 		page := f.list(t, "?page_size=1&page="+strconv.Itoa(i+1))
-		if page.Total != 4 || len(page.Items) != 1 || page.Items[0].Dish.ID != item.Dish.ID || page.Items[0].Rank != item.Rank {
+		if page.Total != 4 || len(page.Items) != 1 || page.Items[0].Dish.ID != item.Dish.ID ||
+			page.Items[0].Rank != item.Rank {
 			t.Fatalf("pagination: %+v", page)
 		}
 	}
@@ -85,7 +97,8 @@ func TestOffersIntegrationPriorityPaginationAndLiteralSearch(t *testing.T) {
 		want   uuid.UUID
 	}{{"%", a}, {"_", a}, {`\`, a}, {"пицца", a}, {"low", low}, {"B tie", b}} {
 		result := f.list(t, "?search="+url.QueryEscape(tc.search))
-		if result.Total != 1 || len(result.Items) != 1 || result.Items[0].Dish.ID != tc.want || result.Items[0].Rank != 1 {
+		if result.Total != 1 || len(result.Items) != 1 || result.Items[0].Dish.ID != tc.want ||
+			result.Items[0].Rank != 1 {
 			t.Fatalf("literal %q: %+v", tc.search, result)
 		}
 	}
@@ -125,7 +138,11 @@ func TestOffersIntegrationSessions(t *testing.T) {
 		t.Fatalf("disabled user: %d", response.Code)
 	}
 	f.exec(t, `UPDATE users SET is_active=true,role='manager' WHERE id=$1`, f.actor)
-	f.exec(t, `UPDATE sessions SET created_at=clock_timestamp()-interval '2 hours',expires_at=clock_timestamp()-interval '1 second' WHERE user_id=$1`, f.actor)
+	f.exec(
+		t,
+		`UPDATE sessions SET created_at=clock_timestamp()-interval '2 hours',expires_at=clock_timestamp()-interval '1 second' WHERE user_id=$1`,
+		f.actor,
+	)
 	if response := f.request("", true); response.Code != http.StatusUnauthorized {
 		t.Fatalf("expired session: %d", response.Code)
 	}
@@ -139,11 +156,19 @@ func TestOffersIntegrationFEFOTiesUseActualBatch(t *testing.T) {
 	early := f.batch(t, p, "1.000", e)
 	// Equal expiry is broken by receipt time before batch ID.
 	receipt := uuid.New()
-	f.exec(t, `INSERT INTO supplies(id,number,received_at,created_by)VALUES($1,'Earlier',$2,$3)`, receipt, f.now.Add(-2*time.Hour), f.actor)
+	f.exec(
+		t,
+		`INSERT INTO supplies(id,number,received_at,created_by)VALUES($1,'Earlier',$2,$3)`,
+		receipt,
+		f.now.Add(-2*time.Hour),
+		f.actor,
+	)
 	f.exec(t, `UPDATE batches SET supply_id=$1,line_number=1 WHERE id=$2`, receipt, early)
 	f.dish(t, "Uses earlier receipt", true, testIngredient{p, "0.500"})
 	result := f.list(t, "")
-	if len(result.Items) != 1 || len(result.Items[0].ProblemBatches) != 1 || result.Items[0].ProblemBatches[0].BatchID != early || strings.Contains(result.Items[0].Reason, "№S13-1") {
+	if len(result.Items) != 1 || len(result.Items[0].ProblemBatches) != 1 ||
+		result.Items[0].ProblemBatches[0].BatchID != early ||
+		strings.Contains(result.Items[0].Reason, "№S13-1") {
 		t.Fatalf("receipt tie: %+v", result)
 	}
 	// When receipt times also tie, the UUID is the final FEFO criterion.
@@ -170,7 +195,12 @@ func TestOffersIntegrationMultipleIngredientsMaximum(t *testing.T) {
 		t.Fatalf("offers: %+v", result)
 	}
 	item := result.Items[0]
-	if item.PriorityScore != "30.0000" || item.PriorityLevel != "high" || item.AvailablePortions != "1" || len(item.ProblemBatches) != 2 || item.ProblemBatches[0].BatchID != first || item.ProblemBatches[1].BatchID != second || item.ProblemBatches[1].UsedForOnePortion != "3.000" || !strings.Contains(item.Reason, "3 мл") {
+	if item.PriorityScore != "30.0000" || item.PriorityLevel != "high" || item.AvailablePortions != "1" ||
+		len(item.ProblemBatches) != 2 ||
+		item.ProblemBatches[0].BatchID != first ||
+		item.ProblemBatches[1].BatchID != second ||
+		item.ProblemBatches[1].UsedForOnePortion != "3.000" ||
+		!strings.Contains(item.Reason, "3 мл") {
 		t.Fatalf("multiple ingredients: %+v", item)
 	}
 }

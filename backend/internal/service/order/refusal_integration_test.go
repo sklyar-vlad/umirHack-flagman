@@ -63,17 +63,22 @@ func TestOrderRefusalIntegrationFactsAndIdempotentReplay(t *testing.T) {
 			if err := json.Unmarshal(response.Body.Bytes(), &refusal); err != nil {
 				t.Fatal(err)
 			}
-			if refusal.Error.Code != scenario.code || refusal.Error.Details.AttemptID == uuid.Nil || refusal.Error.Details.Requirements == nil || refusal.Error.Details.Shortages == nil || refusal.Error.Details.Issues == nil {
+			if refusal.Error.Code != scenario.code || refusal.Error.Details.AttemptID == uuid.Nil ||
+				refusal.Error.Details.Requirements == nil ||
+				refusal.Error.Details.Shortages == nil ||
+				refusal.Error.Details.Issues == nil {
 				t.Fatalf("refusal body: %s", response.Body.String())
 			}
-			if scenario.name == "shortage" && (len(refusal.Error.Details.Requirements) != 1 || refusal.Error.Details.Requirements[0].RequiredQuantity != "2.000" || refusal.Error.Details.Requirements[0].MissingQuantity != "1.000") {
+			if scenario.name == "shortage" &&
+				(len(refusal.Error.Details.Requirements) != 1 || refusal.Error.Details.Requirements[0].RequiredQuantity != "2.000" || refusal.Error.Details.Requirements[0].MissingQuantity != "1.000") {
 				t.Fatal("incorrect shortage demand")
 			}
 			var itemsData, shortagesData, issuesData []byte
 			var code string
 			var actor uuid.UUID
 			var created time.Time
-			if err := f.pool.QueryRow(f.ctx, `SELECT created_by,created_at,reason_code,items_snapshot,shortages,issues FROM order_attempts WHERE id=$1`, refusal.Error.Details.AttemptID).Scan(&actor, &created, &code, &itemsData, &shortagesData, &issuesData); err != nil {
+			if err := f.pool.QueryRow(f.ctx, `SELECT created_by,created_at,reason_code,items_snapshot,shortages,issues FROM order_attempts WHERE id=$1`, refusal.Error.Details.AttemptID).
+				Scan(&actor, &created, &code, &itemsData, &shortagesData, &issuesData); err != nil {
 				t.Fatal(err)
 			}
 			var items []dto.OrderItemSnapshot
@@ -88,7 +93,11 @@ func TestOrderRefusalIntegrationFactsAndIdempotentReplay(t *testing.T) {
 			if err := json.Unmarshal(issuesData, &issues); err != nil {
 				t.Fatal(err)
 			}
-			if actor != f.actor || !created.Equal(f.now) || code != scenario.code || len(items) != 1 || items[0].DishName != "Snapshot dish" || items[0].Portions != 2 || !reflect.DeepEqual(shortages, refusal.Error.Details.Shortages) || !reflect.DeepEqual(issues, refusal.Error.Details.Issues) {
+			if actor != f.actor || !created.Equal(f.now) || code != scenario.code || len(items) != 1 ||
+				items[0].DishName != "Snapshot dish" ||
+				items[0].Portions != 2 ||
+				!reflect.DeepEqual(shortages, refusal.Error.Details.Shortages) ||
+				!reflect.DeepEqual(issues, refusal.Error.Details.Issues) {
 				t.Fatalf("attempt snapshot mismatch: %s %s %s", itemsData, shortagesData, issuesData)
 			}
 			if !reflect.DeepEqual(before, orderWriteSnapshot(t, f)) {

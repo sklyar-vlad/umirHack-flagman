@@ -39,7 +39,11 @@ func newCreationFixture(t *testing.T) *creationFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	basehandler.RegisterOrderCreateRoutes(f.router.(*gin.Engine).Group("/api/v1"), orderhandler.NewCreateHandler(create), authhandler.NewHandler(auth))
+	basehandler.RegisterOrderCreateRoutes(
+		f.router.(*gin.Engine).Group("/api/v1"),
+		orderhandler.NewCreateHandler(create),
+		authhandler.NewHandler(auth),
+	)
 	return &creationFixture{f, create}
 }
 
@@ -86,7 +90,12 @@ func TestOrderCreateIntegrationPersistsFullFEFOOrder(t *testing.T) {
 	slices.SortFunc(dishes, func(a, b uuid.UUID) int { return slices.Compare(a[:], b[:]) })
 	f.recipe(t, dishes[0], 1, map[uuid.UUID]string{x: "0.150", y: "0.200"})
 	f.recipe(t, dishes[1], 1, map[uuid.UUID]string{x: "0.200", z: "1.000"})
-	body := orderBody(t, dto.OrderRequestItem{DishID: dishes[1].String(), Portions: 1}, dto.OrderRequestItem{DishID: dishes[0].String(), Portions: 1}, dto.OrderRequestItem{DishID: dishes[0].String(), Portions: 1})
+	body := orderBody(
+		t,
+		dto.OrderRequestItem{DishID: dishes[1].String(), Portions: 1},
+		dto.OrderRequestItem{DishID: dishes[0].String(), Portions: 1},
+		dto.OrderRequestItem{DishID: dishes[0].String(), Portions: 1},
+	)
 	response := f.createRequest(body, uuid.New())
 	if response.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", response.Code, response.Body.String())
@@ -95,17 +104,24 @@ func TestOrderCreateIntegrationPersistsFullFEFOOrder(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	if result.ID == uuid.Nil || result.Number == "" || result.Status != "completed" || result.CreatedBy.ID != f.actor || result.CreatedBy.Name != "Operator" || !result.CreatedAt.Equal(f.now) || len(result.Items) != 2 || response.Header().Get("Location") != "/api/v1/orders/"+result.ID.String() {
+	if result.ID == uuid.Nil || result.Number == "" || result.Status != "completed" || result.CreatedBy.ID != f.actor ||
+		result.CreatedBy.Name != "Operator" ||
+		!result.CreatedAt.Equal(f.now) ||
+		len(result.Items) != 2 ||
+		response.Header().Get("Location") != "/api/v1/orders/"+result.ID.String() {
 		t.Fatalf("order projection: %+v", result)
 	}
-	if result.Items[0].DishID != dishes[0] || result.Items[0].Portions != 2 || result.Items[1].DishID != dishes[1] || len(result.Items[0].Allocations) != 2 || len(result.Items[1].Allocations) != 3 {
+	if result.Items[0].DishID != dishes[0] || result.Items[0].Portions != 2 || result.Items[1].DishID != dishes[1] ||
+		len(result.Items[0].Allocations) != 2 ||
+		len(result.Items[1].Allocations) != 3 {
 		t.Fatalf("merged items/all ingredients: %+v", result.Items)
 	}
 	shared := []dto.OrderAllocation{}
 	for _, item := range result.Items {
 		var snapshot string
 		var portions int
-		if err := f.pool.QueryRow(f.ctx, `SELECT dish_name_snapshot,portions FROM order_items WHERE id=$1 AND recipe_version_id=(SELECT id FROM recipe_versions WHERE dish_id=$2 AND version=$3)`, item.ID, item.DishID, *item.RecipeVersion).Scan(&snapshot, &portions); err != nil {
+		if err := f.pool.QueryRow(f.ctx, `SELECT dish_name_snapshot,portions FROM order_items WHERE id=$1 AND recipe_version_id=(SELECT id FROM recipe_versions WHERE dish_id=$2 AND version=$3)`, item.ID, item.DishID, *item.RecipeVersion).
+			Scan(&snapshot, &portions); err != nil {
 			t.Fatal(err)
 		}
 		if snapshot != item.DishName || portions != item.Portions {
@@ -127,7 +143,11 @@ func TestOrderCreateIntegrationPersistsFullFEFOOrder(t *testing.T) {
 			}
 		}
 	}
-	if len(shared) != 3 || shared[0].Quantity != "0.300" || shared[0].BatchRemainingQuantityAfter != "0.100" || shared[1].BatchID != shared[0].BatchID || shared[1].BatchRemainingQuantityAfter != "0.000" || shared[2].Quantity != "0.100" || shared[2].BatchRemainingQuantityAfter != "0.300" {
+	if len(shared) != 3 || shared[0].Quantity != "0.300" || shared[0].BatchRemainingQuantityAfter != "0.100" ||
+		shared[1].BatchID != shared[0].BatchID ||
+		shared[1].BatchRemainingQuantityAfter != "0.000" ||
+		shared[2].Quantity != "0.100" ||
+		shared[2].BatchRemainingQuantityAfter != "0.300" {
 		t.Fatalf("shared FEFO balance: %+v", shared)
 	}
 	for table, want := range map[string]int{"orders": 1, "order_items": 2, "stock_movements": 5, "audit_log": 1, "outbox_events": 1, "idempotency_keys": 1, "order_attempts": 0} {
@@ -137,7 +157,8 @@ func TestOrderCreateIntegrationPersistsFullFEFOOrder(t *testing.T) {
 	}
 	var audit model.OrderAuditSnapshot
 	var auditData []byte
-	if err := f.pool.QueryRow(f.ctx, `SELECT after_data FROM audit_log WHERE entity_type='order' AND entity_id=$1 AND actor_id=$2`, result.ID, f.actor).Scan(&auditData); err != nil {
+	if err := f.pool.QueryRow(f.ctx, `SELECT after_data FROM audit_log WHERE entity_type='order' AND entity_id=$1 AND actor_id=$2`, result.ID, f.actor).
+		Scan(&auditData); err != nil {
 		t.Fatal(err)
 	}
 	if err := json.Unmarshal(auditData, &audit); err != nil {
@@ -147,14 +168,17 @@ func TestOrderCreateIntegrationPersistsFullFEFOOrder(t *testing.T) {
 		t.Fatalf("audit: %s", auditData)
 	}
 	var payload []byte
-	if err := f.pool.QueryRow(f.ctx, `SELECT payload FROM outbox_events WHERE event_type='inventory.changed' AND cursor IS NULL AND published_at IS NULL`).Scan(&payload); err != nil {
+	if err := f.pool.QueryRow(f.ctx, `SELECT payload FROM outbox_events WHERE event_type='inventory.changed' AND cursor IS NULL AND published_at IS NULL`).
+		Scan(&payload); err != nil {
 		t.Fatal(err)
 	}
 	var event model.OutboxPayload
 	if err := json.Unmarshal(payload, &event); err != nil {
 		t.Fatal(err)
 	}
-	if len(event.ProductIDs) != 3 || len(event.BatchIDs) != 4 || len(event.DishIDs) != 2 || len(event.OrderIDs) != 1 || event.OrderIDs[0] != result.ID || !slices.Contains(event.Topics, model.TopicOrders) {
+	if len(event.ProductIDs) != 3 || len(event.BatchIDs) != 4 || len(event.DishIDs) != 2 || len(event.OrderIDs) != 1 ||
+		event.OrderIDs[0] != result.ID ||
+		!slices.Contains(event.Topics, model.TopicOrders) {
 		t.Fatalf("outbox: %s", payload)
 	}
 }

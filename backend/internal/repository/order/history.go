@@ -13,7 +13,11 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
-func (r *Repository) ListOrders(ctx context.Context, q repository.DBTX, filter model.OrderHistoryFilter) ([]model.OrderHistory, int64, error) {
+func (r *Repository) ListOrders(
+	ctx context.Context,
+	q repository.DBTX,
+	filter model.OrderHistoryFilter,
+) ([]model.OrderHistory, int64, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return nil, 0, err
@@ -39,7 +43,13 @@ func (r *Repository) ListOrders(ctx context.Context, q repository.DBTX, filter m
 	ids := make([]uuid.UUID, 0)
 	for rows.Next() {
 		var order model.OrderHistory
-		if err := rows.Scan(&order.ID, &order.Number, &order.CreatedAt, &order.CreatedBy.ID, &order.CreatedBy.Name); err != nil {
+		if err := rows.Scan(
+			&order.ID,
+			&order.Number,
+			&order.CreatedAt,
+			&order.CreatedBy.ID,
+			&order.CreatedBy.Name,
+		); err != nil {
 			rows.Close()
 			return nil, 0, fmt.Errorf("scan order: %w", err)
 		}
@@ -97,7 +107,11 @@ func historyDateBoundary(value time.Time) time.Time {
 	return truncated
 }
 
-func (r *Repository) historyItems(ctx context.Context, q repository.DBTX, ids []uuid.UUID) (map[uuid.UUID][]model.OrderHistoryItem, error) {
+func (r *Repository) historyItems(
+	ctx context.Context,
+	q repository.DBTX,
+	ids []uuid.UUID,
+) (map[uuid.UUID][]model.OrderHistoryItem, error) {
 	rows, err := q.Query(ctx, `SELECT oi.id,oi.order_id,oi.dish_id,oi.recipe_version_id,
 		oi.dish_name_snapshot,oi.portions,rv.version
 		FROM order_items oi JOIN recipe_versions rv ON rv.id=oi.recipe_version_id AND rv.dish_id=oi.dish_id

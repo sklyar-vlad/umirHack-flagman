@@ -14,7 +14,12 @@ type Repository struct{}
 
 func NewRepository() *Repository { return &Repository{} }
 
-func (r *Repository) Load(ctx context.Context, q repository.DBTX, filter model.ProcurementFilter, now time.Time) ([]model.ProcurementStock, error) {
+func (r *Repository) Load(
+	ctx context.Context,
+	q repository.DBTX,
+	filter model.ProcurementFilter,
+	now time.Time,
+) ([]model.ProcurementStock, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return nil, err
@@ -48,7 +53,15 @@ func (r *Repository) Load(ctx context.Context, q repository.DBTX, filter model.P
 	for rows.Next() {
 		var item model.ProcurementStock
 		p := &item.Product
-		if err := rows.Scan(&p.ID, &p.Name, &p.Unit, &p.DisplayUnit, &p.TargetStock, &item.AvailableQuantity, &item.ExpiredQuantity); err != nil {
+		if err := rows.Scan(
+			&p.ID,
+			&p.Name,
+			&p.Unit,
+			&p.DisplayUnit,
+			&p.TargetStock,
+			&item.AvailableQuantity,
+			&item.ExpiredQuantity,
+		); err != nil {
 			return nil, fmt.Errorf("scan procurement stock: %w", err)
 		}
 		items = append(items, item)

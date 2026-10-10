@@ -24,7 +24,9 @@ func TestNormalizeBasketMergesDishes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(items) != 2 || items[0].dishID.String() != id || items[0].portions != 1000 || items[1].dishID.String() != other || items[1].portions != 1 {
+	if len(items) != 2 || items[0].dishID.String() != id || items[0].portions != 1000 ||
+		items[1].dishID.String() != other ||
+		items[1].portions != 1 {
 		t.Fatalf("unexpected merged basket: %+v", items)
 	}
 	if items[0].recipeVersion == nil || *items[0].recipeVersion != version || items[1].recipeVersion != nil {
@@ -54,9 +56,24 @@ func TestNormalizeBasketRejectsInvalidInput(t *testing.T) {
 		{"zero portions", []dto.OrderRequestItem{{DishID: id}}, "items[0].portions"},
 		{"negative portions", []dto.OrderRequestItem{{DishID: id, Portions: -1}}, "items[0].portions"},
 		{"excessive portions", []dto.OrderRequestItem{{DishID: id, Portions: 1001}}, "items[0].portions"},
-		{"merged limit", []dto.OrderRequestItem{{DishID: id, Portions: 1000}, {DishID: id, Portions: 1}}, "items[1].portions"},
-		{"invalid version", []dto.OrderRequestItem{{DishID: id, Portions: 1, RecipeVersion: &zero}}, "items[0].recipe_version"},
-		{"conflicting versions", []dto.OrderRequestItem{{DishID: id, Portions: 1, RecipeVersion: &one}, {DishID: id, Portions: 1, RecipeVersion: &two}}, "items[1].recipe_version"},
+		{
+			"merged limit",
+			[]dto.OrderRequestItem{{DishID: id, Portions: 1000}, {DishID: id, Portions: 1}},
+			"items[1].portions",
+		},
+		{
+			"invalid version",
+			[]dto.OrderRequestItem{{DishID: id, Portions: 1, RecipeVersion: &zero}},
+			"items[0].recipe_version",
+		},
+		{
+			"conflicting versions",
+			[]dto.OrderRequestItem{
+				{DishID: id, Portions: 1, RecipeVersion: &one},
+				{DishID: id, Portions: 1, RecipeVersion: &two},
+			},
+			"items[1].recipe_version",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -73,7 +90,10 @@ func TestOrderRequestRequiresIntegerPortions(t *testing.T) {
 	for _, value := range []string{"1.5", "1.0", "\"2\"", "true", "9223372036854775808"} {
 		t.Run(value, func(t *testing.T) {
 			var request dto.OrderRequest
-			if err := json.Unmarshal([]byte(`{"items":[{"dish_id":"`+uuid.NewString()+`","portions":`+value+`}]}`), &request); err == nil {
+			if err := json.Unmarshal(
+				[]byte(`{"items":[{"dish_id":"`+uuid.NewString()+`","portions":`+value+`}]}`),
+				&request,
+			); err == nil {
 				t.Fatalf("accepted invalid integer portions %s", value)
 			}
 		})

@@ -18,7 +18,12 @@ func NewRepository() *Repository { return &Repository{} }
 // Load reads recipes and stock from the same transaction snapshot. Pagination
 // follows the shared availability calculation in the service, so total includes
 // availability filters and dishes with missing recipes.
-func (r *Repository) Load(ctx context.Context, q repository.DBTX, filter model.DishFilter, now time.Time) ([]model.Dish, error) {
+func (r *Repository) Load(
+	ctx context.Context,
+	q repository.DBTX,
+	filter *model.DishFilter,
+	now time.Time,
+) ([]model.Dish, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return nil, err
@@ -71,8 +76,21 @@ func (r *Repository) Load(ctx context.Context, q repository.DBTX, filter model.D
 		var productID *uuid.UUID
 		var productName, unit, required *string
 		var available, expired string
-		if err := rows.Scan(&dish.ID, &dish.Name, &dish.Description, &dish.IsActive, &dish.Revision, &dish.RecipeVersion, &dish.RecipeVersionID,
-			&productID, &productName, &unit, &required, &available, &expired); err != nil {
+		if err := rows.Scan(
+			&dish.ID,
+			&dish.Name,
+			&dish.Description,
+			&dish.IsActive,
+			&dish.Revision,
+			&dish.RecipeVersion,
+			&dish.RecipeVersionID,
+			&productID,
+			&productName,
+			&unit,
+			&required,
+			&available,
+			&expired,
+		); err != nil {
 			return nil, fmt.Errorf("scan menu: %w", err)
 		}
 		if len(dishes) == 0 || dishes[len(dishes)-1].ID != dish.ID {

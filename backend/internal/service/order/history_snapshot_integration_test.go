@@ -20,7 +20,11 @@ type historyHookTransactions struct {
 	afterCount func()
 }
 
-func (h historyHookTransactions) WithinTx(ctx context.Context, options *pgx.TxOptions, fn func(repository.DBTX) error) error {
+func (h historyHookTransactions) WithinTx(
+	ctx context.Context,
+	options *pgx.TxOptions,
+	fn func(repository.DBTX) error,
+) error {
 	return h.Transactions.WithinTx(ctx, options, func(q repository.DBTX) error {
 		return fn(historyHookTx{Tx: q.(pgx.Tx), afterCount: h.afterCount})
 	})
@@ -74,7 +78,10 @@ func TestOrderHistoryIntegrationCountAndPageUseOneSnapshot(t *testing.T) {
 			}
 			first := create()
 			hooks := 0
-			h := historyHookTransactions{Transactions: repository.NewRepository(f.pool, zap.NewNop()), afterCount: func() { hooks++; create() }}
+			h := historyHookTransactions{
+				Transactions: repository.NewRepository(f.pool, zap.NewNop()),
+				afterCount:   func() { hooks++; create() },
+			}
 			s := NewHistoryService(orderrepository.NewRepository(), h)
 			filter := model.OrderHistoryFilter{Page: 1, PageSize: 50}
 			if attempts {

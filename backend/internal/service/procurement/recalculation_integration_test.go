@@ -23,8 +23,10 @@ import (
 func (f *procurementFixture) receipt(t *testing.T, product uuid.UUID, amount string) {
 	t.Helper()
 	expires := f.now.Add(time.Hour).Format(time.RFC3339Nano)
-	body, err := json.Marshal(dto.CreateSupplyRequest{Number: uuid.NewString(), ReceivedAt: f.now.Format(time.RFC3339Nano),
-		Items: []dto.CreateSupplyItem{{ProductID: product.String(), Quantity: amount, ExpiresAt: &expires}}})
+	body, err := json.Marshal(dto.CreateSupplyRequest{
+		Number: uuid.NewString(), ReceivedAt: f.now.Format(time.RFC3339Nano),
+		Items: []dto.CreateSupplyItem{{ProductID: product.String(), Quantity: amount, ExpiresAt: &expires}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +58,9 @@ func TestProcurementIntegrationReceiptAndOrderRecalculate(t *testing.T) {
 			t.Fatalf("recommendations: %+v", result)
 		}
 		item := result.Items[0]
-		if item.AvailableQuantity != wantAvailable || item.RecommendedQuantity != wantPurchase || item.ExpiredQuantity != "10.000" || len(item.AffectedDishes) != wantAffected {
+		if item.AvailableQuantity != wantAvailable || item.RecommendedQuantity != wantPurchase ||
+			item.ExpiredQuantity != "10.000" ||
+			len(item.AffectedDishes) != wantAffected {
 			t.Fatalf("recalculation: %+v", item)
 		}
 	}
@@ -77,7 +81,13 @@ func TestProcurementIntegrationReceiptAndOrderRecalculate(t *testing.T) {
 		t.Fatalf("order: %+v %v", order, err)
 	}
 	check("0.000", "3.000", 1)
-	if replay, err := orders.CreateIdempotent(f.ctx, f.actor, key, body); err != nil || string(replay.Body) != string(order.Body) {
+	if replay, err := orders.CreateIdempotent(
+		f.ctx,
+		f.actor,
+		key,
+		body,
+	); err != nil ||
+		string(replay.Body) != string(order.Body) {
 		t.Fatalf("order replay: %+v %v", replay, err)
 	}
 	check("0.000", "3.000", 1)
@@ -88,7 +98,12 @@ type stockHook struct {
 	afterLoad func()
 }
 
-func (h stockHook) Load(ctx context.Context, tx repository.DBTX, filter model.ProcurementFilter, now time.Time) ([]model.ProcurementStock, error) {
+func (h stockHook) Load(
+	ctx context.Context,
+	tx repository.DBTX,
+	filter model.ProcurementFilter,
+	now time.Time,
+) ([]model.ProcurementStock, error) {
 	items, err := h.Repository.Load(ctx, tx, filter, now)
 	if err == nil {
 		h.afterLoad()
@@ -110,13 +125,19 @@ func TestProcurementIntegrationStockAndDishesUseOneSnapshot(t *testing.T) {
 		f.recipe(t, dish, 2, map[uuid.UUID]string{product: "2.000"})
 	}}
 	before := f.list(t, "")
-	if before.Total != 1 || before.Items[0].AvailableQuantity != "0.000" || before.Items[0].RecommendedQuantity != "5.000" || len(before.Items[0].AffectedDishes) != 1 || clockCalls != 1 || writes != 1 {
+	if before.Total != 1 || before.Items[0].AvailableQuantity != "0.000" ||
+		before.Items[0].RecommendedQuantity != "5.000" ||
+		len(before.Items[0].AffectedDishes) != 1 ||
+		clockCalls != 1 ||
+		writes != 1 {
 		t.Fatalf("mixed snapshot: %+v clock %d writes %d", before, clockCalls, writes)
 	}
 	f.service.repo = procurementrepository.NewRepository()
 	f.service.now = func() time.Time { return f.now }
 	after := f.list(t, "")
-	if after.Total != 1 || after.Items[0].AvailableQuantity != "2.000" || after.Items[0].RecommendedQuantity != "3.000" || len(after.Items[0].AffectedDishes) != 0 {
+	if after.Total != 1 || after.Items[0].AvailableQuantity != "2.000" ||
+		after.Items[0].RecommendedQuantity != "3.000" ||
+		len(after.Items[0].AffectedDishes) != 0 {
 		t.Fatalf("new snapshot did not see committed receipt/recipe: %+v", after)
 	}
 }

@@ -16,9 +16,9 @@ import (
 )
 
 type Service interface {
-	ListDishes(context.Context, model.DishFilter) (dto.DishListResponse, error)
+	ListDishes(context.Context, *model.DishFilter) (dto.DishListResponse, error)
 	GetDish(context.Context, uuid.UUID) (dto.Dish, error)
-	StopList(context.Context, model.DishFilter) (dto.DishListResponse, error)
+	StopList(context.Context, *model.DishFilter) (dto.DishListResponse, error)
 }
 
 type Handler struct{ service Service }
@@ -59,9 +59,9 @@ func (h *Handler) list(c *gin.Context, stopList bool) {
 	}
 	var response dto.DishListResponse
 	if stopList {
-		response, err = h.service.StopList(c.Request.Context(), filter)
+		response, err = h.service.StopList(c.Request.Context(), &filter)
 	} else {
-		response, err = h.service.ListDishes(c.Request.Context(), filter)
+		response, err = h.service.ListDishes(c.Request.Context(), &filter)
 	}
 	if err != nil {
 		basehandler.WriteError(c, err)

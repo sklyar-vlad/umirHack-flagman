@@ -32,12 +32,16 @@ func newHistoryFixture(t *testing.T) *creationFixture {
 		t.Fatal(err)
 	}
 	history := NewHistoryService(orderrepository.NewRepository(), repository.NewRepository(f.pool, zap.NewNop()))
-	basehandler.RegisterOrderHistoryRoutes(f.router.(*gin.Engine).Group("/api/v1"), orderhandler.NewHistoryHandler(history), authhandler.NewHandler(auth))
+	basehandler.RegisterOrderHistoryRoutes(
+		f.router.(*gin.Engine).Group("/api/v1"),
+		orderhandler.NewHistoryHandler(history),
+		authhandler.NewHandler(auth),
+	)
 	return f
 }
 
 func historyRequest(f *creationFixture, path string, authenticated bool) *httptest.ResponseRecorder {
-	request := httptest.NewRequest(http.MethodGet, "/api/v1"+path, nil).WithContext(f.ctx)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1"+path, http.NoBody).WithContext(f.ctx)
 	if authenticated {
 		request.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: f.token})
 	}
@@ -66,7 +70,12 @@ func TestOrderHistoryIntegrationList(t *testing.T) {
 	first, second := f.dish(t, `Pizza%_\`, true), f.dish(t, "Other", true)
 	f.recipe(t, first, 1, map[uuid.UUID]string{product: "1.000"})
 	f.recipe(t, second, 1, map[uuid.UUID]string{product: "1.000"})
-	one := createHistoryOrder(t, f, dto.OrderRequestItem{DishID: first.String(), Portions: 2}, dto.OrderRequestItem{DishID: second.String(), Portions: 1})
+	one := createHistoryOrder(
+		t,
+		f,
+		dto.OrderRequestItem{DishID: first.String(), Portions: 2},
+		dto.OrderRequestItem{DishID: second.String(), Portions: 1},
+	)
 	two := createHistoryOrder(t, f, dto.OrderRequestItem{DishID: second.String(), Portions: 1})
 	f.exec(t, `UPDATE dishes SET name='Renamed',is_active=false WHERE id=$1`, first)
 	f.recipe(t, first, 2, map[uuid.UUID]string{product: "2.000"})
@@ -106,7 +115,8 @@ func TestOrderHistoryIntegrationList(t *testing.T) {
 			got := make([]uuid.UUID, 0, len(result.Items))
 			for _, order := range result.Items {
 				got = append(got, order.ID)
-				if order.Status != "completed" || order.CreatedBy.ID != f.actor || !order.CreatedAt.Equal(f.now) || order.Items == nil {
+				if order.Status != "completed" || order.CreatedBy.ID != f.actor || !order.CreatedAt.Equal(f.now) ||
+					order.Items == nil {
 					t.Fatalf("bad summary: %+v", order)
 				}
 				wantPortions := 1
@@ -118,13 +128,15 @@ func TestOrderHistoryIntegrationList(t *testing.T) {
 				}
 				if order.ID == one.ID {
 					for _, item := range order.Items {
-						if item.DishID == first && (item.DishName != `Pizza%_\` || item.Portions != 2 || item.RecipeVersion == nil || *item.RecipeVersion != 1) {
+						if item.DishID == first &&
+							(item.DishName != `Pizza%_\` || item.Portions != 2 || item.RecipeVersion == nil || *item.RecipeVersion != 1) {
 							t.Fatalf("changed historical item: %+v", item)
 						}
 					}
 				}
 			}
-			if result.Total != scenario.total || !reflect.DeepEqual(got, scenario.ids) || result.Items == nil || result.Meta == nil {
+			if result.Total != scenario.total || !reflect.DeepEqual(got, scenario.ids) || result.Items == nil ||
+				result.Meta == nil {
 				t.Fatalf("list total/order/shape: %+v want %v", result, scenario.ids)
 			}
 		})
@@ -149,7 +161,12 @@ func TestOrderHistoryIntegrationListAccessAndValidation(t *testing.T) {
 	}
 	f.exec(t, `UPDATE users SET role='order_operator' WHERE id=$1`, f.actor)
 	for _, query := range []string{"from=2026-10-10", "page_size=101", "search=a&search=b", "unknown=1", "sort=created_at", "from=2026-10-11T00:00:00Z&to=2026-10-10T00:00:00Z"} {
-		if response := historyRequest(f, "/orders?"+query, true); response.Code != 422 || !strings.Contains(response.Body.String(), "VALIDATION_ERROR") {
+		if response := historyRequest(
+			f,
+			"/orders?"+query,
+			true,
+		); response.Code != 422 ||
+			!strings.Contains(response.Body.String(), "VALIDATION_ERROR") {
 			t.Fatalf("validation: %d %s", response.Code, response.Body.String())
 		}
 	}

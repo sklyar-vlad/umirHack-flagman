@@ -30,23 +30,36 @@ func checkBasket(items []basketItem, dishes map[uuid.UUID]model.Dish) (dto.Order
 		})
 		if !dish.IsActive {
 			result.Issues = append(result.Issues, dto.OrderIssue{
-				DishID: dish.ID, Code: "dish_inactive", Message: "Блюдо отключено", CurrentRecipeVersion: dish.RecipeVersion,
+				DishID:               dish.ID,
+				Code:                 "dish_inactive",
+				Message:              "Блюдо отключено",
+				CurrentRecipeVersion: dish.RecipeVersion,
 			})
 		}
 		if dish.RecipeVersion == nil || len(dish.Recipe) == 0 {
 			result.Issues = append(result.Issues, dto.OrderIssue{
-				DishID: dish.ID, Code: "recipe_missing", Message: "У блюда нет рецептуры", CurrentRecipeVersion: dish.RecipeVersion,
+				DishID:               dish.ID,
+				Code:                 "recipe_missing",
+				Message:              "У блюда нет рецептуры",
+				CurrentRecipeVersion: dish.RecipeVersion,
 			})
 		}
 		if item.recipeVersion != nil && dish.RecipeVersion != nil && *item.recipeVersion != *dish.RecipeVersion {
 			result.Issues = append(result.Issues, dto.OrderIssue{
-				DishID: dish.ID, Code: "recipe_changed", Message: "Рецептура блюда изменилась", CurrentRecipeVersion: dish.RecipeVersion,
+				DishID:               dish.ID,
+				Code:                 "recipe_changed",
+				Message:              "Рецептура блюда изменилась",
+				CurrentRecipeVersion: dish.RecipeVersion,
 			})
 		}
 		for _, ingredient := range dish.Recipe {
 			perPortion, err := quantity.ParseMilli(ingredient.QuantityPerPortion)
 			if err != nil || perPortion.Sign() <= 0 {
-				return dto.OrderCheck{}, fmt.Errorf("invalid recipe quantity for dish %s product %s", dish.ID, ingredient.ProductID)
+				return dto.OrderCheck{}, fmt.Errorf(
+					"invalid recipe quantity for dish %s product %s",
+					dish.ID,
+					ingredient.ProductID,
+				)
 			}
 			demand, exists := demands[ingredient.ProductID]
 			if !exists {
@@ -94,9 +107,14 @@ func checkBasket(items []basketItem, dishes map[uuid.UUID]model.Dish) (dto.Order
 			reason = "only_expired_stock"
 		}
 		result.Shortages = append(result.Shortages, dto.Shortage{
-			ProductID: requirement.ProductID, ProductName: requirement.ProductName, Unit: requirement.Unit,
-			RequiredQuantity: requirement.RequiredQuantity, AvailableQuantity: requirement.AvailableQuantity,
-			MissingQuantity: requirement.MissingQuantity, ExpiredQuantity: quantity.FormatMilli(expired), ReasonCode: reason,
+			ProductID:         requirement.ProductID,
+			ProductName:       requirement.ProductName,
+			Unit:              requirement.Unit,
+			RequiredQuantity:  requirement.RequiredQuantity,
+			AvailableQuantity: requirement.AvailableQuantity,
+			MissingQuantity:   requirement.MissingQuantity,
+			ExpiredQuantity:   quantity.FormatMilli(expired),
+			ReasonCode:        reason,
 		})
 	}
 	result.CanCreate = len(result.Issues) == 0 && len(result.Shortages) == 0

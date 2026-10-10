@@ -15,6 +15,16 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
+const (
+	roleAdmin           = "admin"
+	roleManager         = "manager"
+	roleOrderOperator   = "order_operator"
+	queryField          = "query"
+	invalidQueryMessage = "Некорректные параметры запроса"
+	dateFromField       = "from"
+	dateToField         = "to"
+)
+
 type Service interface {
 	Check(context.Context, dto.OrderRequest) (dto.OrderCheck, error)
 }
@@ -30,14 +40,14 @@ func (h *Handler) Check(c *gin.Context) {
 		return
 	}
 	switch actor.Role {
-	case "admin", "manager", "order_operator":
+	case roleAdmin, roleManager, roleOrderOperator:
 	default:
 		basehandler.WriteError(c, apperrors.ErrForbidden)
 		return
 	}
 	query, err := url.ParseQuery(c.Request.URL.RawQuery)
 	if err != nil {
-		basehandler.WriteError(c, &validations.FieldError{Field: "query", Message: "Некорректные параметры запроса"})
+		basehandler.WriteError(c, &validations.FieldError{Field: queryField, Message: invalidQueryMessage})
 		return
 	}
 	if err := validations.ValidateQuery(query); err != nil {

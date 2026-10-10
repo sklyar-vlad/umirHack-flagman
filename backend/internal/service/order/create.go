@@ -22,12 +22,14 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
+const orderStatusCompleted = "completed"
+
 type CreateRepository interface {
 	StockRepository
 	InsertOrder(context.Context, repository.DBTX, uuid.UUID, uuid.UUID, time.Time) (model.OrderRecord, error)
-	InsertItem(context.Context, repository.DBTX, model.NewOrderItem) error
-	Consume(context.Context, repository.DBTX, model.OrderConsumption) error
-	InsertAttempt(context.Context, repository.DBTX, model.OrderAttempt) error
+	InsertItem(context.Context, repository.DBTX, *model.NewOrderItem) error
+	Consume(context.Context, repository.DBTX, *model.OrderConsumption) error
+	InsertAttempt(context.Context, repository.DBTX, *model.OrderAttempt) error
 }
 
 type EventWriter interface {
@@ -46,7 +48,11 @@ func NewCreateService(repo CreateRepository, events EventWriter, idem *idempoten
 	return &CreateService{repo: repo, events: events, idempotency: idem, now: time.Now}
 }
 
-func (s *CreateService) CreateIdempotent(ctx context.Context, actor, key uuid.UUID, body []byte) (model.IdempotencyResponse, error) {
+func (s *CreateService) CreateIdempotent(
+	ctx context.Context,
+	actor, key uuid.UUID,
+	body []byte,
+) (model.IdempotencyResponse, error) {
 	if actor == uuid.Nil {
 		return model.IdempotencyResponse{}, apperrors.ErrUnauthorized
 	}
@@ -72,7 +78,7 @@ func (s *CreateService) CreateIdempotent(ctx context.Context, actor, key uuid.UU
 			return idempotency.Outcome{}, err
 		}
 		if !check.CanCreate {
-			return s.saveRefusal(ctx, tx, actor, check, stock.serverTime)
+			return s.saveRefusal(ctx, tx, actor, &check, stock.serverTime)
 		}
 		return s.saveOrder(ctx, tx, actor, items, stock)
 	})
@@ -89,13 +95,22 @@ func decodeOrderBody(body []byte) (dto.OrderRequest, error) {
 	decoder.DisallowUnknownFields()
 	var request dto.OrderRequest
 	if err := decoder.Decode(&request); err != nil {
-		return dto.OrderRequest{}, &validations.FieldError{Field: "body", Message: "Некорректная структура корзины: ожидаются items, dish_id, целые portions и recipe_version"}
+		return dto.OrderRequest{}, &validations.FieldError{
+			Field:   "body",
+			Message: "Некорректная структура корзины: ожидаются items, dish_id, целые portions и recipe_version",
+		}
 	}
 	return request, nil
 }
 
-func (s *CreateService) saveOrder(ctx context.Context, tx repository.DBTX, actor uuid.UUID, items []basketItem, stock lockedStock) (idempotency.Outcome, error) {
-	response := dto.OrderDetail{ID: uuid.New(), Status: "completed", Items: []dto.CreatedOrderItem{}}
+func (s *CreateService) saveOrder(
+	ctx context.Context,
+	tx repository.DBTX,
+	actor uuid.UUID,
+	items []basketItem,
+	stock lockedStock,
+) (idempotency.Outcome, error) {
+	response := dto.OrderDetail{ID: uuid.New(), Status: orderStatusCompleted, Items: []dto.CreatedOrderItem{}}
 	demands := []fefo.Demand{}
 	positions := make(map[uuid.UUID]int, len(items))
 	ingredients := make(map[uuid.UUID]model.RecipeIngredient)
@@ -121,7 +136,10 @@ func (s *CreateService) saveOrder(ctx context.Context, tx repository.DBTX, actor
 				return idempotency.Outcome{}, err
 			}
 			demand := perPortion.Mul(perPortion, big.NewInt(int64(item.portions)))
-			demands = append(demands, fefo.Demand{ItemID: id, ProductID: ingredient.ProductID, Quantity: quantity.FormatMilli(demand)})
+			demands = append(
+				demands,
+				fefo.Demand{ItemID: id, ProductID: ingredient.ProductID, Quantity: quantity.FormatMilli(demand)},
+			)
 		}
 	}
 	plan, err := fefo.Plan(demands, stock.batches, stock.serverTime)
@@ -138,7 +156,7 @@ func (s *CreateService) saveOrder(ctx context.Context, tx repository.DBTX, actor
 	snapshot := &model.OrderAuditSnapshot{Number: created.Number, Items: []model.OrderItemAuditSnapshot{}}
 	for _, item := range response.Items {
 		dish := stock.dishes[item.DishID]
-		if err := s.repo.InsertItem(ctx, tx, model.NewOrderItem{
+		if err := s.repo.InsertItem(ctx, tx, &model.NewOrderItem{
 			ID: item.ID, OrderID: response.ID, DishID: item.DishID,
 			RecipeVersionID: *dish.RecipeVersionID, DishName: item.DishName, Portions: item.Portions,
 		}); err != nil {
@@ -150,7 +168,8 @@ func (s *CreateService) saveOrder(ctx context.Context, tx repository.DBTX, actor
 		})
 	}
 	products, batches, dishes := []uuid.UUID{}, []uuid.UUID{}, []uuid.UUID{}
-	for _, allocation := range plan {
+	for i := range plan {
+		allocation := &plan[i]
 		item := &response.Items[positions[allocation.ItemID]]
 		ingredient := ingredients[allocation.Batch.ProductID]
 		movement := model.OrderConsumption{
@@ -158,7 +177,7 @@ func (s *CreateService) saveOrder(ctx context.Context, tx repository.DBTX, actor
 			Quantity: allocation.Quantity, RemainingQuantityAfter: allocation.RemainingQuantityAfter,
 			ProductName: ingredient.ProductName, Unit: ingredient.Unit, OccurredAt: stock.serverTime,
 		}
-		if err := s.repo.Consume(ctx, tx, movement); err != nil {
+		if err := s.repo.Consume(ctx, tx, &movement); err != nil {
 			return idempotency.Outcome{}, err
 		}
 		b := allocation.Batch
