@@ -91,3 +91,9 @@ type ProcurementHandler interface{ List(*gin.Context) }
 func RegisterProcurementRoutes(group *gin.RouterGroup, h ProcurementHandler, access SupplyAccess) {
 	group.GET("/procurement-recommendations", access.RequireSupplyAccess, h.List)
 }
+
+type HotOffersHandler interface{ List(*gin.Context) }
+
+func RegisterHotOffersRoutes(group *gin.RouterGroup, h HotOffersHandler, access ProductAccess) {
+	group.GET("/hot-offers", access.RequireProductReadAccess, h.List)
+}

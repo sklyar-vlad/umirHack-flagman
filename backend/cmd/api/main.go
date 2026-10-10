@@ -16,6 +16,7 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/handler"
 	authhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auth"
 	batchhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/batch"
+	offershandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/hotoffers"
 	inventoryhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/inventory"
 	menuhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/menu"
 	orderhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/order"
@@ -25,6 +26,7 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 	authrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auth"
 	batchrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/batch"
+	offersrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/hotoffers"
 	inventoryrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/inventory"
 	menurepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/menu"
 	orderrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/order"
@@ -34,6 +36,7 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service"
 	authservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auth"
 	batchservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/batch"
+	offersservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/hotoffers"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
 	inventoryservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/inventory"
 	menuservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/menu"
@@ -85,6 +88,7 @@ func main() {
 	orderCreation := orderservice.NewCreateService(orderrepository.NewRepository(), repo, idem)
 	orderHistory := orderservice.NewHistoryService(orderrepository.NewRepository(), repo)
 	procurement := procurementservice.NewService(procurementrepository.NewRepository(), menurepository.NewRepository(), repo)
+	hotOffers := offersservice.NewService(offersrepository.NewRepository(), menurepository.NewRepository(), repo)
 	cleanupCtx, cancelCleanup := context.WithCancel(context.Background())
 	cleanupDone := make(chan struct{})
 	go func() {
@@ -122,6 +126,7 @@ func main() {
 	handler.RegisterOrderCreateRoutes(api, orderhandler.NewCreateHandler(orderCreation), access)
 	handler.RegisterOrderHistoryRoutes(api, orderhandler.NewHistoryHandler(orderHistory), access)
 	handler.RegisterProcurementRoutes(api, procurementhandler.NewHandler(procurement), access)
+	handler.RegisterHotOffersRoutes(api, offershandler.NewHandler(hotOffers), access)
 
 	server := &http.Server{
 		Addr:         net.JoinHostPort("", cfg.Server.Port),

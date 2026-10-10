@@ -8,7 +8,7 @@ info:
     Стартовый контракт S02-T04 на основе REST API из README.md.
     Реализованы GET /healthcheck, GET /products, GET /products/{id}/batches, GET /inventory,
     POST /supplies, GET /supplies, GET /supplies/{id}, GET /dishes,
-    GET /dishes/{id}, GET /stop-list, GET /procurement-recommendations, POST /orders/check, POST /orders,
+    GET /dishes/{id}, GET /stop-list, GET /hot-offers, GET /procurement-recommendations, POST /orders/check, POST /orders,
     GET /orders, GET /orders/{id} и GET /order-attempts.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
@@ -930,6 +930,60 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/Unavailable'
+  /hot-offers:
+    get:
+      tags: [Dishes]
+      operationId: getHotOffers
+      summary: Получить блюда для приоритетной продажи
+      description: |
+        Роли admin, manager, order_operator. Только активные доступные блюда
+        с последней рецептурой. Для каждого независимо симулируется одна порция
+        общим FEFO-планировщиком без резервирования или записей в склад.
+        Учитываются только реально потреблённые партии с положительным остатком
+        при T < expires_at <= T + H; H — expiring_threshold_hours из настроек
+        (без строки настроек — 24 часа), T = meta.server_time.
+        Настройки, рецептуры, остатки и факты поставок читаются в одном read-only
+        Repeatable Read снимке. h — точное время до истечения в часах.
+        batch_score = 100 * (1 - h/H) * used_for_one_portion / remaining_quantity;
+        priority_score = максимум. При h=H балл нулевой, но предложение включается.
+        Сравнения точные, без промежуточного округления; отображение — четыре знака.
+        Порядок — score DESC, ближайший затронутый срок ASC, ID блюда ASC.
+        high при ближайшем h <= H/4, medium при h <= H/2, иначе low.
+        search — буквальная часть имени блюда без учёта регистра; sort не принимается.
+        total и rank относятся к полному отфильтрованному списку до пагинации.
+        Следующее чтение пересчитывает результат после поставки, заказа, рецепта,
+        смены настроек или истечения срока; просроченные и исчерпанные партии исчезают.
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+      responses:
+        '200':
+          description: Горячие предложения; пустая страница содержит items []
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HotOffersListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
   /procurement-recommendations:
     get:
       tags: [Procurement]
@@ -1603,6 +1657,65 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/Dish'
+    HotOfferDish:
+      type: object
+      required: [id, name, recipe_version]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name: {type: string}
+        recipe_version: {type: integer, minimum: 1}
+    HotOfferBatch:
+      type: object
+      required: [batch_id, product_id, product_name, supply_id, supply_number, line_number, unit, remaining_quantity, used_for_one_portion, expires_at, remaining_seconds]
+      properties:
+        batch_id:
+          $ref: '#/components/schemas/UUID'
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        supply_id:
+          $ref: '#/components/schemas/UUID'
+        supply_number: {type: string}
+        line_number: {type: integer, minimum: 1}
+        unit:
+          $ref: '#/components/schemas/Unit'
+        remaining_quantity:
+          $ref: '#/components/schemas/PositiveQuantity'
+        used_for_one_portion:
+          $ref: '#/components/schemas/PositiveQuantity'
+        expires_at: {type: string, format: date-time, description: Фактический срок партии в UTC}
+        remaining_seconds: {type: integer, format: int64, minimum: 0, description: floor(expires_at - server_time); положительная доля секунды даёт 0}
+    HotOffer:
+      type: object
+      required: [dish, rank, priority_score, priority_level, available_portions, reason, problem_batches]
+      properties:
+        dish:
+          $ref: '#/components/schemas/HotOfferDish'
+        rank: {type: integer, format: int64, minimum: 1, description: Место до пагинации после фильтров}
+        priority_score:
+          type: string
+          pattern: '^[0-9]+\.[0-9]{4}$'
+          description: Максимальный batch_score от 0 до 100, округлённый только для отображения
+          example: '1.6667'
+        priority_level: {type: string, enum: [high, medium, low]}
+        available_portions: {type: string, pattern: '^[1-9][0-9]*$', description: Число доступных порций по всем годным остаткам без резерва}
+        reason: {type: string, description: Русское объяснение по фактическим потреблённым партиям и базовым единицам}
+        problem_batches:
+          type: array
+          minItems: 1
+          description: Только затронутые истекающие партии, по сроку, приёмке и ID
+          items:
+            $ref: '#/components/schemas/HotOfferBatch'
+    HotOffersListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ListEnvelope'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/HotOffer'
     AffectedDish:
       type: object
       required: [id, name]
