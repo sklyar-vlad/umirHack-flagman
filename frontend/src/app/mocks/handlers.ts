@@ -1,0 +1,21 @@
+import { delay } from 'msw'
+import { http } from 'msw/http'
+import { createHealthcheckResponse, createMockError } from './responses'
+import { getMockScenario } from './scenarios'
+
+function missingHandler() {
+  return createMockError(501, 'MOCK_NOT_IMPLEMENTED', 'Для этого API-маршрута мок ещё не реализован')
+}
+
+export const handlers = [
+  http.get('/api/v1/healthcheck', async () => {
+    // Фиксируем сценарий для конкретной попытки до задержки.
+    const scenario = getMockScenario()
+    if (scenario === 'slow') await delay(2_000)
+    return createHealthcheckResponse(scenario)
+  }),
+  // В моковом режиме неизвестный API не обращается к реальному складу.
+  // Предметные handlers добавляются выше по мере реализации экранов.
+  http.all('/api/v1/*', missingHandler),
+  http.all('/api/v1', missingHandler),
+]
