@@ -930,14 +930,16 @@ README.md                Спецификация экранов, REST и биз
 
 ```sh
 cp infrastructure/.env.example infrastructure/.env
-docker compose -f infrastructure/compose.yaml up -d --build
+task up
 ```
 
 Адреса: frontend — `http://flagman.localhost`; API через frontend — `http://flagman.localhost/api/v1`; healthcheck — `http://api.flagman.localhost/api/v1/healthcheck`; локальная панель Traefik — `http://traefik.flagman.localhost/dashboard/`.
 
-Это команда инфраструктуры, а не утверждение о готовности бизнес-функций. Текущий Dockerfile frontend копирует только базовый tsconfig, index и src; стартовый Vite-проект использует также `tsconfig.app.json`, `tsconfig.node.json`, `vite.config.ts` и public. Перед полноценным запуском frontend Dockerfile необходимо согласовать с этими файлами. Миграций/seed и доменных маршрутов пока нет. В этой задаче запуск приложения не проверялся.
+Для запуска с применением миграций используйте `task up`. Схема базы хранится в `backend/database/migrations`, начальные справочники и демопартии — в `backend/database/seeds`. Команда `task seed` также создаёт пользователей всех четырёх ролей с паролями из локальной конфигурации. Готовность инфраструктуры и демоданных не означает готовность всех предметных HTTP-операций.
 
-Планируемые команды Task: `migrate`, `seed`, `dev`, `demo-events`. Сейчас Taskfile содержит `lint` и вывод списка задач; нельзя считать перечисленные команды реализованными.
+В Taskfile реализованы `up`, `down`, `logs`, команды миграций, `seed`, `seed-users`, `demo-reset` и `lint`. Команды `dev` и `demo-events` пока отсутствуют.
+
+Обычный `task seed` сохраняет пользовательские поставки и заказы. Явный сброс разрешён только для demo-базы `postgres_demo` при `ENV=demo` и `CONFIRM=postgres-demo`. Подготовка demo-базы, последствия сброса и порядок восстановления описаны в [infrastructure/README.md](infrastructure/README.md#seed-и-сброс-demo-окружения).
 
 Для итогового окружения: HTTPS, закрытая от внешнего доступа БД, секреты вне репозитория, защищённая техническая панель, лимиты размера JSON/частоты запросов, параметризованные SQL-запросы, резервная копия БД. Существующие реквизиты `.env.example` и HTTP-адреса предназначены для локального запуска. Аудит изменений и ключи идемпотентности включаются в предметные транзакции, а session token и пароли исключаются из логов.
 

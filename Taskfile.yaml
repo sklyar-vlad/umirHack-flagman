@@ -2,7 +2,7 @@ version: "3"
 
 vars:
   COMPOSE_CMD: docker compose --env-file ./infrastructure/.env -f ./infrastructure/compose.yaml
-  GOOSE_CMD: goose -env ./infrastructure/.env -dir ./backend/migrations
+  GOOSE_CMD: goose -env ./infrastructure/.env -dir ./backend/database/migrations
 
 tasks:
   default:
@@ -86,21 +86,57 @@ tasks:
     preconditions:
       - sh: test -f ./infrastructure/.env
         msg: Создай infrastructure/.env из infrastructure/.env.example
-      - sh: test -f ./backend/seeds/001_catalog.sql
-        msg: Не найден backend/seeds/001_catalog.sql
-      - sh: test -f ./backend/seeds/002_inventory.sql
-        msg: Не найден backend/seeds/002_inventory.sql
+      - sh: test -f ./backend/database/seeds/001_catalog.sql
+        msg: Не найден backend/database/seeds/001_catalog.sql
+      - sh: test -f ./backend/database/seeds/002_inventory.sql
+        msg: Не найден backend/database/seeds/002_inventory.sql
     cmds:
       - '{{.COMPOSE_CMD}} up -d --wait --wait-timeout 60 db'
       - task: migrate
+      - task: seed-users
       - >-
           {{.COMPOSE_CMD}} exec -T db
           sh -c 'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
-          < ./backend/seeds/001_catalog.sql
+          < ./backend/database/seeds/001_catalog.sql
       - >-
           {{.COMPOSE_CMD}} exec -T db
           sh -c 'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
-          < ./backend/seeds/002_inventory.sql
+          < ./backend/database/seeds/002_inventory.sql
+
+  seed-users:
+    desc: Создать демопользователей всех четырёх ролей
+    dir: backend
+    preconditions:
+      - sh: test -f ../infrastructure/.env
+        msg: Не найден infrastructure/.env
+    cmds:
+      - go run ./cmd/seed-users
+
+  demo-reset:
+    desc: Очистить только базу postgres_demo; требуется CONFIRM=postgres-demo
+    dotenv:
+      - ./infrastructure/.env
+    env:
+      DEMO_RESET_CONFIRM: '{{.CONFIRM | default ""}}'
+    preconditions:
+      - sh: test -f ./infrastructure/.env
+        msg: Не найден infrastructure/.env
+      - sh: test -f ./backend/database/seeds/reset_demo.sql
+        msg: Не найден backend/database/seeds/reset_demo.sql
+      - sh: test "${ENV:-}" = demo
+        msg: Сброс разрешён только при ENV=demo
+      - sh: test "${POSTGRES_DB:-}" = postgres_demo
+        msg: Сброс разрешён только для POSTGRES_DB=postgres_demo
+      - sh: test "${DEMO_RESET_CONFIRM:-}" = postgres-demo
+        msg: Для удаления демоданных укажи CONFIRM=postgres-demo
+    cmds:
+      - '{{.COMPOSE_CMD}} stop backend frontend'
+      - >-
+          {{.COMPOSE_CMD}} exec -T db
+          sh -eu -c 'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres_demo'
+          < ./backend/database/seeds/reset_demo.sql
+
+
 
 ### LINTING
 
