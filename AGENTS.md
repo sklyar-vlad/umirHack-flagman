@@ -68,6 +68,9 @@ this isolated `agent/frontend-autonomous` worktree. Do not spawn other agents.
 - Maintain `.ralph/artifacts/QUALITY.md` with evidence for the current story and
   `Quality Gate: continue|pass`. Completion is allowed only after real checks.
   Do not output `<promise>COMPLETE</promise>` while frontend stories remain.
+- In `.ralph/artifacts/ralph_architecture.md`, use complete repository-relative
+  file paths (e.g. frontend/src/main.tsx); bare filenames are resolved from the
+  repository root by Ralph's artifact validator.
 - If blocked, `bd update <story> --status blocked --notes '<reason>'`, leave the
   remote story unfinished, explain the blocker, and stop dependent work. If an
   automatic approval review rejects an action, record the rejected action and

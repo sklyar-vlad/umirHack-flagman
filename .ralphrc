@@ -2,7 +2,7 @@
 # Ralph loads defaults before ralph.json; set runtime options here explicitly.
 TOOL=codex
 MAX_ITERATIONS=20
-VERBOSE=true
+VERBOSE=false
 SANDBOX_MODE=false
 
 # Record the user's configured model in Ralph logs; Codex still inherits it.
@@ -12,8 +12,8 @@ determine_model() {
     export SELECTED_MODEL SELECTED_MODEL_SOURCE
 }
 
-export RALPH_MAX_RUN_TOKENS="${RALPH_MAX_RUN_TOKENS:-150000}"
-export RALPH_MAX_RUN_SECONDS="${RALPH_MAX_RUN_SECONDS:-14400}"
+export RALPH_MAX_RUN_TOKENS="${AGENT_MAX_RUN_TOKENS:-150000}"
+export RALPH_MAX_RUN_SECONDS="${AGENT_MAX_RUN_SECONDS:-14400}"
 export MAX_CONSECUTIVE_FAILURES="${MAX_CONSECUTIVE_FAILURES:-3}"
 
 # Keep the OS sandbox and route necessary approvals through Codex auto-review.

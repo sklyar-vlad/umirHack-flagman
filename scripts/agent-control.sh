@@ -26,7 +26,12 @@ case "${1:-status}" in
     bd --sandbox list --status in_progress --json
     bd --sandbox list --status blocked --json
     ;;
-  logs) tail -n 80 -f "$(cat .ralph/current-log)" ;;
+  logs)
+    if [[ -f .ralph/state/last-run-id ]]; then
+      run_log=".ralph/runs/$(cat .ralph/state/last-run-id)/ralph.log"
+    else run_log="$(cat .ralph/current-log)"; fi
+    tail -n 80 -f "$run_log"
+    ;;
   stop)
     if live_pid; then kill -TERM "$pid"; echo "Stop requested for PID $pid"; else echo 'No matching agent process'; fi
     ;;
