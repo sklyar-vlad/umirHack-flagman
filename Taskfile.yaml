@@ -33,6 +33,39 @@ tasks:
     cmds:
       - docker compose -f ./infrastructure/compose.yaml logs -f
 
+### DB
+
+### DATABASE 
+
+  migration:
+    desc: create new migration file. example "task migration NAME=name_of_migration"
+    cmds:
+      - goose -s create {{.NAME}} sql -dir ./backend/migrations
+    vars:
+      NAME: '{{.NAME | default "migration"}}'
+
+  migrate:
+    desc: choose last version of migrations
+    cmds:
+      - goose -env ./infrastructure/.env up 
+      - echo "Success migrated"
+
+  migrate-one:
+    desc: choose next version of migrations 
+    cmds:
+      - goose -env ./infrastructure/.env up-by-one 
+
+  rollback:
+    desc: roll back all migrations
+    cmds:
+      - goose -env ./infrastructure/.env reset
+
+  rollback-one:
+    desc: comeback to previous version of migrations
+    cmds:
+      - goose -env ./infrastructure/.env down 
+
+
 ### LINTING
 
   lint:
