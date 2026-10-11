@@ -3,6 +3,7 @@ package errors
 import "errors"
 
 var (
+	ErrFeatureUnavailable  = errors.New("feature unavailable")
 	ErrDuplicateIngredient = errors.New("duplicate ingredient")
 	ErrLastAdmin           = errors.New("last active administrator is protected")
 	ErrNotFound            = errors.New("not found")

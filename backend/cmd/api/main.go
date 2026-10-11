@@ -14,6 +14,7 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/database"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/config"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/handler"
+	auditloghandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auditlog"
 	authhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auth"
 	batchhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/batch"
 	cataloghandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/catalog"
@@ -25,9 +26,11 @@ import (
 	orderhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/order"
 	procurementhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/procurement"
 	producthandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/product"
+	settingshandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/settings"
 	supplyhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/supply"
 	userhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/user"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
+	auditlogrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auditlog"
 	authrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auth"
 	batchrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/batch"
 	catalogrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/catalog"
@@ -39,9 +42,11 @@ import (
 	orderrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/order"
 	procurementrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/procurement"
 	productrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/product"
+	settingsrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/settings"
 	supplyrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/supply"
 	userrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/user"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service"
+	auditlogservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auditlog"
 	authservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auth"
 	batchservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/batch"
 	catalogservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/catalog"
@@ -54,6 +59,7 @@ import (
 	orderservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/order"
 	procurementservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/procurement"
 	productservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/product"
+	settingsservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/settings"
 	supplyservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/supply"
 	userservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/user"
 	customLogger "github.com/sklyar-vlad/umirHack-flagman/logger"
@@ -94,6 +100,8 @@ func main() {
 	hand := handler.NewHandler(supplyhandler.NewHandler(serv), access, logger)
 	catalog := catalogservice.NewService(catalogrepository.NewRepository(), repo, repo)
 	dishes := dishservice.NewService(dishrepository.NewRepository(), menurepository.NewRepository(), repo, repo)
+	settings := settingsservice.NewService(settingsrepository.NewRepository(), repo, repo)
+	auditLog := auditlogservice.NewService(auditlogrepository.NewRepository(), repo)
 	products := productservice.NewService(productrepository.NewRepository(), repo)
 	inventory := inventoryservice.NewService(inventoryrepository.NewRepository(), repo)
 	batches := batchservice.NewService(batchrepository.NewRepository(), repo)
@@ -138,6 +146,8 @@ func main() {
 	mux.NoRoute(handler.NotFound)
 
 	api := mux.Group("/api/v1", access.RequireRouteAccess)
+	handler.RegisterAuditLogRoutes(api, auditloghandler.NewHandler(auditLog))
+	handler.RegisterSettingsRoutes(api, settingshandler.NewHandler(settings))
 	handler.RegisterAuthRoutes(api, access)
 	handler.RegisterUserReadRoutes(api, userhandler.NewHandler(users))
 	handler.RegisterUserWriteRoutes(api, userhandler.NewHandler(users))
