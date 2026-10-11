@@ -40,7 +40,7 @@ export function sectionForPath(path: string) {
 export function startPath(role: Role) { return visibleSections(role, 'main')[0]?.path ?? '/forbidden' }
 /** The caller must first strip external URLs/query secrets using safeReturnUrl. */
 export function permittedReturnPath(role: Role, path: string) {
-  const section = sectionForPath(path)
+  const section = sectionForPath(path.split(/[?#]/)[0])
   if (path === '/admin') return visibleSections(role, 'admin')[0]?.path ?? startPath(role)
   return section && canAccess(role, section) ? path : startPath(role)
 }

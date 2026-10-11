@@ -1,4 +1,9 @@
 export const mockScenarios = [
+  { value: 'inventory-empty', label: 'Склад · Пустой список' },
+  { value: 'batches-empty', label: 'Партии · Пустой список' },
+  { value: 'batches-error', label: 'Партии · Ошибка панели' },
+  { value: 'batches-slow', label: 'Партии · Медленная загрузка' },
+  { value: 'categories-error', label: 'Категории · Ошибка загрузки' },
   { value: 'role-admin', label: 'Роль · Администратор' },
   { value: 'role-storekeeper', label: 'Роль · Кладовщик' },
   { value: 'role-order-operator', label: 'Роль · Оператор заказов' },

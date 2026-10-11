@@ -10,6 +10,12 @@ describe('safe login navigation and validation', () => {
     expect(safeReturnUrl('/inventory?password=secret#token')).toBe('/inventory')
     expect(loginUrl('/inventory?q=test')).toBe('/login?returnTo=%2Finventory')
   })
+  it('retains only the published inventory filters across login', () => {
+    expect(safeReturnUrl('/inventory?search=%D0%9C%D0%BE%D0%BB%D0%BE%D0%BA%D0%BE&filter=expired&page=2&page_size=20&password=secret#token')).toBe('/inventory?search=%D0%9C%D0%BE%D0%BB%D0%BE%D0%BA%D0%BE&filter=expired&page=2&page_size=20')
+    expect(safeReturnUrl('/inventory?sort=-name&category_id=invalid&page=0&filter=invalid')).toBe('/inventory')
+    expect(safeReturnUrl('/orders?search=test&page=2')).toBe('/orders')
+    expect(loginUrl('/inventory?filter=deficit')).toBe('/login?returnTo=%2Finventory%3Ffilter%3Ddeficit')
+  })
   it('validates email and required password without inventing password policy', () => {
     expect(loginSchema.safeParse({ email: 'bad', password: '' }).success).toBe(false)
     expect(loginSchema.parse({ email: ' employee@example.test ', password: ' a ' })).toEqual({ email: 'employee@example.test', password: ' a ' })

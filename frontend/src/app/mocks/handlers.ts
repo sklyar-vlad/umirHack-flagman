@@ -1,4 +1,5 @@
 import { authHandlers } from './auth-handlers'
+import { inventoryHandlers } from './inventory-handlers'
 import { delay } from 'msw'
 import { http } from 'msw/http'
 import { createHealthcheckResponse, createMockError } from './responses'
@@ -10,6 +11,7 @@ function missingHandler() {
 
 export const handlers = [
   ...authHandlers,
+  ...inventoryHandlers,
   http.get('/api/v1/healthcheck', async () => {
     // Фиксируем сценарий для конкретной попытки до задержки.
     const scenario = getMockScenario()

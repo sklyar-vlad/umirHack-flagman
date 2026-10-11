@@ -45,3 +45,4 @@ const slice = createSlice({
 })
 export const sessionReducer = slice.reducer
 export const { replaceSession, saveWorkDraft, replaceBasket } = slice.actions
+export const selectSession = (state: { session: SessionState }) => state.session

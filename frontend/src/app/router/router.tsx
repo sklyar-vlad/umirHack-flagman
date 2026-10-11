@@ -5,6 +5,7 @@ import { RoleGate } from '@/features/access'
 import { AppShell } from '@/widgets/app-shell'
 import { SectionLanding, SectionPage } from '@/pages/section'
 import { RouteStatusPage } from '@/pages/route-status'
+import { InventoryPage } from '@/pages/inventory'
 import { RouteError } from './RouteError'
 import { RouteLoading } from './RouteLoading'
 
@@ -13,15 +14,17 @@ function guarded(section: Section, children = <SectionPage section={section} />)
 }
 const dishes = sections.find((section) => section.id === 'dishes')!
 const administration = sections.find((section) => section.group === 'admin')!
+const supplies = sections.find((section) => section.id === 'supplies')!
 const protectedRoutes: RouteObject[] = [
   ...sections.map((section): RouteObject => ({
     path: section.path,
-    element: guarded(section, section.id === 'recommendations'
+    element: guarded(section, section.id === 'inventory' ? <InventoryPage /> : section.id === 'recommendations'
       ? <SectionLanding group="recommendations" />
       : <SectionPage section={section} />),
   })),
   { path: '/admin', element: guarded(administration, <SectionLanding group="admin" />) },
   { path: '/dishes/:id', element: guarded(dishes) },
+  { path: '/supplies/:id', element: guarded(supplies) },
   { path: '/forbidden', element: <RouteStatusPage forbidden /> },
   { path: '*', Component: RouteStatusPage },
 ]

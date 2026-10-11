@@ -30,5 +30,6 @@ describe('README role permissions', () => {
     expect(permittedReturnPath('admin', '/admin')).toBe('/admin/products')
     expect(permittedReturnPath('manager', '/unknown')).toBe('/')
     expect(permittedReturnPath('manager', '/forbidden')).toBe('/')
+    expect(permittedReturnPath('order_operator', '/inventory?filter=expired&page=2')).toBe('/inventory?filter=expired&page=2')
   })
 })
