@@ -1,4 +1,7 @@
 export const mockScenarios = [
+  { value: 'stop-list-empty', label: 'Стоп-лист · Все блюда доступны' },
+  { value: 'stop-list-expired', label: 'Стоп-лист · Остаток просрочен' },
+  { value: 'stop-list-recipe', label: 'Стоп-лист · Рецептура изменена' },
   { value: 'order-detail-demo', label: 'Детали заказа · Три ингредиента' },
   { value: 'order-detail-split', label: 'Детали заказа · Несколько партий' },
   { value: 'order-not-found', label: 'Детали заказа · Не найден' },

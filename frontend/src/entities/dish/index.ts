@@ -1,3 +1,5 @@
-export { dishApi, useDishesQuery, useLazyDishQuery } from './api/dish-api'
-export { dishSchema } from './model/contracts'
-export type { Dish } from './model/contracts'
+export { dishApi, useDishesQuery, useLazyDishQuery, useStopListQuery } from './api/dish-api'
+export { dishSchema, stopListSchema } from './model/contracts'
+export type { Dish, StopList } from './model/contracts'
+export { defaultStopListSearch, readStopListSearch, stopListSearchParams, changeStopListSearch } from './model/stop-list-search'
+export type { StopListSearch } from './model/stop-list-search'

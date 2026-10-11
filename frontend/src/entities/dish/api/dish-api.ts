@@ -1,8 +1,18 @@
 import { baseApi, type ApiError } from '@/shared/api'
-import { dishSchema, dishListSchema, type Dish } from '../model/contracts'
+import { dishSchema, dishListSchema, stopListSchema, type Dish, type StopList } from '../model/contracts'
+import type { StopListSearch } from '../model/stop-list-search'
 
-const invalid = (): ApiError => ({ status: 'INVALID_RESPONSE', code: 'INVALID_RESPONSE', message: 'Некорректный ответ каталога блюд.', details: {} })
-export const dishApi = baseApi.enhanceEndpoints({ addTagTypes: ['Dishes'] }).injectEndpoints({ endpoints: (build) => ({
+const invalid = (message = 'Некорректный ответ каталога блюд.'): ApiError => ({ status: 'INVALID_RESPONSE', code: 'INVALID_RESPONSE', message, details: {} })
+export const dishApi = baseApi.enhanceEndpoints({ addTagTypes: ['Dishes', 'StopList'] }).injectEndpoints({ endpoints: (build) => ({
+  stopList: build.query<StopList, StopListSearch>({
+    providesTags: ['StopList', 'Dishes'],
+    queryFn: async (args, _api, _options, query) => {
+      const result = await query({ url: '/stop-list', params: { ...args, sort: 'name' } })
+      if (result.error) return { error: result.error }
+      const parsed = stopListSchema.safeParse(result.data)
+      return parsed.success && parsed.data.page === args.page && parsed.data.page_size === args.page_size && parsed.data.items.length <= args.page_size && parsed.data.items.length <= parsed.data.total ? { data: parsed.data } : { error: invalid('Некорректный ответ стоп-листа.') }
+    },
+  }),
   dishes: build.query<{ items: Dish[]; total: number }, { search: string; page: number }>({
     providesTags: ['Dishes'],
     queryFn: async (args, _api, _options, query) => {
@@ -22,4 +32,4 @@ export const dishApi = baseApi.enhanceEndpoints({ addTagTypes: ['Dishes'] }).inj
     },
   }),
 }) })
-export const { useDishesQuery, useLazyDishQuery } = dishApi
+export const { useDishesQuery, useLazyDishQuery, useStopListQuery } = dishApi
