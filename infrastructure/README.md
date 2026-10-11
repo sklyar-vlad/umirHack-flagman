@@ -1,3 +1,77 @@
+# Запуск на VPS через один .env
+
+На сервере нужны Docker с Compose v2 и Task. Привяжите домен к IP сервера
+и откройте TCP-порты 80 и 443. Они должны быть свободны для Traefik.
+
+```sh
+cp infrastructure/.env.vps.example infrastructure/.env
+chmod 600 infrastructure/.env
+```
+
+Заполните `FLAGMAN_DOMAIN` (без схемы и пути), `ACME_EMAIL`,
+`POSTGRES_PASS`, `METRICS_TOKEN`, `GRAFANA_ADMIN_PASSWORD` и
+`GRAFANA_PG_PASSWORD`. Для каждого секрета используйте независимое значение,
+например вывод `openssl rand -hex 32`. Ссылки `${POSTGRES_USER}` и остальные
+в `POSTGRES_URL` можно оставить: Docker Compose подставит значения из этого же
+файла. Для URI пароль БД должен быть URL-кодирован; шестнадцатеричный пароль
+не требует кодирования.
+
+Оставьте `DEPLOY_MODE=vps`. После этого обычные команды выбирают VPS-конфигурацию:
+
+```sh
+task up
+task seed                  # отдельно, если нужны демопользователи и демоданные
+task migrate               # применить новые миграции
+task migrate-status
+task logs
+task down                  # остановить; данные сохраняются
+```
+
+`task up` останавливает приложение, поднимает БД, применяет миграции,
+настраивает роль чтения для мониторинга и собирает/запускает сервисы.
+Go и Goose на хосте не нужны. Frontend и API доступны на одном HTTPS-домене;
+Traefik получает и продлевает сертификат Let's Encrypt автоматически,
+сохраняя его в Docker volume. Первый выпуск может занять некоторое время.
+[Документация Traefik ACME](https://doc.traefik.io/traefik/reference/install-configuration/tls/certificate-resolvers/acme/).
+
+Можно использовать Compose напрямую: миграции и настройка роли мониторинга
+выполняются отдельными зависимостями перед запуском приложения и Grafana.
+
+```sh
+docker compose --env-file infrastructure/.env -f infrastructure/compose.vps.yaml up -d --build
+task seed
+```
+
+Проверка после запуска:
+
+```sh
+curl --fail https://YOUR_DOMAIN/api/v1/ready
+```
+
+Перед `task seed` заполните четыре `DEMO_*_PASSWORD` (12–128 символов).
+Вход: `admin@flagman.invalid`, `manager@flagman.invalid`,
+`storekeeper@flagman.invalid`, `operator@flagman.invalid` с заданными паролями.
+Seed не выполняется при обычном запуске и не перезаписывает существующие пароли.
+Для создания только этих пользователей используйте `task seed-users`.
+
+Для другого расположения конфига: `task up ENV_FILE=/absolute/path/deploy.env`.
+Режим также можно явно выбрать через `MODE=vps` или `MODE=local`.
+База и Prometheus не публикуют порты; Grafana доступна только на
+`127.0.0.1:3000`, панель Traefik — на `127.0.0.1:8081` (используйте SSH-туннель).
+
+`.env` содержит секреты, игнорируется Git и должен иметь права `600`.
+Не публикуйте вывод `docker compose config` или `docker inspect`: он содержит
+значения окружения. Изменение `POSTGRES_PASS` в `.env` не меняет пароль уже
+инициализированной БД; смена пароля существующей Grafana тоже выполняется отдельно.
+Перед обновлением схемы сохраните резервную копию. Команды отката и demo-reset
+не предназначены для VPS. `task down` не удаляет тома.
+
+VPS-конфигурация использует отдельный проект `flagman-vps` и новые тома.
+Если вы уже запускали `compose.https.yaml`, это другая установка: существующие
+данные нужно переносить через backup/restore, а старый Traefik остановить,
+чтобы освободить 80/443. Не запускайте оба проекта одновременно на этих портах.
+`compose.https.yaml` остаётся вариантом с внешними файлами секретов и сертификатов.
+
 # Локальный запуск
 
 Команды выполняются из корня репозитория. Если `infrastructure/.env` отсутствует,
