@@ -117,3 +117,27 @@ func RegisterAuthRoutes(group *gin.RouterGroup, h AuthHandler) {
 	group.GET("/auth/me", h.Me)
 	group.POST("/auth/logout", h.Logout)
 }
+
+type UserReadHandler interface {
+	Roles(*gin.Context)
+	List(*gin.Context)
+	Get(*gin.Context)
+}
+
+func RegisterUserReadRoutes(group *gin.RouterGroup, h UserReadHandler) {
+	group.GET("/roles", h.Roles)
+	group.GET("/users", h.List)
+	group.GET("/users/:id", h.Get)
+}
+
+type UserWriteHandler interface {
+	Create(*gin.Context)
+	Update(*gin.Context)
+	Password(*gin.Context)
+}
+
+func RegisterUserWriteRoutes(group *gin.RouterGroup, h UserWriteHandler) {
+	group.POST("/users", h.Create)
+	group.PATCH("/users/:id", h.Update)
+	group.POST("/users/:id/password", h.Password)
+}

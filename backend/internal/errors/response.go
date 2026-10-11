@@ -21,6 +21,7 @@ func MakeResponse(
 		Details: map[string]any{},
 	}
 
+	var revisionConflict *RevisionConflict
 	var fieldError *validations.FieldError
 	var maxBytesError *http.MaxBytesError
 
@@ -74,6 +75,15 @@ func MakeResponse(
 		status = http.StatusConflict
 		body.Code = "REQUEST_IN_PROGRESS"
 		body.Message = "Запрос с этим ключом ещё выполняется"
+	case errors.As(err, &revisionConflict):
+		status = http.StatusConflict
+		body.Code = "REVISION_CONFLICT"
+		body.Message = "Ресурс уже изменён"
+		body.Details = map[string]any{"current_revision": revisionConflict.CurrentRevision}
+	case errors.Is(err, ErrLastAdmin):
+		status = http.StatusConflict
+		body.Code = "LAST_ADMIN_PROTECTED"
+		body.Message = "Нельзя отключить или понизить последнего активного администратора"
 	case errors.Is(err, ErrConflict):
 		status = http.StatusConflict
 		body.Code = "CONFLICT"

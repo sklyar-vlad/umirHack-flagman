@@ -10,7 +10,8 @@ info:
     POST /supplies, GET /supplies, GET /supplies/{id}, GET /dishes,
     GET /dishes/{id}, GET /stop-list, GET /hot-offers, GET /procurement-recommendations, POST /orders/check, POST /orders,
     GET /orders, GET /orders/{id}, GET /order-attempts, GET /dashboard,
-    POST /auth/login, GET /auth/me и POST /auth/logout.
+    POST /auth/login, GET /auth/me и POST /auth/logout,
+    GET /roles, GET /users, GET /users/{id}, POST /users, PATCH /users/{id}, POST /users/{id}/password.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
@@ -73,6 +74,8 @@ servers:
 tags:
   - name: Auth
     description: Вход, текущая сессия и выход
+  - name: Users
+    description: Администрирование пользователей и ролей
   - name: System
     description: Состояние процесса
   - name: Inventory
@@ -112,6 +115,265 @@ paths:
           $ref: '#/components/responses/PayloadTooLarge'
         '500':
           $ref: '#/components/responses/InternalError'
+  /roles:
+    get:
+      tags:
+      - Users
+      operationId: listRoles
+      summary: Список четырёх ролей
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store.'
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /users:
+    get:
+      tags:
+      - Users
+      operationId: listUsers
+      summary: Список пользователей
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store. Буквальный поиск по имени/email;
+        %, _ и обратный слеш не являются шаблонами. Сортировка name ASC, id ASC. Total до пагинации. Один read-only
+        repeatable-read снимок.'
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - name: search
+        in: query
+        schema:
+          type: string
+        description: Буквальная часть имени или email без учёта регистра
+      - name: role
+        in: query
+        schema:
+          type: string
+          enum:
+          - all
+          - admin
+          - manager
+          - storekeeper
+          - order_operator
+          default: all
+      - name: is_active
+        in: query
+        schema:
+          type: string
+          enum:
+          - all
+          - 'true'
+          - 'false'
+          default: all
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum:
+          - name
+          default: name
+    post:
+      tags:
+      - Users
+      operationId: createUser
+      summary: Создать пользователя с начальным паролем
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store. Имя обрезается по краям; email
+        приводится к нижнему регистру и обрезается, должен быть уникален (409 CONFLICT). Начальный password передаёт
+        admin, email-рассылки нет. По умолчанию is_active=true. Пароль и хеш не возвращаются.'
+      x-implementation-status: implemented
+      responses:
+        '201':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+  /users/{id}:
+    get:
+      tags:
+      - Users
+      operationId: getUser
+      summary: Безопасные детали пользователя
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store.'
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+    patch:
+      tags:
+      - Users
+      operationId: updateUser
+      summary: Изменить пользователя по ожидаемой ревизии
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store. Требуется expected_revision
+        и хотя бы одно изменяемое поле. Отсутствующие поля сохраняются. 409 REVISION_CONFLICT содержит details.current_revision.
+        Смена роли и отключение отзывают все сессии. Последний активный admin защищён от понижения и отключения, включая
+        параллельные запросы: 409 LAST_ADMIN_PROTECTED.'
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+  /users/{id}/password:
+    post:
+      tags:
+      - Users
+      operationId: resetUserPassword
+      summary: Сбросить пароль пользователя
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store. Пароль 12–128 Unicode-символов.
+        Требуется expected_revision; 409 REVISION_CONFLICT содержит details.current_revision. Ревизия увеличивается,
+        все сессии пользователя отзываются. При сбросе собственного пароля нужен новый login.'
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPasswordRequest'
   /auth/login:
     post:
       tags: [Auth]
@@ -1304,6 +1566,132 @@ components:
         $ref: '#/components/schemas/UUID'
       example: 99999999-9999-4999-8999-999999999999
   schemas:
+    Role:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      - name
+      properties:
+        code:
+          type: string
+          enum:
+          - admin
+          - manager
+          - storekeeper
+          - order_operator
+        name:
+          type: string
+    RoleListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+    UserListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - total
+      - page
+      - page_size
+      - meta
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthUser'
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        meta:
+          type: object
+    CreateUserRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - email
+      - role
+      - password
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        role:
+          type: string
+          enum:
+          - admin
+          - manager
+          - storekeeper
+          - order_operator
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+          writeOnly: true
+        is_active:
+          type: boolean
+          default: true
+    UpdateUserRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - expected_revision
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        role:
+          type: string
+          enum:
+          - admin
+          - manager
+          - storekeeper
+          - order_operator
+        is_active:
+          type: boolean
+        expected_revision:
+          type: integer
+          minimum: 1
+      minProperties: 2
+    UserPasswordRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - password
+      - expected_revision
+      properties:
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+          writeOnly: true
+        expected_revision:
+          type: integer
+          minimum: 1
     LoginRequest:
       type: object
       additionalProperties: false
