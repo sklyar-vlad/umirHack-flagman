@@ -195,3 +195,15 @@ type AuditLogHandler interface{ List(*gin.Context) }
 func RegisterAuditLogRoutes(group *gin.RouterGroup, h AuditLogHandler) {
 	group.GET("/audit-log", h.List)
 }
+
+type WriteOffHandler interface{ Create(*gin.Context) }
+
+func RegisterWriteOffRoutes(group *gin.RouterGroup, h WriteOffHandler) {
+	group.POST("/write-offs", h.Create)
+}
+
+type StockMovementHandler interface{ List(*gin.Context) }
+
+func RegisterStockMovementRoutes(group *gin.RouterGroup, h StockMovementHandler) {
+	group.GET("/stock-movements", h.List)
+}

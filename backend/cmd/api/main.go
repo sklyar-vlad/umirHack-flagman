@@ -29,6 +29,7 @@ import (
 	settingshandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/settings"
 	supplyhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/supply"
 	userhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/user"
+	writeoffhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/writeoff"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 	auditlogrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auditlog"
 	authrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auth"
@@ -45,6 +46,7 @@ import (
 	settingsrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/settings"
 	supplyrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/supply"
 	userrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/user"
+	writeoffrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/writeoff"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service"
 	auditlogservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auditlog"
 	authservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auth"
@@ -62,6 +64,7 @@ import (
 	settingsservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/settings"
 	supplyservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/supply"
 	userservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/user"
+	writeoffservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/writeoff"
 	customLogger "github.com/sklyar-vlad/umirHack-flagman/logger"
 	"go.uber.org/zap"
 )
@@ -101,6 +104,8 @@ func main() {
 	catalog := catalogservice.NewService(catalogrepository.NewRepository(), repo, repo)
 	dishes := dishservice.NewService(dishrepository.NewRepository(), menurepository.NewRepository(), repo, repo)
 	settings := settingsservice.NewService(settingsrepository.NewRepository(), repo, repo)
+	stockMovements := writeoffservice.NewHistoryService(writeoffrepository.NewRepository(), repo)
+	writeOff := writeoffservice.NewService(writeoffrepository.NewRepository(), repo, idem)
 	auditLog := auditlogservice.NewService(auditlogrepository.NewRepository(), repo)
 	products := productservice.NewService(productrepository.NewRepository(), repo)
 	inventory := inventoryservice.NewService(inventoryrepository.NewRepository(), repo)
@@ -146,6 +151,8 @@ func main() {
 	mux.NoRoute(handler.NotFound)
 
 	api := mux.Group("/api/v1", access.RequireRouteAccess)
+	handler.RegisterStockMovementRoutes(api, writeoffhandler.NewHistoryHandler(stockMovements))
+	handler.RegisterWriteOffRoutes(api, writeoffhandler.NewHandler(writeOff))
 	handler.RegisterAuditLogRoutes(api, auditloghandler.NewHandler(auditLog))
 	handler.RegisterSettingsRoutes(api, settingshandler.NewHandler(settings))
 	handler.RegisterAuthRoutes(api, access)
