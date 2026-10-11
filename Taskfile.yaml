@@ -213,6 +213,11 @@ tasks:
     cmds:
       - bash ./scripts/backend-ci.sh smoke
 
+  backend:demo:
+    desc: Чистая локальная демонстрация backend через API в одноразовом Compose
+    cmds:
+      - bash ./scripts/backend-ci.sh demo
+
   lint:
     dir: backend
     desc: formatting project
