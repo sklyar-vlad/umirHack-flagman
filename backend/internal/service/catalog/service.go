@@ -22,8 +22,8 @@ type Repository interface {
 	CreateCategory(context.Context, repository.DBTX, string) (model.CatalogCategory, error)
 	UpdateCategory(context.Context, repository.DBTX, model.CatalogCategory) (model.CatalogCategory, error)
 	GetProduct(context.Context, repository.DBTX, uuid.UUID, bool) (model.Product, error)
-	CreateProduct(context.Context, repository.DBTX, model.Product) (model.Product, error)
-	UpdateProduct(context.Context, repository.DBTX, model.Product) (model.Product, error)
+	CreateProduct(context.Context, repository.DBTX, *model.Product) (model.Product, error)
+	UpdateProduct(context.Context, repository.DBTX, *model.Product) (model.Product, error)
 }
 
 type Transactions interface {
@@ -62,7 +62,7 @@ func categoryDTO(c model.CatalogCategory) dto.CatalogCategory {
 	return dto.CatalogCategory{ID: c.ID, Name: c.Name, Revision: c.Revision}
 }
 
-func productDTO(p model.Product) dto.Product {
+func productDTO(p *model.Product) dto.Product {
 	return dto.Product{
 		ProductBrief:           dto.ProductBrief{ID: p.ID, Name: p.Name, Unit: p.Unit, DisplayUnit: p.DisplayUnit},
 		Category:               dto.CategoryBrief{ID: p.Category.ID, Name: p.Category.Name},
@@ -75,7 +75,9 @@ func (s *Service) read(ctx context.Context, fn func(repository.DBTX) error) erro
 	if _, err := actor(ctx, false); err != nil {
 		return err
 	}
-	return databaseError(s.transactions.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, fn))
+	return databaseError(
+		s.transactions.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, fn),
+	)
 }
 
 func (s *Service) write(ctx context.Context, fn func(repository.DBTX) error) error {
@@ -133,5 +135,5 @@ func (s *Service) GetProduct(ctx context.Context, id uuid.UUID) (dto.Product, er
 	if err != nil {
 		return dto.Product{}, err
 	}
-	return productDTO(p), nil
+	return productDTO(&p), nil
 }

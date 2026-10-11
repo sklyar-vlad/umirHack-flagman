@@ -26,7 +26,10 @@ func (f *fixture) category(t *testing.T) dto.CatalogCategory {
 func (f *fixture) product(t *testing.T) dto.Product {
 	t.Helper()
 	c := f.category(t)
-	p, err := f.catalog.CreateProduct(f.actor(), dto.CreateProductRequest{Name: "Молоко", CategoryID: c.ID, Unit: "ml", DisplayUnit: "l"})
+	p, err := f.catalog.CreateProduct(
+		f.actor(),
+		&dto.CreateProductRequest{Name: "Молоко", CategoryID: c.ID, Unit: "ml", DisplayUnit: "l"},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,15 +77,26 @@ func TestCatalogCRUDNormalizedNamesAndLiteralSearch(t *testing.T) {
 	if err != nil || got != updated {
 		t.Fatal(got, err)
 	}
-	p, err := f.catalog.CreateProduct(ctx, dto.CreateProductRequest{Name: "  Говядина  ", CategoryID: c.ID, Unit: "g", DisplayUnit: "kg"})
-	if err != nil || p.Name != "Говядина" || p.Category.Name != "Свежая" || p.TargetStock != nil || !p.IsActive || p.Revision != 1 {
+	p, err := f.catalog.CreateProduct(
+		ctx,
+		&dto.CreateProductRequest{Name: "  Говядина  ", CategoryID: c.ID, Unit: "g", DisplayUnit: "kg"},
+	)
+	if err != nil || p.Name != "Говядина" || p.Category.Name != "Свежая" || p.TargetStock != nil || !p.IsActive ||
+		p.Revision != 1 {
 		t.Fatal(p, err)
 	}
-	_, err = f.catalog.CreateProduct(ctx, dto.CreateProductRequest{Name: "говядина", CategoryID: other.ID, Unit: "g", DisplayUnit: "kg"})
+	_, err = f.catalog.CreateProduct(
+		ctx,
+		&dto.CreateProductRequest{Name: "говядина", CategoryID: other.ID, Unit: "g", DisplayUnit: "kg"},
+	)
 	if !errors.Is(err, apperrors.ErrConflict) {
 		t.Fatal("global product uniqueness", err)
 	}
-	p, err = f.catalog.UpdateProduct(ctx, p.ID, dto.UpdateProductRequest{CategoryID: &other.ID, Name: ptr("Свежая говядина"), ExpectedRevision: 1})
+	p, err = f.catalog.UpdateProduct(
+		ctx,
+		p.ID,
+		&dto.UpdateProductRequest{CategoryID: &other.ID, Name: ptr("Свежая говядина"), ExpectedRevision: 1},
+	)
 	if err != nil || p.Category.ID != other.ID || p.Category.Name != other.Name || p.Revision != 2 {
 		t.Fatal(p, err)
 	}
@@ -90,7 +104,10 @@ func TestCatalogCRUDNormalizedNamesAndLiteralSearch(t *testing.T) {
 	if err != nil || gotP.ID != p.ID || gotP.Unit != "g" || gotP.Name != p.Name {
 		t.Fatal(gotP, err)
 	}
-	_, err = f.catalog.CreateProduct(ctx, dto.CreateProductRequest{Name: "Missing", CategoryID: uuid.New(), Unit: "g", DisplayUnit: "g"})
+	_, err = f.catalog.CreateProduct(
+		ctx,
+		&dto.CreateProductRequest{Name: "Missing", CategoryID: uuid.New(), Unit: "g", DisplayUnit: "g"},
+	)
 	if err == nil {
 		t.Fatal("missing category accepted")
 	}
@@ -116,7 +133,10 @@ func TestCatalogConcurrentNames(t *testing.T) {
 				defer wg.Done()
 				var err error
 				if product {
-					_, err = f.catalog.CreateProduct(f.actor(), dto.CreateProductRequest{Name: name, CategoryID: c.ID, Unit: "g", DisplayUnit: "g"})
+					_, err = f.catalog.CreateProduct(
+						f.actor(),
+						&dto.CreateProductRequest{Name: name, CategoryID: c.ID, Unit: "g", DisplayUnit: "g"},
+					)
 				} else {
 					_, err = f.catalog.CreateCategory(f.actor(), dto.CreateCategoryRequest{Name: name})
 				}
@@ -127,11 +147,12 @@ func TestCatalogConcurrentNames(t *testing.T) {
 		close(results)
 		success, conflict := 0, 0
 		for err := range results {
-			if err == nil {
+			switch {
+			case err == nil:
 				success++
-			} else if errors.Is(err, apperrors.ErrConflict) {
+			case errors.Is(err, apperrors.ErrConflict):
 				conflict++
-			} else {
+			default:
 				t.Fatal(err)
 			}
 		}
@@ -163,7 +184,15 @@ func TestCatalogHTTPReadWriteRolePolicyAndShape(t *testing.T) {
 			if w := request(r, test.method, test.path, test.body, token, "", ""); w.Code != 403 {
 				t.Fatal("missing CSRF/origin", w.Code)
 			}
-			if w := request(r, test.method, test.path, test.body, token, session.CSRFToken, "https://foreign.example"); w.Code != 403 {
+			if w := request(
+				r,
+				test.method,
+				test.path,
+				test.body,
+				token,
+				session.CSRFToken,
+				"https://foreign.example",
+			); w.Code != 403 {
 				t.Fatal("foreign Origin", w.Code)
 			}
 			w := request(r, test.method, test.path, test.body, token, session.CSRFToken, "https://flagman.example")
@@ -185,7 +214,15 @@ func TestCatalogHTTPReadWriteRolePolicyAndShape(t *testing.T) {
 				}
 			}
 			for _, body := range []string{`[]`, `{}`, `{"name":null}`, `{"name":"a","name":"b"}`, `{"name":"a","extra":1}`, `{"name":" "}`, `{"name":"` + strings.Repeat("Я", 201) + `"}`} {
-				if w := request(r, "POST", "/product-categories", body, token, session.CSRFToken, "https://flagman.example"); w.Code != 422 {
+				if w := request(
+					r,
+					"POST",
+					"/product-categories",
+					body,
+					token,
+					session.CSRFToken,
+					"https://flagman.example",
+				); w.Code != 422 {
 					t.Fatal(body, w.Code, w.Body)
 				}
 			}

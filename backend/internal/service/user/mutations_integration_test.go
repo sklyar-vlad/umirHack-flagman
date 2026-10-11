@@ -17,7 +17,12 @@ import (
 func ptr[T any](v T) *T { return &v }
 
 func createInput() dto.CreateUserRequest {
-	return dto.CreateUserRequest{Name: " New user ", Email: " NEW@EXAMPLE.TEST ", Role: "manager", Password: "initial password 123"}
+	return dto.CreateUserRequest{
+		Name:     " New user ",
+		Email:    " NEW@EXAMPLE.TEST ",
+		Role:     "manager",
+		Password: "initial password 123",
+	}
 }
 
 func TestUserMutationsRevisionsUniquenessAndPasswords(t *testing.T) {
@@ -52,7 +57,11 @@ func TestUserMutationsRevisionsUniquenessAndPasswords(t *testing.T) {
 	if !errors.As(err, &conflict) || conflict.CurrentRevision != 2 {
 		t.Fatal("revision conflict", err)
 	}
-	next, err = f.users.Password(ctx, u.ID, dto.UserPasswordRequest{Password: "replacement password", ExpectedRevision: 2})
+	next, err = f.users.Password(
+		ctx,
+		u.ID,
+		dto.UserPasswordRequest{Password: "replacement password", ExpectedRevision: 2},
+	)
 	if err != nil || next.Revision != 3 {
 		t.Fatal("password reset", err)
 	}
@@ -166,8 +175,17 @@ func TestUserMutationHTTPContractsAndRolePolicy(t *testing.T) {
 	if code := call("PATCH", path, `{"name":"Updated","expected_revision":1}`); code != 200 {
 		t.Fatal("patch HTTP", code)
 	}
-	w = request(r, "PATCH", path, `{"name":"Stale","expected_revision":1}`, token, session.CSRFToken, "https://flagman.example")
-	if w.Code != 409 || !strings.Contains(w.Body.String(), `"code":"REVISION_CONFLICT"`) || !strings.Contains(w.Body.String(), `"current_revision":2`) {
+	w = request(
+		r,
+		"PATCH",
+		path,
+		`{"name":"Stale","expected_revision":1}`,
+		token,
+		session.CSRFToken,
+		"https://flagman.example",
+	)
+	if w.Code != 409 || !strings.Contains(w.Body.String(), `"code":"REVISION_CONFLICT"`) ||
+		!strings.Contains(w.Body.String(), `"current_revision":2`) {
 		t.Fatal("conflict HTTP", w.Body)
 	}
 	if code := call("POST", path+"/password", `{"password":"another password","expected_revision":2}`); code != 200 {
@@ -199,7 +217,15 @@ func TestUserMutationHTTPContractsAndRolePolicy(t *testing.T) {
 		}
 		for _, role := range []string{"manager", "storekeeper", "order_operator"} {
 			f.exec(t, `UPDATE users SET role=$2 WHERE id=$1`, f.user, role)
-			if w := request(r, route.method, route.path, body, token, session.CSRFToken, "https://flagman.example"); w.Code != 403 {
+			if w := request(
+				r,
+				route.method,
+				route.path,
+				body,
+				token,
+				session.CSRFToken,
+				"https://flagman.example",
+			); w.Code != 403 {
 				t.Fatal("mutation role bypass", role, w.Code)
 			}
 		}
@@ -215,7 +241,15 @@ func TestUserMutationHTTPFailureBoundaries(t *testing.T) {
 	}
 	r := f.router()
 	for _, field := range []string{`"is_active":false`, `"role":"manager"`} {
-		w := request(r, "PATCH", "/users/"+f.user.String(), `{`+field+`,"expected_revision":1}`, token, session.CSRFToken, "https://flagman.example")
+		w := request(
+			r,
+			"PATCH",
+			"/users/"+f.user.String(),
+			`{`+field+`,"expected_revision":1}`,
+			token,
+			session.CSRFToken,
+			"https://flagman.example",
+		)
 		if w.Code != 409 || !strings.Contains(w.Body.String(), `"code":"LAST_ADMIN_PROTECTED"`) {
 			t.Fatal("last-admin HTTP", w.Code, w.Body)
 		}
@@ -224,15 +258,39 @@ func TestUserMutationHTTPFailureBoundaries(t *testing.T) {
 		{"PATCH", "/users/" + uuid.NewString(), `{"name":"Missing","expected_revision":1}`},
 		{"POST", "/users/" + uuid.NewString() + "/password", `{"password":"missing user's password","expected_revision":1}`},
 	} {
-		if w := request(r, input.method, input.path, input.body, token, session.CSRFToken, "https://flagman.example"); w.Code != 404 {
+		if w := request(
+			r,
+			input.method,
+			input.path,
+			input.body,
+			token,
+			session.CSRFToken,
+			"https://flagman.example",
+		); w.Code != 404 {
 			t.Fatal("missing user HTTP", w.Code, w.Body)
 		}
 	}
-	w := request(r, "POST", "/users", strings.Repeat("x", (1<<20)+1), token, session.CSRFToken, "https://flagman.example")
+	w := request(
+		r,
+		"POST",
+		"/users",
+		strings.Repeat("x", (1<<20)+1),
+		token,
+		session.CSRFToken,
+		"https://flagman.example",
+	)
 	if w.Code != 413 || w.Header().Get("Cache-Control") != "no-store" {
 		t.Fatal("large user request", w.Code)
 	}
-	w = request(r, "POST", "/users", "{\"name\":\""+string([]byte{0xff})+"\"}", token, session.CSRFToken, "https://flagman.example")
+	w = request(
+		r,
+		"POST",
+		"/users",
+		"{\"name\":\""+string([]byte{0xff})+"\"}",
+		token,
+		session.CSRFToken,
+		"https://flagman.example",
+	)
 	if w.Code != 400 {
 		t.Fatal("invalid UTF-8 accepted", w.Code, w.Body)
 	}

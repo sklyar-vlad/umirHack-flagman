@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
+	"github.com/sklyar-vlad/umirHack-flagman/internal/telemetry"
 	"go.uber.org/zap"
 )
 
@@ -56,16 +57,20 @@ func (s *Service) Dispatch(ctx context.Context) error {
 func (s *Service) Run(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	failed := false
 	for {
 		if ctx.Err() != nil {
 			return
 		}
+		started := time.Now()
 		pass, cancel := context.WithTimeout(ctx, 5*time.Second)
 		err := s.TimeTick(pass)
 		if err == nil {
 			err = s.Dispatch(pass)
 		}
 		cancel()
+		telemetry.Default.Worker("outbox", started, err, ctx.Err() != nil, failed)
+		failed = err != nil && ctx.Err() == nil
 		if err != nil && ctx.Err() == nil {
 			var pg *pgconn.PgError
 			if errors.As(err, &pg) {
@@ -84,11 +89,15 @@ func (s *Service) Run(ctx context.Context) {
 
 func (s *Service) Read(ctx context.Context, after int64) (model.EventPage, error) {
 	var page model.EventPage
-	err := s.transactions.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx repository.DBTX) error {
-		var err error
-		page, err = s.repo.Read(ctx, tx, after)
-		return err
-	})
+	err := s.transactions.WithinTx(
+		ctx,
+		&pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
+		func(tx repository.DBTX) error {
+			var err error
+			page, err = s.repo.Read(ctx, tx, after)
+			return err
+		},
+	)
 	if err != nil {
 		var pg *pgconn.PgError
 		if errors.As(err, &pg) {

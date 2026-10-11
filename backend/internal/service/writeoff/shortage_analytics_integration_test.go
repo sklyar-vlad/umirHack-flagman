@@ -32,6 +32,7 @@ func (f *fixture) shortages(t *testing.T, filter model.AnalyticsFilter) ([]dto.I
 	}
 	return items, n
 }
+
 func (f *fixture) attempt(t *testing.T, id uuid.UUID, at time.Time, code string, shortages ...dto.Shortage) {
 	t.Helper()
 	if shortages == nil {
@@ -41,8 +42,17 @@ func (f *fixture) attempt(t *testing.T, id uuid.UUID, at time.Time, code string,
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.exec(t, `INSERT INTO order_attempts(id,created_by,created_at,reason_code,items_snapshot,shortages,issues) VALUES($1,$2,$3,$4,'[]',$5,'[]')`, id, f.user, at, code, raw)
+	f.exec(
+		t,
+		`INSERT INTO order_attempts(id,created_by,created_at,reason_code,items_snapshot,shortages,issues) VALUES($1,$2,$3,$4,'[]',$5,'[]')`,
+		id,
+		f.user,
+		at,
+		code,
+		raw,
+	)
 }
+
 func TestIngredientShortageAnalyticsHistoryExactSumsFiltersAndPages(t *testing.T) {
 	f := newFixture(t)
 	from := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -62,7 +72,8 @@ func TestIngredientShortageAnalyticsHistoryExactSumsFiltersAndPages(t *testing.T
 	f.attempt(t, uuid.New(), to, "INSUFFICIENT_STOCK")
 	f.exec(t, `UPDATE products SET name='Current',unit='g',display_unit='g',is_active=false WHERE id=$1`, f.product)
 	all, n := f.shortages(t, model.AnalyticsFilter{})
-	if n != 2 || len(all) != 2 || all[0] != (dto.IngredientShortageAnalytics{ProductID: f.product, ProductName: "New milk", Unit: "ml", RejectedAttemptsCount: 2, TotalMissingQuantity: "3.003"}) {
+	if n != 2 || len(all) != 2 ||
+		all[0] != (dto.IngredientShortageAnalytics{ProductID: f.product, ProductName: "New milk", Unit: "ml", RejectedAttemptsCount: 2, TotalMissingQuantity: "3.003"}) {
 		t.Fatal(n, all)
 	}
 	if all[1].ProductID != other || all[1].TotalMissingQuantity != "2.000" || all[1].RejectedAttemptsCount != 1 {
@@ -84,7 +95,8 @@ func TestIngredientShortageAnalyticsHistoryExactSumsFiltersAndPages(t *testing.T
 			t.Fatal(tc, items, n)
 		}
 		for _, item := range items {
-			if item.ProductID == f.product && (item.TotalMissingQuantity != tc.quantity || item.RejectedAttemptsCount != tc.count) {
+			if item.ProductID == f.product &&
+				(item.TotalMissingQuantity != tc.quantity || item.RejectedAttemptsCount != tc.count) {
 				t.Fatal(tc, item)
 			}
 		}
@@ -106,6 +118,7 @@ func TestIngredientShortageAnalyticsHistoryExactSumsFiltersAndPages(t *testing.T
 		}
 	}
 }
+
 func TestIngredientShortageAnalyticsHTTPRolesAndStrictFilters(t *testing.T) {
 	f := newFixture(t)
 	router := f.analyticsRouter()
@@ -136,13 +149,28 @@ func TestIngredientShortageAnalyticsHTTPRolesAndStrictFilters(t *testing.T) {
 			}
 		}
 	}
-	if w := request(router, "GET", "/analytics/ingredient-shortages", "", "", "", ""); w.Code != 401 || w.Header().Get("Cache-Control") != "no-store" {
+	if w := request(
+		router,
+		"GET",
+		"/analytics/ingredient-shortages",
+		"",
+		"",
+		"",
+		"",
+	); w.Code != 401 ||
+		w.Header().Get("Cache-Control") != "no-store" {
 		t.Fatal(w.Code)
 	}
 }
-func (r *analyticsInterleavingRepository) IngredientShortages(ctx context.Context, tx repository.DBTX, f model.AnalyticsFilter) ([]dto.IngredientShortageAnalytics, int64, error) {
+
+func (r *analyticsInterleavingRepository) IngredientShortages(
+	ctx context.Context,
+	tx repository.DBTX,
+	f model.AnalyticsFilter,
+) ([]dto.IngredientShortageAnalytics, int64, error) {
 	return r.Repository.IngredientShortages(ctx, &analyticsInterleavingDB{Tx: tx.(pgx.Tx), mutate: r.mutate, t: r.t}, f)
 }
+
 func TestIngredientShortageAnalyticsCountAndPageShareReadOnlySnapshot(t *testing.T) {
 	f := newFixture(t)
 	fact := dto.Shortage{ProductID: f.product, ProductName: "Milk", Unit: "ml", MissingQuantity: "1.001"}

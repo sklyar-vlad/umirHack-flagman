@@ -66,10 +66,23 @@ func TestFixedRoleMatrixForAllRegisteredBusinessRoutes(t *testing.T) {
 	f := newFixture(t)
 	router := protectedRouter(f)
 	routes := []struct{ method, path, denied string }{
-		{"GET", "/products", ""}, {"GET", "/inventory", ""}, {"GET", "/products/00000000-0000-0000-0000-000000000001/batches", ""}, {"GET", "/dashboard", ""},
-		{"GET", "/supplies", "order_operator"}, {"GET", "/supplies/00000000-0000-0000-0000-000000000001", "order_operator"}, {"POST", "/supplies", "order_operator"}, {"GET", "/procurement-recommendations", "order_operator"},
-		{"GET", "/dishes", "storekeeper"}, {"GET", "/dishes/00000000-0000-0000-0000-000000000001", "storekeeper"}, {"GET", "/stop-list", "storekeeper"}, {"GET", "/hot-offers", "storekeeper"},
-		{"POST", "/orders/check", "storekeeper"}, {"POST", "/orders", "storekeeper"}, {"GET", "/orders", "storekeeper"}, {"GET", "/orders/00000000-0000-0000-0000-000000000001", "storekeeper"}, {"GET", "/order-attempts", "storekeeper"},
+		{"GET", "/products", ""},
+		{"GET", "/inventory", ""},
+		{"GET", "/products/00000000-0000-0000-0000-000000000001/batches", ""},
+		{"GET", "/dashboard", ""},
+		{"GET", "/supplies", "order_operator"},
+		{"GET", "/supplies/00000000-0000-0000-0000-000000000001", "order_operator"},
+		{"POST", "/supplies", "order_operator"},
+		{"GET", "/procurement-recommendations", "order_operator"},
+		{"GET", "/dishes", "storekeeper"},
+		{"GET", "/dishes/00000000-0000-0000-0000-000000000001", "storekeeper"},
+		{"GET", "/stop-list", "storekeeper"},
+		{"GET", "/hot-offers", "storekeeper"},
+		{"POST", "/orders/check", "storekeeper"},
+		{"POST", "/orders", "storekeeper"},
+		{"GET", "/orders", "storekeeper"},
+		{"GET", "/orders/00000000-0000-0000-0000-000000000001", "storekeeper"},
+		{"GET", "/order-attempts", "storekeeper"},
 	}
 	for _, role := range []string{"admin", "manager", "storekeeper", "order_operator"} {
 		f.exec(t, `UPDATE users SET role=$2 WHERE id=$1`, f.user, role)

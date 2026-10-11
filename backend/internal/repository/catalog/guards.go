@@ -17,14 +17,19 @@ func (r *Repository) HasHistory(ctx context.Context, q repository.DBTX, id uuid.
 		return false, err
 	}
 	var used bool
-	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM batches WHERE product_id=$1) OR EXISTS(SELECT 1 FROM recipe_items WHERE product_id=$1)`, id).Scan(&used)
+	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM batches WHERE product_id=$1) OR EXISTS(SELECT 1 FROM recipe_items WHERE product_id=$1)`, id).
+		Scan(&used)
 	if err != nil {
 		return false, fmt.Errorf("check catalog history: %w", err)
 	}
 	return used, nil
 }
 
-func (r *Repository) ActiveDishes(ctx context.Context, q repository.DBTX, id uuid.UUID) ([]apperrors.DishReference, error) {
+func (r *Repository) ActiveDishes(
+	ctx context.Context,
+	q repository.DBTX,
+	id uuid.UUID,
+) ([]apperrors.DishReference, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return nil, err

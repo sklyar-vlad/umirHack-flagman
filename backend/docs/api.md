@@ -1216,3 +1216,41 @@ Logout, expiry, disable, request cancellation и shutdown завершают п�
 держит DB-транзакцию между чтениями; медленный сокет не блокирует dispatcher.
 Дубли после reconnect допустимы; клиент хранит последний ID и игнорирует их.
 События дополняют REST, не заменяя свежую проверку остатков и доступности.
+
+## Readiness
+
+`GET /api/v1/ready` возвращает 200 (`status=ready`) только при доступной БД,
+полностью применённых миграциях текущей сборки и наличии обязательных таблиц.
+Проверка read-only, deadline 2 секунды; ответ 503 не раскрывает подробности БД.
+Без авторизации и ограничения частоты, как liveness `/healthcheck`.
+Healthcheck сохраняет прежний ответ и не зависит от БД.
+
+## Технические метрики
+
+Внутренний `GET /metrics` расположен вне `/api/v1` и сессий приложения.
+Без `METRICS_TOKEN` отключён (404); иначе требуется ровно один
+`Authorization: Bearer ...`. Не проксируется публичным frontend/API ingress.
+Prometheus использует файл секрета. Snapshot PostgreSQL ограничен двумя секундами;
+при ошибке `flagman_metrics_database_up=0`, значения lag не подменяются нулями.
+
+- `flagman_http_requests_total{method,route,status}` и
+  `flagman_http_request_duration_seconds{method,route}`: шаблон маршрута, статус;
+  неизвестные пути → `unmatched`, методы → `OTHER`. SSE длительность — время
+  жизни завершённого потока; активный поток появится после закрытия.
+- `flagman_domain_refusals_total{reason}`: новый committed предметный отказ с
+  фиксированным кодом; replay идемпотентности и проверки заказа не увеличивают.
+- `flagman_transaction_conflicts_total{reason}`: serialization/deadlock;
+  HTTP-транзакции автоматически не повторяются.
+- `flagman_transaction_retries_total{worker}`: реальный повтор фонового прохода
+  после ошибки транзакционного прохода; `outbox` / `expiration`.
+- `flagman_worker_pass_duration_seconds`, `flagman_worker_errors_total`,
+  `flagman_worker_last_success_timestamp_seconds`: фоновые проходы; отмена при
+  завершении процесса не считается ошибкой. Успешная disabled-expiry проверка —
+  тоже успешный проход, а не обещание списания.
+- `flagman_outbox_pending_events`, `flagman_outbox_oldest_pending_age_seconds`:
+  только committed unpublished события. Нулевой backlog → нулевая задержка.
+- `flagman_expiration_oldest_overdue_age_seconds`: возраст старейшей положительной
+  просроченной партии при включённом автоматическом списании, иначе 0.
+
+Метрики сбрасываются при перезапуске процесса, SQL-панели используют сохранённые
+факты. Labels не содержат UUID, имена, тела запросов, токены и SQL сообщения.

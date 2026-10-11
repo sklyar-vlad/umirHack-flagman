@@ -53,31 +53,35 @@ func (s *Service) List(ctx context.Context, f model.ForecastFilter) (dto.ListRes
 	var batches []model.OrderBatch
 	var totals []model.ConsumptionTotal
 	var now time.Time
-	err := s.transactions.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx repository.DBTX) error {
-		now = s.now().UTC()
-		active := true
-		var err error
-		dishes, err = s.menu.Load(ctx, tx, &model.DishFilter{IsActive: &active}, now)
-		if err != nil {
-			return err
-		}
-		products := []uuid.UUID{}
-		seen := map[uuid.UUID]bool{}
-		for _, d := range dishes {
-			for _, i := range d.Recipe {
-				if !seen[i.ProductID] {
-					products = append(products, i.ProductID)
-					seen[i.ProductID] = true
+	err := s.transactions.WithinTx(
+		ctx,
+		&pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
+		func(tx repository.DBTX) error {
+			now = s.now().UTC()
+			active := true
+			var err error
+			dishes, err = s.menu.Load(ctx, tx, &model.DishFilter{IsActive: &active}, now)
+			if err != nil {
+				return err
+			}
+			products := []uuid.UUID{}
+			seen := map[uuid.UUID]bool{}
+			for _, d := range dishes {
+				for _, i := range d.Recipe {
+					if !seen[i.ProductID] {
+						products = append(products, i.ProductID)
+						seen[i.ProductID] = true
+					}
 				}
 			}
-		}
-		batches, err = s.repo.Batches(ctx, tx, products, now)
-		if err != nil {
+			batches, err = s.repo.Batches(ctx, tx, products, now)
+			if err != nil {
+				return err
+			}
+			totals, err = s.repo.Consumption(ctx, tx, products, now, f.LookbackDays)
 			return err
-		}
-		totals, err = s.repo.Consumption(ctx, tx, products, now, f.LookbackDays)
-		return err
-	})
+		},
+	)
 	if err != nil {
 		var pg *pgconn.PgError
 		if errors.As(err, &pg) {
@@ -99,7 +103,17 @@ func (s *Service) List(ctx context.Context, f model.ForecastFilter) (dto.ListRes
 		}
 		page = items[offset:end]
 	}
-	return dto.ListResponse[dto.StopListForecast]{Items: page, Total: total, Page: f.Page, PageSize: f.PageSize, Meta: map[string]any{
-		"server_time": now.Format(time.RFC3339Nano), "lookback_days": f.LookbackDays, "horizon_hours": f.HorizonHours,
-	}}, nil
+	return dto.ListResponse[dto.StopListForecast]{
+		Items:    page,
+		Total:    total,
+		Page:     f.Page,
+		PageSize: f.PageSize,
+		Meta: map[string]any{
+			"server_time": now.Format(
+				time.RFC3339Nano,
+			),
+			fieldLookbackDays: f.LookbackDays,
+			"horizon_hours":   f.HorizonHours,
+		},
+	}, nil
 }

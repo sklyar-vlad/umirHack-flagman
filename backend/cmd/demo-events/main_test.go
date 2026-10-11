@@ -28,9 +28,13 @@ func TestCLIRequiresExplicitDemoConfigurationBeforeNetwork(t *testing.T) {
 		env  string
 		args []string
 	}{
-		{"demo", nil}, {"production", base}, {"demo", []string{"--confirm-demo", "--origin", "http://frontend.test"}},
-		{"demo", append(append([]string{}, base...), "--count", "0")}, {"demo", append(append([]string{}, base...), "--interval", "-1s")},
-		{"demo", append(append([]string{}, base...), "--dish-id", "../users")}, {"demo", append(append([]string{}, base...), "unexpected")},
+		{"demo", nil},
+		{"production", base},
+		{"demo", []string{"--confirm-demo", "--origin", "http://frontend.test"}},
+		{"demo", append(append([]string{}, base...), "--count", "0")},
+		{"demo", append(append([]string{}, base...), "--interval", "-1s")},
+		{"demo", append(append([]string{}, base...), "--dish-id", "../users")},
+		{"demo", append(append([]string{}, base...), "unexpected")},
 	} {
 		var out, errOut bytes.Buffer
 		code := run(context.Background(), tc.args, func(key string) string {
@@ -44,7 +48,13 @@ func TestCLIRequiresExplicitDemoConfigurationBeforeNetwork(t *testing.T) {
 		}
 	}
 	var out, errOut bytes.Buffer
-	if code := run(context.Background(), []string{"--help"}, func(string) string { return "" }, &out, &errOut); code != 0 {
+	if code := run(
+		context.Background(),
+		[]string{"--help"},
+		func(string) string { return "" },
+		&out,
+		&errOut,
+	); code != 0 {
 		t.Fatalf("help: %d", code)
 	}
 }
@@ -56,20 +66,36 @@ func TestCLIConfiguresBoundedRunAndCancellation(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/auth/login":
 			http.SetCookie(w, &http.Cookie{Name: "session", Value: "private-cookie", Path: "/"})
-			_ = json.NewEncoder(w).Encode(dto.AuthResponse{CSRFToken: "csrf", User: dto.User{Email: "manager@flagman.invalid", Role: "manager", IsActive: true}})
+			_ = json.NewEncoder(w).
+				Encode(dto.AuthResponse{CSRFToken: "csrf", User: dto.User{Email: "manager@flagman.invalid", Role: "manager", IsActive: true}})
 		case "/api/v1/auth/logout":
 			logout = true
-			w.WriteHeader(204)
+			w.WriteHeader(http.StatusNoContent)
 		case "/api/v1/orders":
 			events++
-			w.WriteHeader(201)
+			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(dto.OrderDetail{ID: uuid.New()})
 		default:
-			_ = json.NewEncoder(w).Encode(dto.Dish{ID: uuid.MustParse("30000000-0000-4000-8000-000000000001"), IsActive: true, RecipeVersion: new(1), Availability: dto.Availability{AvailablePortions: "1"}})
+			_ = json.NewEncoder(w).
+				Encode(dto.Dish{ID: uuid.MustParse("30000000-0000-4000-8000-000000000001"), IsActive: true, RecipeVersion: new(1), Availability: dto.Availability{AvailablePortions: "1"}})
 		}
 	}))
 	defer server.Close()
-	args := []string{"--confirm-demo", "--demo-url", server.URL, "--origin", "http://frontend.test", "--dish-id", "30000000-0000-4000-8000-000000000001", "--scenario", "depletion", "--count", "2", "--interval", "0"}
+	args := []string{
+		"--confirm-demo",
+		"--demo-url",
+		server.URL,
+		"--origin",
+		"http://frontend.test",
+		"--dish-id",
+		"30000000-0000-4000-8000-000000000001",
+		"--scenario",
+		"depletion",
+		"--count",
+		"2",
+		"--interval",
+		"0",
+	}
 	getenv := func(key string) string {
 		if key == "ENV" {
 			return "demo"
@@ -98,21 +124,39 @@ func TestExecutableSIGTERMStopsIntervalAndLogsOut(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/auth/login":
 			http.SetCookie(w, &http.Cookie{Name: "session", Value: "private-cookie", Path: "/"})
-			_ = json.NewEncoder(w).Encode(dto.AuthResponse{CSRFToken: "csrf", User: dto.User{Email: "manager@flagman.invalid", Role: "manager", IsActive: true}})
+			_ = json.NewEncoder(w).
+				Encode(dto.AuthResponse{CSRFToken: "csrf", User: dto.User{Email: "manager@flagman.invalid", Role: "manager", IsActive: true}})
 		case "/api/v1/auth/logout":
 			loggedOut <- struct{}{}
-			w.WriteHeader(204)
+			w.WriteHeader(http.StatusNoContent)
 		case "/api/v1/orders":
-			w.WriteHeader(201)
+			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(dto.OrderDetail{ID: uuid.New()})
 		default:
-			_ = json.NewEncoder(w).Encode(dto.Dish{ID: uuid.MustParse("30000000-0000-4000-8000-000000000001"), IsActive: true, RecipeVersion: new(1), Availability: dto.Availability{AvailablePortions: "1"}})
+			_ = json.NewEncoder(w).
+				Encode(dto.Dish{ID: uuid.MustParse("30000000-0000-4000-8000-000000000001"), IsActive: true, RecipeVersion: new(1), Availability: dto.Availability{AvailablePortions: "1"}})
 		}
 	}))
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, binary, "--confirm-demo", "--demo-url", server.URL, "--origin", "http://frontend.test", "--dish-id", "30000000-0000-4000-8000-000000000001", "--scenario", "depletion", "--count", "100", "--interval", "1h")
+	cmd := exec.CommandContext(
+		ctx,
+		binary,
+		"--confirm-demo",
+		"--demo-url",
+		server.URL,
+		"--origin",
+		"http://frontend.test",
+		"--dish-id",
+		"30000000-0000-4000-8000-000000000001",
+		"--scenario",
+		"depletion",
+		"--count",
+		"100",
+		"--interval",
+		"1h",
+	)
 	for _, entry := range os.Environ() {
 		if !strings.HasPrefix(entry, "ENV=") && !strings.HasPrefix(entry, "DEMO_MANAGER_PASSWORD=") {
 			cmd.Env = append(cmd.Env, entry)
@@ -169,15 +213,17 @@ func TestTaskDemoEventsEntryPoint(t *testing.T) {
 				t.Error("Task did not inherit demo password")
 			}
 			http.SetCookie(w, &http.Cookie{Name: "session", Value: "private-cookie", Path: "/"})
-			_ = json.NewEncoder(w).Encode(dto.AuthResponse{CSRFToken: "csrf", User: dto.User{Email: "manager@flagman.invalid", Role: "manager", IsActive: true}})
+			_ = json.NewEncoder(w).
+				Encode(dto.AuthResponse{CSRFToken: "csrf", User: dto.User{Email: "manager@flagman.invalid", Role: "manager", IsActive: true}})
 		case "/api/v1/auth/logout":
-			w.WriteHeader(204)
+			w.WriteHeader(http.StatusNoContent)
 		case "/api/v1/orders":
 			events++
-			w.WriteHeader(201)
+			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(dto.OrderDetail{ID: uuid.New()})
 		default:
-			_ = json.NewEncoder(w).Encode(dto.Dish{ID: uuid.MustParse("30000000-0000-4000-8000-000000000001"), IsActive: true, RecipeVersion: new(1), Availability: dto.Availability{AvailablePortions: "1"}})
+			_ = json.NewEncoder(w).
+				Encode(dto.Dish{ID: uuid.MustParse("30000000-0000-4000-8000-000000000001"), IsActive: true, RecipeVersion: new(1), Availability: dto.Availability{AvailablePortions: "1"}})
 		}
 	}))
 	defer server.Close()
@@ -187,7 +233,20 @@ func TestTaskDemoEventsEntryPoint(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, task, "--taskfile", taskfile, "demo-events", "CONFIRM=demo", "DEMO_URL="+server.URL, "ORIGIN=http://frontend.test", "SCENARIO=depletion", "COUNT=2", "INTERVAL=0", "DISH_ID=30000000-0000-4000-8000-000000000001")
+	cmd := exec.CommandContext(
+		ctx,
+		task,
+		"--taskfile",
+		taskfile,
+		"demo-events",
+		"CONFIRM=demo",
+		"DEMO_URL="+server.URL,
+		"ORIGIN=http://frontend.test",
+		"SCENARIO=depletion",
+		"COUNT=2",
+		"INTERVAL=0",
+		"DISH_ID=30000000-0000-4000-8000-000000000001",
+	)
 	for _, entry := range os.Environ() {
 		if !strings.HasPrefix(entry, "ENV=") && !strings.HasPrefix(entry, "DEMO_MANAGER_PASSWORD=") {
 			cmd.Env = append(cmd.Env, entry)
@@ -195,7 +254,8 @@ func TestTaskDemoEventsEntryPoint(t *testing.T) {
 	}
 	cmd.Env = append(cmd.Env, "ENV=demo", "DEMO_MANAGER_PASSWORD=test-password")
 	output, err := cmd.CombinedOutput()
-	if err != nil || events != 2 || strings.Count(string(output), "order created id=") != 2 || strings.Contains(string(output), "test-password") {
+	if err != nil || events != 2 || strings.Count(string(output), "order created id=") != 2 ||
+		strings.Contains(string(output), "test-password") {
 		t.Fatalf("Task entry point: %v events=%d output=%s", err, events, output)
 	}
 }

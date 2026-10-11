@@ -1,0 +1,53 @@
+services:
+  backend:
+    environment:
+      METRICS_TOKEN_FILE: /run/secrets/metrics_token
+    secrets:
+      - metrics_token
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    command: ["--config.file=/etc/prometheus/prometheus.yaml", "--storage.tsdb.retention.time=15d"]
+    volumes:
+      - ./monitoring/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - prometheus-data:/prometheus
+    secrets:
+      - metrics_token
+    networks: [flagman]
+  grafana:
+    image: grafana/grafana:12.1.1
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    entrypoint: ["/bin/sh", "/etc/grafana/entrypoint.sh"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set database name}
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_DISABLE_LOGIN_FORM: "false"
+      GF_AUTH_BASIC_ENABLED: "true"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+    secrets:
+      - grafana_admin_password
+      - grafana_pg_password
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+      - ./monitoring/grafana/entrypoint.sh:/etc/grafana/entrypoint.sh:ro
+      - grafana-data:/var/lib/grafana
+    networks: [flagman, warehouse]
+secrets:
+  metrics_token:
+    file: ${FLAGMAN_SECRETS_DIR:?Set an absolute secrets directory outside repository}/metrics_token
+  grafana_admin_password:
+    file: ${FLAGMAN_SECRETS_DIR:?Set secrets directory}/grafana_admin_password
+  grafana_pg_password:
+    file: ${FLAGMAN_SECRETS_DIR:?Set secrets directory}/grafana_pg_password
+volumes:
+  prometheus-data:
+  grafana-data:

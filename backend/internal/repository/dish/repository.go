@@ -53,7 +53,13 @@ func (r *Repository) LockDish(ctx context.Context, q repository.DBTX, id uuid.UU
 	return nil
 }
 
-func (r *Repository) Products(ctx context.Context, q repository.DBTX, ids []uuid.UUID, now time.Time, lock bool) ([]model.RecipeProduct, error) {
+func (r *Repository) Products(
+	ctx context.Context,
+	q repository.DBTX,
+	ids []uuid.UUID,
+	now time.Time,
+	lock bool,
+) ([]model.RecipeProduct, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return nil, err
@@ -88,7 +94,14 @@ func (r *Repository) Products(ctx context.Context, q repository.DBTX, ids []uuid
 	result := make([]model.RecipeProduct, 0)
 	for rows.Next() {
 		var p model.RecipeProduct
-		if err := rows.Scan(&p.ProductID, &p.ProductName, &p.Unit, &p.IsActive, &p.AvailableQuantity, &p.ExpiredQuantity); err != nil {
+		if err := rows.Scan(
+			&p.ProductID,
+			&p.ProductName,
+			&p.Unit,
+			&p.IsActive,
+			&p.AvailableQuantity,
+			&p.ExpiredQuantity,
+		); err != nil {
 			return nil, err
 		}
 		result = append(result, p)
@@ -96,17 +109,23 @@ func (r *Repository) Products(ctx context.Context, q repository.DBTX, ids []uuid
 	return result, rows.Err()
 }
 
-func (r *Repository) Create(ctx context.Context, q repository.DBTX, d model.Dish) (uuid.UUID, error) {
+func (r *Repository) Create(ctx context.Context, q repository.DBTX, d *model.Dish) (uuid.UUID, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return uuid.Nil, err
 	}
 	var id uuid.UUID
-	err = tx.QueryRow(ctx, `INSERT INTO dishes(name,description,is_active) VALUES($1,$2,$3) RETURNING id`, d.Name, d.Description, d.IsActive).Scan(&id)
+	err = tx.QueryRow(ctx, `INSERT INTO dishes(name,description,is_active) VALUES($1,$2,$3) RETURNING id`, d.Name, d.Description, d.IsActive).
+		Scan(&id)
 	return id, err
 }
 
-func (r *Repository) AddRecipe(ctx context.Context, q repository.DBTX, dishID, actorID uuid.UUID, recipe []model.RecipeIngredient) error {
+func (r *Repository) AddRecipe(
+	ctx context.Context,
+	q repository.DBTX,
+	dishID, actorID uuid.UUID,
+	recipe []model.RecipeIngredient,
+) error {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return err
@@ -118,18 +137,31 @@ func (r *Repository) AddRecipe(ctx context.Context, q repository.DBTX, dishID, a
 		return err
 	}
 	for _, item := range recipe {
-		if _, err := tx.Exec(ctx, `INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) VALUES($1,$2,$3::numeric)`, versionID, item.ProductID, item.QuantityPerPortion); err != nil {
+		if _, err := tx.Exec(
+			ctx,
+			`INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) VALUES($1,$2,$3::numeric)`,
+			versionID,
+			item.ProductID,
+			item.QuantityPerPortion,
+		); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (r *Repository) Update(ctx context.Context, q repository.DBTX, d model.Dish) error {
+func (r *Repository) Update(ctx context.Context, q repository.DBTX, d *model.Dish) error {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `UPDATE dishes SET name=$2,description=$3,is_active=$4,revision=revision+1,updated_at=now() WHERE id=$1`, d.ID, d.Name, d.Description, d.IsActive)
+	_, err = tx.Exec(
+		ctx,
+		`UPDATE dishes SET name=$2,description=$3,is_active=$4,revision=revision+1,updated_at=now() WHERE id=$1`,
+		d.ID,
+		d.Name,
+		d.Description,
+		d.IsActive,
+	)
 	return err
 }

@@ -40,6 +40,7 @@ func (h *Handler) Get(c *gin.Context) {
 	}
 	c.JSON(200, result)
 }
+
 func decode(c *gin.Context, input *dto.UpdateSettingsRequest) error {
 	data, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -53,7 +54,13 @@ func decode(c *gin.Context, input *dto.UpdateSettingsRequest) error {
 	if token != json.Delim('{') {
 		return &validations.FieldError{Field: "body", Message: "Ожидается объект"}
 	}
-	allowed := map[string]bool{"restaurant_name": true, "timezone": true, "expiring_threshold_hours": true, "auto_writeoff_expired": true, "expected_revision": true}
+	allowed := map[string]bool{
+		"restaurant_name":          true,
+		"timezone":                 true,
+		"expiring_threshold_hours": true,
+		"auto_writeoff_expired":    true,
+		"expected_revision":        true,
+	}
 	seen := map[string]bool{}
 	for d.More() {
 		key, _ := d.Token()
@@ -72,6 +79,7 @@ func decode(c *gin.Context, input *dto.UpdateSettingsRequest) error {
 	}
 	return nil
 }
+
 func (h *Handler) Update(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	var input dto.UpdateSettingsRequest

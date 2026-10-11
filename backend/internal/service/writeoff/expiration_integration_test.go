@@ -20,13 +20,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func (f *fixture) expiry(events expirationservice.EventWriter) *expirationservice.Service {
+func (f *fixture) expiry() *expirationservice.Service {
 	base := repository.NewRepository(f.pool, zap.NewNop())
-	if events == nil {
-		events = base
-	}
-	return expirationservice.NewService(expirationrepo.NewRepository(), base, events, zap.NewNop())
+	return expirationservice.NewService(expirationrepo.NewRepository(), base, base, zap.NewNop())
 }
+
 func (f *fixture) enable(t *testing.T, enabled bool) {
 	t.Helper()
 	base := repository.NewRepository(f.pool, zap.NewNop())
@@ -35,26 +33,32 @@ func (f *fixture) enable(t *testing.T, enabled bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := settings.Update(f.actor(), dto.UpdateSettingsRequest{AutoWriteOffExpired: &enabled, ExpectedRevision: before.Revision}); err != nil {
+	if _, err := settings.Update(
+		f.actor(),
+		dto.UpdateSettingsRequest{AutoWriteOffExpired: &enabled, ExpectedRevision: before.Revision},
+	); err != nil {
 		t.Fatal(err)
 	}
 	// Keep fixture expectations focused on stock events.
 	f.exec(t, `DELETE FROM audit_log WHERE entity_type='settings'`)
 	f.exec(t, `DELETE FROM outbox_events WHERE event_type='settings.changed'`)
 }
+
 func (f *fixture) expirationCounts(t *testing.T) [3]int {
 	t.Helper()
 	var c [3]int
-	err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM stock_movements WHERE type='expiration'),(SELECT count(*) FROM audit_log WHERE action='expiration'),(SELECT count(*) FROM outbox_events WHERE event_type='inventory.changed')`).Scan(&c[0], &c[1], &c[2])
+	err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM stock_movements WHERE type='expiration'),(SELECT count(*) FROM audit_log WHERE action='expiration'),(SELECT count(*) FROM outbox_events WHERE event_type='inventory.changed')`).
+		Scan(&c[0], &c[1], &c[2])
 	if err != nil {
 		t.Fatal(err)
 	}
 	return c
 }
+
 func TestExpirationDisabledVisibleButUnavailableToOrders(t *testing.T) {
 	f := newFixture(t)
 	f.exec(t, `UPDATE batches SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`, f.batch)
-	if err := f.expiry(nil).Expire(f.ctx); err != nil {
+	if err := f.expiry().Expire(f.ctx); err != nil {
 		t.Fatal(err)
 	}
 	if f.balance(t) != "10.000" || f.expirationCounts(t) != [3]int{} {
@@ -74,6 +78,7 @@ func TestExpirationDisabledVisibleButUnavailableToOrders(t *testing.T) {
 		t.Fatal("order consumed expired stock")
 	}
 }
+
 func TestExpirationCandidatesAndExactBalances(t *testing.T) {
 	for _, unit := range []string{"ml", "pcs"} {
 		t.Run(unit, func(t *testing.T) {
@@ -84,8 +89,15 @@ func TestExpirationCandidatesAndExactBalances(t *testing.T) {
 			}
 			f.exec(t, `UPDATE batches SET expires_at=clock_timestamp() WHERE id=$1`, f.batch)
 			empty, valid := uuid.New(), uuid.New()
-			f.exec(t, `INSERT INTO batches(id,product_id,supply_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$3,$4,2,1,0,'explicit',clock_timestamp()-interval '1 day'),($2,$3,$4,3,2,2,'explicit',clock_timestamp()+interval '1 day')`, empty, valid, f.product, f.supply)
-			service := f.expiry(nil)
+			f.exec(
+				t,
+				`INSERT INTO batches(id,product_id,supply_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$3,$4,2,1,0,'explicit',clock_timestamp()-interval '1 day'),($2,$3,$4,3,2,2,'explicit',clock_timestamp()+interval '1 day')`,
+				empty,
+				valid,
+				f.product,
+				f.supply,
+			)
+			service := f.expiry()
 			if err := service.Expire(f.ctx); err != nil {
 				t.Fatal(err)
 			}
@@ -97,12 +109,15 @@ func TestExpirationCandidatesAndExactBalances(t *testing.T) {
 				t.Fatal("duplicate or skipped movement", f.expirationCounts(t))
 			}
 			var total string
-			if err := f.pool.QueryRow(f.ctx, `SELECT sum(remaining_quantity)::text FROM batches WHERE id IN ($1,$2)`, empty, valid).Scan(&total); err != nil || total != "2.000" {
+			if err := f.pool.QueryRow(f.ctx, `SELECT sum(remaining_quantity)::text FROM batches WHERE id IN ($1,$2)`, empty, valid).
+				Scan(&total); err != nil ||
+				total != "2.000" {
 				t.Fatal("valid/zero batch touched", total, err)
 			}
 		})
 	}
 }
+
 func TestExpirationFreshBalanceExpiryAndSettingsAfterWait(t *testing.T) {
 	for _, change := range []string{"balance", "expiry", "disabled", "product"} {
 		t.Run(change, func(t *testing.T) {
@@ -124,7 +139,7 @@ func TestExpirationFreshBalanceExpiryAndSettingsAfterWait(t *testing.T) {
 				t.Fatal(err)
 			}
 			done := make(chan error, 1)
-			go func() { done <- f.expiry(nil).Expire(f.ctx) }()
+			go func() { done <- f.expiry().Expire(f.ctx) }()
 			query := "%FROM batches%FOR UPDATE OF b%"
 			if change == "product" {
 				query = "%FROM products%FOR UPDATE%"
@@ -132,20 +147,37 @@ func TestExpirationFreshBalanceExpiryAndSettingsAfterWait(t *testing.T) {
 			waitLock(t, f, query)
 			switch change {
 			case "balance":
-				if _, err := tx.Exec(f.ctx, `UPDATE batches SET remaining_quantity=7 WHERE id=$1`, f.batch); err != nil {
+				if _, err := tx.Exec(
+					f.ctx,
+					`UPDATE batches SET remaining_quantity=7 WHERE id=$1`,
+					f.batch,
+				); err != nil {
 					t.Fatal(err)
 				}
-				if _, err := tx.Exec(f.ctx, `INSERT INTO stock_movements(batch_id,type,delta_quantity,remaining_quantity_after,product_name_snapshot,unit_snapshot,actor_id,occurred_at,note) VALUES($1,'manual_writeoff',-3,7,'Молоко','ml',$2,clock_timestamp(),'Test partial write-off')`, f.batch, f.user); err != nil {
+				if _, err := tx.Exec(
+					f.ctx,
+					`INSERT INTO stock_movements(batch_id,type,delta_quantity,remaining_quantity_after,product_name_snapshot,unit_snapshot,actor_id,occurred_at,note) VALUES($1,'manual_writeoff',-3,7,'Молоко','ml',$2,clock_timestamp(),'Test partial write-off')`,
+					f.batch,
+					f.user,
+				); err != nil {
 					t.Fatal(err)
 				}
 			case "expiry":
-				if _, err := tx.Exec(f.ctx, `UPDATE batches SET expires_at=clock_timestamp()+interval '1 hour' WHERE id=$1`, f.batch); err != nil {
+				if _, err := tx.Exec(
+					f.ctx,
+					`UPDATE batches SET expires_at=clock_timestamp()+interval '1 hour' WHERE id=$1`,
+					f.batch,
+				); err != nil {
 					t.Fatal(err)
 				}
 			case "disabled":
 				f.enable(t, false)
 			case "product":
-				if _, err := tx.Exec(f.ctx, `UPDATE products SET name='Fresh name' WHERE id=$1`, f.product); err != nil {
+				if _, err := tx.Exec(
+					f.ctx,
+					`UPDATE products SET name='Fresh name' WHERE id=$1`,
+					f.product,
+				); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -163,7 +195,8 @@ func TestExpirationFreshBalanceExpiryAndSettingsAfterWait(t *testing.T) {
 			}
 			f.reconcile(t, "0.000")
 			var delta, name string
-			if err := f.pool.QueryRow(f.ctx, `SELECT delta_quantity::text,product_name_snapshot FROM stock_movements WHERE type='expiration'`).Scan(&delta, &name); err != nil {
+			if err := f.pool.QueryRow(f.ctx, `SELECT delta_quantity::text,product_name_snapshot FROM stock_movements WHERE type='expiration'`).
+				Scan(&delta, &name); err != nil {
 				t.Fatal(err)
 			}
 			if change == "balance" && delta != "-7.000" {
@@ -175,12 +208,13 @@ func TestExpirationFreshBalanceExpiryAndSettingsAfterWait(t *testing.T) {
 		})
 	}
 }
+
 func TestTimedExpirationWithinMinuteAndShutdown(t *testing.T) {
 	f := newFixture(t)
 	// Starts disabled. The next real 15-second pass must see the admin save.
 	f.exec(t, `UPDATE batches SET expires_at=clock_timestamp()+interval '500 milliseconds' WHERE id=$1`, f.batch)
 	base := repository.NewRepository(f.pool, zap.NewNop())
-	worker := expirationservice.NewWorker(settingsrepo.NewRepository(), base, f.expiry(nil), zap.NewNop())
+	worker := expirationservice.NewWorker(settingsrepo.NewRepository(), base, f.expiry(), zap.NewNop())
 	ctx, cancel := context.WithCancel(f.ctx)
 	done := make(chan struct{})
 	go func() { defer close(done); worker.Run(ctx) }()

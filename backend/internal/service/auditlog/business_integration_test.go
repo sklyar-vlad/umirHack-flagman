@@ -1,6 +1,7 @@
 package auditlog_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -40,20 +41,47 @@ func TestAuditListsEveryImplementedBusinessMutationWithoutSecrets(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	product, err := catalog.CreateProduct(ctx, dto.CreateProductRequest{Name: "Original ingredient", CategoryID: category.ID, Unit: "g", DisplayUnit: "g"})
+	product, err := catalog.CreateProduct(
+		ctx,
+		&dto.CreateProductRequest{Name: "Original ingredient", CategoryID: category.ID, Unit: "g", DisplayUnit: "g"},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	dish, err := dishes.Create(ctx, dto.CreateDishRequest{Name: "Original dish", Recipe: []dto.RecipeInput{{ProductID: product.ID.String(), QuantityPerPortion: "1"}}})
+	dish, err := dishes.Create(
+		ctx,
+		dto.CreateDishRequest{
+			Name:   "Original dish",
+			Recipe: []dto.RecipeInput{{ProductID: product.ID.String(), QuantityPerPortion: "1"}},
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	supply, err := supplies.Create(ctx, f.user, dto.CreateSupplyRequest{Number: "SUP-1", ReceivedAt: now.Add(-time.Second).Format(time.RFC3339Nano), Items: []dto.CreateSupplyItem{{ProductID: product.ID.String(), Quantity: "10", ExpiresAt: ptr(now.Add(24 * time.Hour).Format(time.RFC3339Nano))}}})
+	supply, err := supplies.Create(
+		ctx,
+		f.user,
+		dto.CreateSupplyRequest{
+			Number:     "SUP-1",
+			ReceivedAt: now.Add(-time.Second).Format(time.RFC3339Nano),
+			Items: []dto.CreateSupplyItem{
+				{
+					ProductID: product.ID.String(),
+					Quantity:  "10",
+					ExpiresAt: ptr(now.Add(24 * time.Hour).Format(time.RFC3339Nano)),
+				},
+			},
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	body, err := json.Marshal(dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: dish.ID.String(), RecipeVersion: dish.RecipeVersion, Portions: 1}}})
+	body, err := json.Marshal(
+		dto.OrderRequest{
+			Items: []dto.OrderRequestItem{{DishID: dish.ID.String(), RecipeVersion: dish.RecipeVersion, Portions: 1}},
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,43 +94,96 @@ func TestAuditListsEveryImplementedBusinessMutationWithoutSecrets(t *testing.T) 
 	if err != nil || replay.Status != 201 {
 		t.Fatal("replay", err)
 	}
-	created, err := users.Create(ctx, dto.CreateUserRequest{Name: "Other user", Email: "other@example.test", Role: "manager", Password: "private original password"})
+	created, err := users.Create(
+		ctx,
+		dto.CreateUserRequest{
+			Name:     "Other user",
+			Email:    "other@example.test",
+			Role:     "manager",
+			Password: "private original password",
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := users.Update(ctx, created.ID, dto.UpdateUserRequest{Name: ptr("Edited user"), ExpectedRevision: 1}); err != nil {
+	if _, err := users.Update(
+		ctx,
+		created.ID,
+		dto.UpdateUserRequest{Name: ptr("Edited user"), ExpectedRevision: 1},
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := users.Password(ctx, created.ID, dto.UserPasswordRequest{Password: "private reset password", ExpectedRevision: 2}); err != nil {
+	if _, err := users.Password(
+		ctx,
+		created.ID,
+		dto.UserPasswordRequest{Password: "private reset password", ExpectedRevision: 2},
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := catalog.UpdateCategory(ctx, category.ID, dto.UpdateCategoryRequest{Name: "Edited category", ExpectedRevision: 1}); err != nil {
+	if _, err := catalog.UpdateCategory(
+		ctx,
+		category.ID,
+		dto.UpdateCategoryRequest{Name: "Edited category", ExpectedRevision: 1},
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := catalog.UpdateProduct(ctx, product.ID, dto.UpdateProductRequest{Name: ptr("Edited ingredient"), ExpectedRevision: 1}); err != nil {
+	if _, err := catalog.UpdateProduct(
+		ctx,
+		product.ID,
+		&dto.UpdateProductRequest{Name: ptr("Edited ingredient"), ExpectedRevision: 1},
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dishes.Update(ctx, dish.ID, dto.UpdateDishRequest{Name: ptr("Edited dish"), ExpectedRevision: 1}); err != nil {
+	if _, err := dishes.Update(
+		ctx,
+		dish.ID,
+		dto.UpdateDishRequest{Name: ptr("Edited dish"), ExpectedRevision: 1},
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.settings.Update(ctx, dto.UpdateSettingsRequest{Timezone: ptr("UTC"), ExpectedRevision: 1}); err != nil {
+	if _, err := f.settings.Update(
+		ctx,
+		dto.UpdateSettingsRequest{Timezone: ptr("UTC"), ExpectedRevision: 1},
+	); err != nil {
 		t.Fatal(err)
 	}
 	// Refused and read-only operations belong outside the successful change log.
-	if _, err := catalog.UpdateProduct(ctx, product.ID, dto.UpdateProductRequest{Name: ptr("Stale"), ExpectedRevision: 1}); err == nil {
+	if _, err := catalog.UpdateProduct(
+		ctx,
+		product.ID,
+		&dto.UpdateProductRequest{Name: ptr("Stale"), ExpectedRevision: 1},
+	); err == nil {
 		t.Fatal("stale accepted")
 	}
-	if _, err := dishes.Preview(ctx, dto.PreviewDishRequest{Recipe: []dto.RecipeInput{{ProductID: product.ID.String(), QuantityPerPortion: "1"}}}); err != nil {
+	if _, err := dishes.Preview(
+		ctx,
+		dto.PreviewDishRequest{Recipe: []dto.RecipeInput{{ProductID: product.ID.String(), QuantityPerPortion: "1"}}},
+	); err != nil {
 		t.Fatal(err)
 	}
-	got, total, err := f.audit.List(ctx, model.AuditLogFilter{Page: 1, PageSize: 100})
+	got, total, err := f.audit.List(ctx, &model.AuditLogFilter{Page: 1, PageSize: 100})
 	if err != nil || total != 12 || len(got) != 12 {
 		t.Fatal("missing or extra mutation audit", total, len(got), err)
 	}
-	expected := map[string]int{"product_category/create": 1, "product_category/update": 1, "product/create": 1, "product/update": 1, "dish/create": 1, "dish/update": 1, "supply/create": 1, "order/create": 1, "user/create": 1, "user/update": 1, "user/password_change": 1, "settings/update": 1}
+	expected := map[string]int{
+		"product_category/create": 1,
+		"product_category/update": 1,
+		"product/create":          1,
+		"product/update":          1,
+		"dish/create":             1,
+		"dish/update":             1,
+		"supply/create":           1,
+		"order/create":            1,
+		"user/create":             1,
+		"user/update":             1,
+		"user/password_change":    1,
+		"settings/update":         1,
+	}
 	for _, entry := range got {
 		expected[entry.EntityType+"/"+entry.Action]--
-		if entry.Actor == nil || entry.Actor.ID != f.user || entry.RequestID == nil || *entry.RequestID != "business-request" || len(entry.After) == 0 {
+		if entry.Actor == nil || entry.Actor.ID != f.user || entry.RequestID == nil ||
+			*entry.RequestID != "business-request" ||
+			len(entry.After) == 0 {
 			t.Fatal("audit metadata", entry)
 		}
 		if entry.Action == "create" && entry.Before != nil || entry.Action != "create" && len(entry.Before) == 0 {
@@ -118,7 +199,8 @@ func TestAuditListsEveryImplementedBusinessMutationWithoutSecrets(t *testing.T) 
 		if entry.EntityType == "order" && !strings.Contains(string(entry.After), "Original dish") {
 			t.Fatal("historical audit rewritten")
 		}
-		if entry.EntityType == "supply" && (entry.EntityID == nil || *entry.EntityID != supply.ID || !strings.Contains(string(entry.After), "10.000")) {
+		if entry.EntityType == "supply" &&
+			(entry.EntityID == nil || *entry.EntityID != supply.ID || !strings.Contains(string(entry.After), "10.000")) {
 			t.Fatal("supply snapshot")
 		}
 	}
@@ -131,7 +213,8 @@ func TestAuditListsEveryImplementedBusinessMutationWithoutSecrets(t *testing.T) 
 	// business notifications unchanged, with no early cursor assignment.
 	config := f.pool.Config()
 	var pendingBefore []byte
-	if err := f.pool.QueryRow(ctx, `SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM outbox_events e`).Scan(&pendingBefore); err != nil {
+	if err := f.pool.QueryRow(ctx, `SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM outbox_events e`).
+		Scan(&pendingBefore); err != nil {
 		t.Fatal(err)
 	}
 	fresh, err := pgxpool.NewWithConfig(ctx, config)
@@ -140,14 +223,18 @@ func TestAuditListsEveryImplementedBusinessMutationWithoutSecrets(t *testing.T) 
 	}
 	defer fresh.Close()
 	var pendingAfter []byte
-	if err := fresh.QueryRow(ctx, `SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM outbox_events e`).Scan(&pendingAfter); err != nil {
+	if err := fresh.QueryRow(ctx, `SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM outbox_events e`).
+		Scan(&pendingAfter); err != nil {
 		t.Fatal(err)
 	}
-	if string(pendingBefore) != string(pendingAfter) {
+	if !bytes.Equal(pendingBefore, pendingAfter) {
 		t.Fatal("committed outbox changed across reconnect")
 	}
 	var count, early int
-	if err := fresh.QueryRow(ctx, `SELECT count(*),count(*) FILTER (WHERE cursor IS NOT NULL OR published_at IS NOT NULL) FROM outbox_events`).Scan(&count, &early); err != nil || count != 5 || early != 0 {
+	if err := fresh.QueryRow(ctx, `SELECT count(*),count(*) FILTER (WHERE cursor IS NOT NULL OR published_at IS NOT NULL) FROM outbox_events`).
+		Scan(&count, &early); err != nil ||
+		count != 5 ||
+		early != 0 {
 		t.Fatal("pending durable events", count, early, err)
 	}
 	raw, _ := json.Marshal(got)

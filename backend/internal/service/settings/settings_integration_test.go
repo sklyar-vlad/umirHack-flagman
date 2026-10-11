@@ -34,7 +34,8 @@ func TestSettingsPartialFieldsBoundariesAndRevision(t *testing.T) {
 		}
 	}
 	got, err := f.settings.Get(f.actor())
-	if err != nil || got.Timezone != "America/New_York" || got.ExpiringThresholdHours != 720 || got.RestaurantName != strings.Repeat("Я", 200) {
+	if err != nil || got.Timezone != "America/New_York" || got.ExpiringThresholdHours != 720 ||
+		got.RestaurantName != strings.Repeat("Я", 200) {
 		t.Fatalf("settings: %+v %v", got, err)
 	}
 	for _, in := range []dto.UpdateSettingsRequest{
@@ -68,7 +69,10 @@ func TestSettingsPartialFieldsBoundariesAndRevision(t *testing.T) {
 		t.Fatal("invalid updates changed settings")
 	}
 	var count, audits int
-	if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM restaurant_settings),(SELECT count(*) FROM audit_log)`).Scan(&count, &audits); err != nil || count != 1 || audits != 5 {
+	if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM restaurant_settings),(SELECT count(*) FROM audit_log)`).
+		Scan(&count, &audits); err != nil ||
+		count != 1 ||
+		audits != 5 {
 		t.Fatalf("singleton/audit: %d %d %v", count, audits, err)
 	}
 }
@@ -82,7 +86,7 @@ func TestSettingsRolesStrictHTTPAndCSRF(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		w := request(router, "GET", "/settings", "", token, "", "")
+		w := request(router, "GET", "", token, "", "")
 		if w.Code != 200 || !strings.Contains(w.Body.String(), `"revision":1`) {
 			t.Fatalf("%s read: %d %s", role, w.Code, w.Body)
 		}
@@ -90,28 +94,48 @@ func TestSettingsRolesStrictHTTPAndCSRF(t *testing.T) {
 			t.Fatal(err)
 		}
 		if role != "admin" {
-			w = request(router, "PATCH", "/settings", `{"restaurant_name":"Changed","expected_revision":1}`, token, session.CSRFToken, "https://flagman.example")
+			w = request(
+				router,
+				"PATCH",
+				`{"restaurant_name":"Changed","expected_revision":1}`,
+				token,
+				session.CSRFToken,
+				"https://flagman.example",
+			)
 			if w.Code != 403 {
 				t.Fatalf("%s write: %d", role, w.Code)
 			}
-			if _, err := f.settings.Update(requestctx.WithActor(f.ctx, model.Actor{ID: f.user, Role: role}), dto.UpdateSettingsRequest{RestaurantName: ptr("Changed"), ExpectedRevision: 1}); !errors.Is(err, apperrors.ErrForbidden) {
+			if _, err := f.settings.Update(
+				requestctx.WithActor(f.ctx, model.Actor{ID: f.user, Role: role}),
+				dto.UpdateSettingsRequest{RestaurantName: ptr("Changed"), ExpectedRevision: 1},
+			); !errors.Is(
+				err,
+				apperrors.ErrForbidden,
+			) {
 				t.Fatalf("service role: %v", err)
 			}
 			continue
 		}
 		for _, input := range [][2]string{{"", ""}, {"https://flagman.example", "wrong"}, {"https://evil.example", session.CSRFToken}} {
-			if w := request(router, "PATCH", "/settings", `{"restaurant_name":"Changed","expected_revision":1}`, token, input[1], input[0]); w.Code != 403 {
+			if w := request(
+				router,
+				"PATCH",
+				`{"restaurant_name":"Changed","expected_revision":1}`,
+				token,
+				input[1],
+				input[0],
+			); w.Code != 403 {
 				t.Fatal("missing Origin/CSRF accepted")
 			}
 		}
 		for _, body := range []string{`null`, `[]`, `{`, `{"restaurant_name":null,"expected_revision":1}`, `{"timezone":"UTC","expected_revision":1,"expected_revision":1}`, `{"Timezone":"UTC","expected_revision":1}`, `{"extra":true}`, `{"expiring_threshold_hours":1.5,"expected_revision":1}`, `{"auto_writeoff_expired":"false","expected_revision":1}`, `{"expected_revision":1}`, `{"restaurant_name":"x","expected_revision":1} {}`} {
-			w := request(router, "PATCH", "/settings", body, token, session.CSRFToken, "https://flagman.example")
+			w := request(router, "PATCH", body, token, session.CSRFToken, "https://flagman.example")
 			if w.Code != 400 && w.Code != 422 {
 				t.Fatalf("invalid body: %s: %d %s", body, w.Code, w.Body)
 			}
 		}
 	}
-	if w := request(router, "GET", "/settings", "", "", "", ""); w.Code != 401 {
+	if w := request(router, "GET", "", "", "", ""); w.Code != 401 {
 		t.Fatal("public settings")
 	}
 	if _, err := f.settings.Get(f.ctx); !errors.Is(err, apperrors.ErrUnauthorized) {
@@ -129,7 +153,10 @@ func TestConcurrentSettingsSavesHaveOneWinner(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			<-start
-			_, err := f.settings.Update(f.actor(), dto.UpdateSettingsRequest{RestaurantName: ptr(fmt.Sprintf("Name %d", i)), ExpectedRevision: 1})
+			_, err := f.settings.Update(
+				f.actor(),
+				dto.UpdateSettingsRequest{RestaurantName: ptr(fmt.Sprintf("Name %d", i)), ExpectedRevision: 1},
+			)
 			results <- err
 		}(i)
 	}
@@ -139,11 +166,12 @@ func TestConcurrentSettingsSavesHaveOneWinner(t *testing.T) {
 	successes, conflicts := 0, 0
 	for err := range results {
 		var conflict *apperrors.RevisionConflict
-		if err == nil {
+		switch {
+		case err == nil:
 			successes++
-		} else if errors.As(err, &conflict) && conflict.CurrentRevision == 2 {
+		case errors.As(err, &conflict) && conflict.CurrentRevision == 2:
 			conflicts++
-		} else {
+		default:
 			t.Fatal(err)
 		}
 	}
@@ -151,7 +179,9 @@ func TestConcurrentSettingsSavesHaveOneWinner(t *testing.T) {
 		t.Fatalf("success/conflict: %d %d", successes, conflicts)
 	}
 	var audits int
-	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM audit_log WHERE entity_type='settings'`).Scan(&audits); err != nil || audits != 1 {
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM audit_log WHERE entity_type='settings'`).
+		Scan(&audits); err != nil ||
+		audits != 1 {
 		t.Fatalf("audit count %d %v", audits, err)
 	}
 }

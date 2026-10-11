@@ -71,7 +71,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, input dto.UpdateDish
 				return err
 			}
 		}
-		if err := s.repo.Update(ctx, tx, next); err != nil {
+		if err := s.repo.Update(ctx, tx, &next); err != nil {
 			return err
 		}
 		if input.Recipe != nil {
@@ -84,11 +84,11 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, input dto.UpdateDish
 		if err != nil {
 			return err
 		}
-		result, err = dishDTO(after, now)
+		result, err = dishDTO(&after, now)
 		if err != nil {
 			return err
 		}
-		return s.changed(ctx, tx, a, &before, after)
+		return s.changed(ctx, tx, a, &before, &after)
 	})
 	if err != nil {
 		return dto.Dish{}, databaseError(err)

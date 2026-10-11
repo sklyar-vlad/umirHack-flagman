@@ -1,12 +1,13 @@
 package forecast
 
 import (
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	forecastrepo "github.com/sklyar-vlad/umirHack-flagman/internal/repository/forecast"
 	"math/big"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	forecastrepo "github.com/sklyar-vlad/umirHack-flagman/internal/repository/forecast"
 )
 
 func TestConsumptionHistoricalBoundariesUnitsAndFullPeriod(t *testing.T) {
@@ -18,7 +19,13 @@ func TestConsumptionHistoricalBoundariesUnitsAndFullPeriod(t *testing.T) {
 	f.consumption(t, "12", "g", f.now)
 	f.consumption(t, "13", "g", f.now.Add(time.Hour))
 	f.consumption(t, "7", "pcs", start)
-	f.exec(t, `INSERT INTO stock_movements(batch_id,type,delta_quantity,remaining_quantity_after,product_name_snapshot,unit_snapshot,actor_id,occurred_at,note) VALUES($1,'manual_writeoff',-50,0,'Damage','g',$2,$3,'Damage'),($1,'expiration',-50,0,'Expired','g',NULL,$3,NULL),($1,'receipt',100,100,'Receipt','g',$2,$3,NULL)`, f.batch, f.user, start)
+	f.exec(
+		t,
+		`INSERT INTO stock_movements(batch_id,type,delta_quantity,remaining_quantity_after,product_name_snapshot,unit_snapshot,actor_id,occurred_at,note) VALUES($1,'manual_writeoff',-50,0,'Damage','g',$2,$3,'Damage'),($1,'expiration',-50,0,'Expired','g',NULL,$3,NULL),($1,'receipt',100,100,'Receipt','g',$2,$3,NULL)`,
+		f.batch,
+		f.user,
+		start,
+	)
 	f.exec(t, `UPDATE products SET name='Current ingredient' WHERE id=$1`, f.product)
 	tx, err := f.pool.BeginTx(f.ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {

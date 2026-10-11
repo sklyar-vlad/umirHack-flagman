@@ -22,16 +22,44 @@ func TestTimeEventRefreshesRealMenuExpiryAndWarningWithoutBusinessWrites(t *test
 	f.exec(t, `UPDATE restaurant_settings SET expiring_threshold_hours=1,auto_writeoff_expired=false`)
 	category, supply := uuid.New(), uuid.New()
 	f.exec(t, `INSERT INTO product_categories(id,name) VALUES($1,'Food')`, category)
-	f.exec(t, `INSERT INTO supplies(id,number,received_at,created_by) SELECT $1,'initial',clock_timestamp(),id FROM users`, supply)
+	f.exec(
+		t,
+		`INSERT INTO supplies(id,number,received_at,created_by) SELECT $1,'initial',clock_timestamp(),id FROM users`,
+		supply,
+	)
 	dishes := []uuid.UUID{}
 	for i, interval := range []string{"2 seconds", "1 hour 2 seconds"} {
 		product, batch, dish, recipe := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 		dishes = append(dishes, dish)
-		f.exec(t, `INSERT INTO products(id,category_id,name,unit,display_unit) VALUES($1,$2,$3,'g','g')`, product, category, product.String())
-		f.exec(t, `INSERT INTO batches(id,supply_id,product_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,$3,$4,100,100,'explicit',clock_timestamp()+$5::interval)`, batch, supply, product, i+1, interval)
+		f.exec(
+			t,
+			`INSERT INTO products(id,category_id,name,unit,display_unit) VALUES($1,$2,$3,'g','g')`,
+			product,
+			category,
+			product.String(),
+		)
+		f.exec(
+			t,
+			`INSERT INTO batches(id,supply_id,product_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,$3,$4,100,100,'explicit',clock_timestamp()+$5::interval)`,
+			batch,
+			supply,
+			product,
+			i+1,
+			interval,
+		)
 		f.exec(t, `INSERT INTO dishes(id,name) VALUES($1,$2)`, dish, dish.String())
-		f.exec(t, `INSERT INTO recipe_versions(id,dish_id,version,created_by) SELECT $1,$2,1,id FROM users`, recipe, dish)
-		f.exec(t, `INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) VALUES($1,$2,10)`, recipe, product)
+		f.exec(
+			t,
+			`INSERT INTO recipe_versions(id,dish_id,version,created_by) SELECT $1,$2,1,id FROM users`,
+			recipe,
+			dish,
+		)
+		f.exec(
+			t,
+			`INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) VALUES($1,$2,10)`,
+			recipe,
+			product,
+		)
 	}
 	transactions := repository.NewRepository(f.pool, zap.NewNop())
 	menu := menuservice.NewService(menurepo.NewRepository(), transactions)
@@ -56,7 +84,8 @@ func TestTimeEventRefreshesRealMenuExpiryAndWarningWithoutBusinessWrites(t *test
 		t.Fatal(firstEvent)
 	}
 	secondEvent := next(t, r) // Actual next 30-second timer; heartbeat is a comment.
-	if secondEvent.Type != "inventory.time_changed" || secondEvent.ID <= firstEvent.ID || len(secondEvent.Payload.ProductIDs) != 0 {
+	if secondEvent.Type != "inventory.time_changed" || secondEvent.ID <= firstEvent.ID ||
+		len(secondEvent.Payload.ProductIDs) != 0 {
 		t.Fatal(secondEvent)
 	}
 	after, err := menu.GetDish(f.ctx, dishes[0])

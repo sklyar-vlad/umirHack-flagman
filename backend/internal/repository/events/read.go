@@ -13,10 +13,17 @@ import (
 // cleanup/publication cannot change the replay boundary between these reads.
 func (r *Repository) Read(ctx context.Context, q repository.DBTX, after int64) (model.EventPage, error) {
 	page := model.EventPage{Events: []model.PublishedEvent{}}
-	if err := q.QueryRow(ctx, `SELECT high_water,retention_floor FROM outbox_publication_state WHERE id=1`).Scan(&page.HighWater, &page.RetentionFloor); err != nil {
+	if err := q.QueryRow(ctx, `SELECT high_water,retention_floor FROM outbox_publication_state WHERE id=1`).
+		Scan(&page.HighWater, &page.RetentionFloor); err != nil {
 		return page, err
 	}
-	rows, err := q.Query(ctx, `SELECT cursor,event_type,payload FROM outbox_events WHERE published_at IS NOT NULL AND cursor>$1 AND cursor<=$2 ORDER BY cursor LIMIT $3`, after, page.HighWater, PageSize)
+	rows, err := q.Query(
+		ctx,
+		`SELECT cursor,event_type,payload FROM outbox_events WHERE published_at IS NOT NULL AND cursor>$1 AND cursor<=$2 ORDER BY cursor LIMIT $3`,
+		after,
+		page.HighWater,
+		PageSize,
+	)
 	if err != nil {
 		return page, fmt.Errorf("read published outbox: %w", err)
 	}

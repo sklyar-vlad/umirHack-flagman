@@ -70,9 +70,12 @@ var routePermissions = map[string]permission{
 func roleAllowed(role string, permission permission) bool {
 	switch role {
 	case roleAdmin:
-		return permission == warehouse || permission == supplies || permission == menuAndOrders || permission == administration || permission == analytics
+		return permission == warehouse || permission == supplies || permission == menuAndOrders ||
+			permission == administration ||
+			permission == analytics
 	case roleManager:
-		return permission == warehouse || permission == supplies || permission == menuAndOrders || permission == analytics
+		return permission == warehouse || permission == supplies || permission == menuAndOrders ||
+			permission == analytics
 	case roleStorekeeper:
 		return permission == warehouse || permission == supplies
 	case roleOrderOperator:
@@ -92,7 +95,8 @@ func (s *Service) AuthorizeRoute(ctx context.Context, token, method, path, origi
 		return model.Session{}, apperrors.ErrForbidden
 	}
 	// The basket check is an explicitly read-only POST; it never changes state.
-	if method != http.MethodGet && method != http.MethodHead && path != "/orders/check" && !s.ValidMutation(session, origin, csrf) {
+	if method != http.MethodGet && method != http.MethodHead && path != "/orders/check" &&
+		!s.ValidMutation(&session, origin, csrf) {
 		return model.Session{}, apperrors.ErrForbidden
 	}
 	return session, nil

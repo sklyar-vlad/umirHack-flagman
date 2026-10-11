@@ -9,13 +9,21 @@ import (
 
 func TestDurableTimeEventConcurrentWorkersAndAtomicFailure(t *testing.T) {
 	f := newFixture(t)
-	f.exec(t, `CREATE FUNCTION fail_time() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'failure'; END $$`)
-	f.exec(t, `CREATE CONSTRAINT TRIGGER fail_time AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fail_time()`)
+	f.exec(
+		t,
+		`CREATE FUNCTION fail_time() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'failure'; END $$`,
+	)
+	f.exec(
+		t,
+		`CREATE CONSTRAINT TRIGGER fail_time AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fail_time()`,
+	)
 	if err := f.service().TimeTick(f.ctx); err == nil {
 		t.Fatal("expected rollback")
 	}
 	var untouched bool
-	if err := f.pool.QueryRow(f.ctx, `SELECT last_time_event_at IS NULL AND NOT EXISTS(SELECT 1 FROM outbox_events) FROM outbox_publication_state`).Scan(&untouched); err != nil || !untouched {
+	if err := f.pool.QueryRow(f.ctx, `SELECT last_time_event_at IS NULL AND NOT EXISTS(SELECT 1 FROM outbox_events) FROM outbox_publication_state`).
+		Scan(&untouched); err != nil ||
+		!untouched {
 		t.Fatal("time watermark survived failed event", err)
 	}
 	f.exec(t, `DROP TRIGGER fail_time ON outbox_events`)
@@ -36,7 +44,9 @@ func TestDurableTimeEventConcurrentWorkersAndAtomicFailure(t *testing.T) {
 			}
 		}
 		var count int
-		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM outbox_events WHERE event_type='inventory.time_changed' AND actor_id IS NULL AND cursor IS NULL AND payload->'topics' ? 'stop-list'`).Scan(&count); err != nil || count != pass+1 {
+		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM outbox_events WHERE event_type='inventory.time_changed' AND actor_id IS NULL AND cursor IS NULL AND payload->'topics' ? 'stop-list'`).
+			Scan(&count); err != nil ||
+			count != pass+1 {
 			t.Fatal(count, err)
 		}
 	}
@@ -59,7 +69,8 @@ func TestRealTimedDispatcherInvalidatesWithoutBusinessMutationAndJoins(t *testin
 			t.Fatal("time notification exceeded one minute")
 		case <-ticker.C:
 			var count int
-			if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM outbox_events WHERE published_at IS NOT NULL AND event_type='inventory.time_changed'`).Scan(&count); err != nil {
+			if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM outbox_events WHERE published_at IS NOT NULL AND event_type='inventory.time_changed'`).
+				Scan(&count); err != nil {
 				t.Fatal(err)
 			}
 			if count >= 2 {

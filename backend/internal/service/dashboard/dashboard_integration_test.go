@@ -129,7 +129,11 @@ func newDashboardFixture(t *testing.T) *dashboardFixture {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(basehandler.RequestID())
-	basehandler.RegisterDashboardRoutes(router.Group("/api/v1"), dashboardhandler.NewHandler(f.service), authhandler.NewHandler(auth))
+	basehandler.RegisterDashboardRoutes(
+		router.Group("/api/v1"),
+		dashboardhandler.NewHandler(f.service),
+		authhandler.NewHandler(auth),
+	)
 	f.router = router
 	return f
 }
@@ -140,7 +144,8 @@ func (f *dashboardFixture) get(t *testing.T, role string) dto.DashboardResponse 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.AttentionBatches == nil || result.HotOffers == nil || result.ProcurementRecommendations == nil || result.Meta["server_time"] != f.now.Format(time.RFC3339Nano) {
+	if result.AttentionBatches == nil || result.HotOffers == nil || result.ProcurementRecommendations == nil ||
+		result.Meta["server_time"] != f.now.Format(time.RFC3339Nano) {
 		t.Fatalf("dashboard envelope: %+v", result)
 	}
 	return result

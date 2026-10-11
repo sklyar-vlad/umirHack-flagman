@@ -32,6 +32,7 @@ func (f *fixture) list(t *testing.T, filter model.StockMovementFilter) ([]dto.St
 	}
 	return items, total
 }
+
 func TestMovementHistorySnapshotsFiltersAndStablePages(t *testing.T) {
 	f := newFixture(t)
 	r := f.create(t, "1", uuid.New())
@@ -48,7 +49,11 @@ func TestMovementHistorySnapshotsFiltersAndStablePages(t *testing.T) {
 	for _, v := range all {
 		if v.ID == m.ID {
 			found = true
-			if v.ProductNameSnapshot != "Молоко" || v.UnitSnapshot != "ml" || v.RemainingQuantityAfter != "9.000" || *v.Note != "Порча продукта" || v.Actor.ID != f.user || v.OrderID != nil || v.OrderItemID != nil {
+			if v.ProductNameSnapshot != "Молоко" || v.UnitSnapshot != "ml" || v.RemainingQuantityAfter != "9.000" ||
+				*v.Note != "Порча продукта" ||
+				v.Actor.ID != f.user ||
+				v.OrderID != nil ||
+				v.OrderItemID != nil {
 				t.Fatal("historical", v)
 			}
 		}
@@ -80,11 +85,17 @@ func TestMovementHistorySnapshotsFiltersAndStablePages(t *testing.T) {
 		f    model.StockMovementFilter
 		want int64
 	}{
-		{model.StockMovementFilter{ProductID: &f.product}, 3}, {model.StockMovementFilter{BatchID: &f.batch}, 3},
-		{model.StockMovementFilter{OrderID: &missing}, 0}, {model.StockMovementFilter{ProductID: &missing}, 0}, {model.StockMovementFilter{BatchID: &missing}, 0},
-		{model.StockMovementFilter{Type: "manual_writeoff"}, 2}, {model.StockMovementFilter{Type: "receipt"}, 1},
-		{model.StockMovementFilter{Type: "expiration"}, 0}, {model.StockMovementFilter{DateFrom: &same, DateTo: &later}, 3},
-		{model.StockMovementFilter{DateTo: &same}, 0}, {model.StockMovementFilter{DateFrom: &same, DateTo: &same}, 0},
+		{model.StockMovementFilter{ProductID: &f.product}, 3},
+		{model.StockMovementFilter{BatchID: &f.batch}, 3},
+		{model.StockMovementFilter{OrderID: &missing}, 0},
+		{model.StockMovementFilter{ProductID: &missing}, 0},
+		{model.StockMovementFilter{BatchID: &missing}, 0},
+		{model.StockMovementFilter{Type: "manual_writeoff"}, 2},
+		{model.StockMovementFilter{Type: "receipt"}, 1},
+		{model.StockMovementFilter{Type: "expiration"}, 0},
+		{model.StockMovementFilter{DateFrom: &same, DateTo: &later}, 3},
+		{model.StockMovementFilter{DateTo: &same}, 0},
+		{model.StockMovementFilter{DateFrom: &same, DateTo: &same}, 0},
 		{model.StockMovementFilter{ProductID: &f.product, BatchID: &f.batch, Type: "manual_writeoff", DateFrom: &same, DateTo: &later}, 2},
 	} {
 		items, n := f.list(t, test.f)
@@ -93,16 +104,22 @@ func TestMovementHistorySnapshotsFiltersAndStablePages(t *testing.T) {
 		}
 	}
 	// System expiration actors are represented by null, with no user secrets.
-	f.exec(t, `INSERT INTO stock_movements(batch_id,type,delta_quantity,remaining_quantity_after,product_name_snapshot,unit_snapshot,occurred_at) VALUES($1,'expiration',-7,0,'Old name','ml',clock_timestamp())`, f.batch)
+	f.exec(
+		t,
+		`INSERT INTO stock_movements(batch_id,type,delta_quantity,remaining_quantity_after,product_name_snapshot,unit_snapshot,occurred_at) VALUES($1,'expiration',-7,0,'Old name','ml',clock_timestamp())`,
+		f.batch,
+	)
 	items, n := f.list(t, model.StockMovementFilter{Type: "expiration"})
 	if n != 1 || items[0].Actor != nil || items[0].ProductNameSnapshot != "Old name" {
 		t.Fatal(items, n)
 	}
 	raw, _ := json.Marshal(items)
-	if strings.Contains(string(raw), "password") || strings.Contains(string(raw), "csrf") || strings.Contains(string(raw), "token") {
+	if strings.Contains(string(raw), "password") || strings.Contains(string(raw), "csrf") ||
+		strings.Contains(string(raw), "token") {
 		t.Fatal("unsafe projection")
 	}
 }
+
 func TestMovementHistoryHTTPRolesAndInvalidFilters(t *testing.T) {
 	f := newFixture(t)
 	router := f.router()
@@ -147,7 +164,8 @@ func (q *interleavingDB) Query(ctx context.Context, sql string, args ...any) (pg
 	if !q.once {
 		q.once = true
 		var iso, mode string
-		if err := q.Tx.QueryRow(ctx, `SELECT current_setting('transaction_isolation'),current_setting('transaction_read_only')`).Scan(&iso, &mode); err != nil {
+		if err := q.Tx.QueryRow(ctx, `SELECT current_setting('transaction_isolation'),current_setting('transaction_read_only')`).
+			Scan(&iso, &mode); err != nil {
 			q.t.Fatal(err)
 		}
 		if iso != "repeatable read" || mode != "on" {
@@ -164,14 +182,22 @@ type interleavingRepository struct {
 	t *testing.T
 }
 
-func (r *interleavingRepository) List(ctx context.Context, tx repository.DBTX, filter model.StockMovementFilter) ([]dto.StockMovement, int64, error) {
+func (r *interleavingRepository) List(
+	ctx context.Context,
+	tx repository.DBTX,
+	filter model.StockMovementFilter,
+) ([]dto.StockMovement, int64, error) {
 	return r.Repository.List(ctx, &interleavingDB{Tx: tx.(pgx.Tx), f: r.f, t: r.t}, filter)
 }
+
 func TestMovementHistoryCountAndPageShareReadOnlySnapshot(t *testing.T) {
 	f := newFixture(t)
 	before, total := f.list(t, model.StockMovementFilter{})
 	base := repository.NewRepository(f.pool, zap.NewNop())
-	service := writeoffservice.NewHistoryService(&interleavingRepository{writeoffrepository.NewRepository(), f, t}, base)
+	service := writeoffservice.NewHistoryService(
+		&interleavingRepository{writeoffrepository.NewRepository(), f, t},
+		base,
+	)
 	got, n, err := service.List(f.actor(), model.StockMovementFilter{Page: 1, PageSize: 50})
 	if err != nil || n != total || !reflect.DeepEqual(before, got) {
 		t.Fatalf("mixed snapshot %d %v %v", n, got, err)

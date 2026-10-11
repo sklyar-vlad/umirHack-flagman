@@ -2,6 +2,7 @@ package forecast
 
 import (
 	"context"
+
 	"github.com/gin-gonic/gin"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/dto"
 	basehandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler"

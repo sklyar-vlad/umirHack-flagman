@@ -25,9 +25,17 @@ import (
 func TestExpirationSystemMovementTypedAuditAndOutbox(t *testing.T) {
 	f := newFixture(t)
 	f.enable(t, true)
-	f.exec(t, `UPDATE batches SET remaining_quantity=9.999,expires_at=clock_timestamp()-interval '1 hour' WHERE id=$1`, f.batch)
-	f.exec(t, `UPDATE stock_movements SET delta_quantity=9.999,remaining_quantity_after=9.999 WHERE batch_id=$1`, f.batch)
-	if err := f.expiry(nil).Expire(f.ctx); err != nil {
+	f.exec(
+		t,
+		`UPDATE batches SET remaining_quantity=9.999,expires_at=clock_timestamp()-interval '1 hour' WHERE id=$1`,
+		f.batch,
+	)
+	f.exec(
+		t,
+		`UPDATE stock_movements SET delta_quantity=9.999,remaining_quantity_after=9.999 WHERE batch_id=$1`,
+		f.batch,
+	)
+	if err := f.expiry().Expire(f.ctx); err != nil {
 		t.Fatal(err)
 	}
 	var movementID, entity uuid.UUID
@@ -35,33 +43,52 @@ func TestExpirationSystemMovementTypedAuditAndOutbox(t *testing.T) {
 	var note, requestID *string
 	var typ, delta, balance, name, unit string
 	var at time.Time
-	if err := f.pool.QueryRow(f.ctx, `SELECT id,type,delta_quantity::text,remaining_quantity_after::text,product_name_snapshot,unit_snapshot,actor_id,order_item_id,note,occurred_at FROM stock_movements WHERE type='expiration'`).Scan(&movementID, &typ, &delta, &balance, &name, &unit, &actor, &orderItem, &note, &at); err != nil {
+	if err := f.pool.QueryRow(f.ctx, `SELECT id,type,delta_quantity::text,remaining_quantity_after::text,product_name_snapshot,unit_snapshot,actor_id,order_item_id,note,occurred_at FROM stock_movements WHERE type='expiration'`).
+		Scan(&movementID, &typ, &delta, &balance, &name, &unit, &actor, &orderItem, &note, &at); err != nil {
 		t.Fatal(err)
 	}
-	if typ != "expiration" || delta != "-9.999" || balance != "0.000" || name != "Молоко" || unit != "ml" || actor != nil || orderItem != nil || note != nil || at.IsZero() {
+	if typ != "expiration" || delta != "-9.999" || balance != "0.000" || name != "Молоко" || unit != "ml" ||
+		actor != nil ||
+		orderItem != nil ||
+		note != nil ||
+		at.IsZero() {
 		t.Fatal("incorrect system movement")
 	}
 	var action, entityType string
 	var before, after []byte
-	if err := f.pool.QueryRow(f.ctx, `SELECT actor_id,entity_id,entity_type,action,request_id,before_data,after_data FROM audit_log WHERE action='expiration'`).Scan(&actor, &entity, &entityType, &action, &requestID, &before, &after); err != nil {
+	if err := f.pool.QueryRow(f.ctx, `SELECT actor_id,entity_id,entity_type,action,request_id,before_data,after_data FROM audit_log WHERE action='expiration'`).
+		Scan(&actor, &entity, &entityType, &action, &requestID, &before, &after); err != nil {
 		t.Fatal(err)
 	}
 	var snapshot model.StockMovementAuditSnapshot
 	if err := json.Unmarshal(after, &snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if actor != nil || entity != movementID || entityType != "stock_movement" || action != "expiration" || requestID != nil || before != nil || snapshot.BatchID != f.batch || snapshot.Type != typ || snapshot.DeltaQuantity != delta || snapshot.RemainingQuantityAfter != balance || snapshot.ProductNameSnapshot != name || snapshot.UnitSnapshot != unit || snapshot.Note != nil {
+	if actor != nil || entity != movementID || entityType != "stock_movement" || action != "expiration" ||
+		requestID != nil ||
+		before != nil ||
+		snapshot.BatchID != f.batch ||
+		snapshot.Type != typ ||
+		snapshot.DeltaQuantity != delta ||
+		snapshot.RemainingQuantityAfter != balance ||
+		snapshot.ProductNameSnapshot != name ||
+		snapshot.UnitSnapshot != unit ||
+		snapshot.Note != nil {
 		t.Fatalf("incorrect system audit: %s", after)
 	}
 	var payload []byte
-	if err := f.pool.QueryRow(f.ctx, `SELECT actor_id,payload FROM outbox_events WHERE event_type='inventory.changed'`).Scan(&actor, &payload); err != nil {
+	if err := f.pool.QueryRow(f.ctx, `SELECT actor_id,payload FROM outbox_events WHERE event_type='inventory.changed'`).
+		Scan(&actor, &payload); err != nil {
 		t.Fatal(err)
 	}
 	var event model.OutboxPayload
 	if err := json.Unmarshal(payload, &event); err != nil {
 		t.Fatal(err)
 	}
-	if actor != nil || len(event.ProductIDs) != 1 || event.ProductIDs[0] != f.product || len(event.BatchIDs) != 1 || event.BatchIDs[0] != f.batch || event.RequestID != "" || event.OccurredAt.IsZero() {
+	if actor != nil || len(event.ProductIDs) != 1 || event.ProductIDs[0] != f.product || len(event.BatchIDs) != 1 ||
+		event.BatchIDs[0] != f.batch ||
+		event.RequestID != "" ||
+		event.OccurredAt.IsZero() {
 		t.Fatal("incorrect system outbox")
 	}
 	for _, topic := range []string{"stock-movements", "inventory", "batches", "dashboard", "dishes", "stop-list", "hot-offers", "procurement-recommendations"} {
@@ -70,7 +97,10 @@ func TestExpirationSystemMovementTypedAuditAndOutbox(t *testing.T) {
 		}
 	}
 	f.exec(t, `UPDATE products SET name='Renamed' WHERE id=$1`, f.product)
-	history, total, err := f.movements.List(f.actor(), model.StockMovementFilter{Type: "expiration", Page: 1, PageSize: 50})
+	history, total, err := f.movements.List(
+		f.actor(),
+		model.StockMovementFilter{Type: "expiration", Page: 1, PageSize: 50},
+	)
 	if err != nil || total != 1 || history[0].Actor != nil || history[0].ProductNameSnapshot != "Молоко" {
 		t.Fatal("historical system movement changed", history, err)
 	}
@@ -84,15 +114,24 @@ func TestExpirationImmediateAndDeferredRollbackAndRetry(t *testing.T) {
 				f := newFixture(t)
 				f.enable(t, true)
 				f.exec(t, `UPDATE batches SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`, f.batch)
-				f.exec(t, `CREATE FUNCTION reject_expiration() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'private expiration secret'; END $$`)
+				f.exec(
+					t,
+					`CREATE FUNCTION reject_expiration() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'private expiration secret'; END $$`,
+				)
 				event := "INSERT"
 				if table == "batches" {
 					event = "UPDATE"
 				}
 				if deferred {
-					f.exec(t, "CREATE CONSTRAINT TRIGGER reject_expiration AFTER "+event+" ON "+table+" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION reject_expiration()")
+					f.exec(
+						t,
+						"CREATE CONSTRAINT TRIGGER reject_expiration AFTER "+event+" ON "+table+" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION reject_expiration()",
+					)
 				} else {
-					f.exec(t, "CREATE TRIGGER reject_expiration BEFORE "+event+" ON "+table+" FOR EACH ROW EXECUTE FUNCTION reject_expiration()")
+					f.exec(
+						t,
+						"CREATE TRIGGER reject_expiration BEFORE "+event+" ON "+table+" FOR EACH ROW EXECUTE FUNCTION reject_expiration()",
+					)
 				}
 				core, logs := observer.New(zap.ErrorLevel)
 				base := repository.NewRepository(f.pool, zap.New(core))
@@ -103,7 +142,9 @@ func TestExpirationImmediateAndDeferredRollbackAndRetry(t *testing.T) {
 				if f.balance(t) != "10.000" || f.expirationCounts(t) != [3]int{} {
 					t.Fatal("partial expiration", f.balance(t), f.expirationCounts(t))
 				}
-				if logs.Len() != 1 || logs.All()[0].ContextMap()["sqlstate"] != "P0001" || strings.Contains(logs.All()[0].Message, "secret") || len(logs.All()[0].Context) != 1 {
+				if logs.Len() != 1 || logs.All()[0].ContextMap()["sqlstate"] != "P0001" ||
+					strings.Contains(logs.All()[0].Message, "secret") ||
+					len(logs.All()[0].Context) != 1 {
 					t.Fatal("unsafe database logging", logs.All())
 				}
 				f.exec(t, "DROP TRIGGER reject_expiration ON "+table)
@@ -183,7 +224,8 @@ func TestExpirationAndManualWriteOffBothLockOrders(t *testing.T) {
 				t.Fatal("manual race", manual.err, manual.response.Status)
 			}
 			var delta string
-			if err := f.pool.QueryRow(f.ctx, `SELECT delta_quantity::text FROM stock_movements WHERE type='expiration'`).Scan(&delta); err != nil {
+			if err := f.pool.QueryRow(f.ctx, `SELECT delta_quantity::text FROM stock_movements WHERE type='expiration'`).
+				Scan(&delta); err != nil {
 				t.Fatal(err)
 			}
 			wantDelta := "-10.000"
@@ -214,7 +256,7 @@ func TestConcurrentExpirationPassesDoNotDuplicateMovement(t *testing.T) {
 	start := make(chan struct{})
 	for i := 0; i < 8; i++ {
 		wg.Add(1)
-		go func() { defer wg.Done(); <-start; errors <- f.expiry(nil).Expire(f.ctx) }()
+		go func() { defer wg.Done(); <-start; errors <- f.expiry().Expire(f.ctx) }()
 	}
 	close(start)
 	wg.Wait()
@@ -235,21 +277,35 @@ func TestExpirationContinuesAfterFailedBatch(t *testing.T) {
 	f.enable(t, true)
 	healthy := uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
 	f.exec(t, `UPDATE batches SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`, f.batch)
-	f.exec(t, `INSERT INTO batches(id,product_id,supply_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,$3,2,2,2,'explicit',clock_timestamp()-interval '1 second')`, healthy, f.product, f.supply)
-	f.exec(t, `CREATE FUNCTION reject_one_expiration() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.batch_id='`+f.batch.String()+`'::uuid THEN RAISE EXCEPTION 'private secret'; END IF; RETURN NEW; END $$`)
-	f.exec(t, `CREATE TRIGGER reject_one_expiration BEFORE INSERT ON stock_movements FOR EACH ROW EXECUTE FUNCTION reject_one_expiration()`)
-	if err := f.expiry(nil).Expire(f.ctx); err == nil {
+	f.exec(
+		t,
+		`INSERT INTO batches(id,product_id,supply_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,$3,2,2,2,'explicit',clock_timestamp()-interval '1 second')`,
+		healthy,
+		f.product,
+		f.supply,
+	)
+	f.exec(
+		t,
+		`CREATE FUNCTION reject_one_expiration() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.batch_id='`+f.batch.String()+`'::uuid THEN RAISE EXCEPTION 'private secret'; END IF; RETURN NEW; END $$`,
+	)
+	f.exec(
+		t,
+		`CREATE TRIGGER reject_one_expiration BEFORE INSERT ON stock_movements FOR EACH ROW EXECUTE FUNCTION reject_one_expiration()`,
+	)
+	if err := f.expiry().Expire(f.ctx); err == nil {
 		t.Fatal("lost failed batch error")
 	}
 	var remaining string
-	if err := f.pool.QueryRow(f.ctx, `SELECT remaining_quantity::text FROM batches WHERE id=$1`, healthy).Scan(&remaining); err != nil || remaining != "0.000" {
+	if err := f.pool.QueryRow(f.ctx, `SELECT remaining_quantity::text FROM batches WHERE id=$1`, healthy).
+		Scan(&remaining); err != nil ||
+		remaining != "0.000" {
 		t.Fatal("failed batch prevented independent expiration", err)
 	}
 	if f.balance(t) != "10.000" || f.expirationCounts(t) != [3]int{1, 1, 1} {
 		t.Fatal("failure was not isolated")
 	}
 	f.exec(t, `DROP TRIGGER reject_one_expiration ON stock_movements`)
-	if err := f.expiry(nil).Expire(f.ctx); err != nil {
+	if err := f.expiry().Expire(f.ctx); err != nil {
 		t.Fatal(err)
 	}
 	if f.expirationCounts(t) != [3]int{2, 2, 2} {
@@ -272,7 +328,7 @@ func TestExpirationCancelDuringLockWaitRollsBack(t *testing.T) {
 	ctx, cancel := context.WithCancel(f.ctx)
 	defer cancel()
 	base := repository.NewRepository(f.pool, zap.NewNop())
-	worker := expirationservice.NewWorker(settingsrepo.NewRepository(), base, f.expiry(nil), zap.NewNop())
+	worker := expirationservice.NewWorker(settingsrepo.NewRepository(), base, f.expiry(), zap.NewNop())
 	done := make(chan struct{})
 	go func() { defer close(done); worker.Run(ctx) }()
 	waitLock(t, f, "%FROM products%FOR UPDATE%")
@@ -283,12 +339,12 @@ func TestExpirationCancelDuringLockWaitRollsBack(t *testing.T) {
 		t.Fatal("worker cancellation blocked on inventory lock")
 	}
 	if f.balance(t) != "10.000" || f.expirationCounts(t) != [3]int{} {
-		t.Fatal("cancelled worker mutated stock")
+		t.Fatal("canceled worker mutated stock")
 	}
 	if err := tx.Commit(f.ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.expiry(nil).Expire(f.ctx); err != nil {
+	if err := f.expiry().Expire(f.ctx); err != nil {
 		t.Fatal(err)
 	}
 	f.reconcile(t, "0.000")
@@ -307,7 +363,7 @@ func TestExpirationRechecksDisabledSettingsAfterSettingsWait(t *testing.T) {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
-	go func() { done <- f.expiry(nil).Expire(f.ctx) }()
+	go func() { done <- f.expiry().Expire(f.ctx) }()
 	waitLock(t, f, "%FROM restaurant_settings%FOR SHARE%")
 	if err := tx.Commit(f.ctx); err != nil {
 		t.Fatal(err)

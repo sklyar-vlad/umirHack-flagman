@@ -33,19 +33,32 @@ func TestSessionHTTPDisabledExpiryAndNoUnauthorizedWrites(t *testing.T) {
 			t.Fatalf("disabled user allowed %s", route.path)
 		}
 	}
-	if w := authRequest(router, "POST", "/auth/login", loginBody(f), "https://flagman.example", nil, ""); w.Code != 401 {
+	if w := authRequest(
+		router,
+		"POST",
+		"/auth/login",
+		loginBody(f),
+		"https://flagman.example",
+		nil,
+		"",
+	); w.Code != 401 {
 		t.Fatal("disabled user logged in")
 	}
 	f.exec(t, `UPDATE users SET is_active=true WHERE id=$1`, f.user)
 	login = authRequest(router, "POST", "/auth/login", loginBody(f), "https://flagman.example", nil, "")
 	decodeAuth(t, login)
 	cookie = login.Result().Cookies()[0]
-	f.exec(t, `UPDATE sessions SET expires_at=clock_timestamp() WHERE token_hash=$1`, authservice.SessionTokenHash(cookie.Value))
+	f.exec(
+		t,
+		`UPDATE sessions SET expires_at=clock_timestamp() WHERE token_hash=$1`,
+		authservice.SessionTokenHash(cookie.Value),
+	)
 	if w := authRequest(router, "GET", "/auth/me", "", "", cookie, ""); w.Code != 401 {
 		t.Fatal("expiry boundary accepted")
 	}
 	var orders, movements int
-	if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM orders),(SELECT count(*) FROM stock_movements)`).Scan(&orders, &movements); err != nil {
+	if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM orders),(SELECT count(*) FROM stock_movements)`).
+		Scan(&orders, &movements); err != nil {
 		t.Fatal(err)
 	}
 	if orders != 0 || movements != 0 {
@@ -76,13 +89,15 @@ func TestSessionIssuanceRechecksUserAfterLockWait(t *testing.T) {
 			}
 			result := make(chan error, 1)
 			go func() {
-				_, err := authrepository.NewRepository(conn).CreateSession(f.ctx, f.user, f.hash, authservice.SessionTokenHash("concurrent-token"), "csrf")
+				_, err := authrepository.NewRepository(conn).
+					CreateSession(f.ctx, f.user, f.hash, authservice.SessionTokenHash("concurrent-token"), "csrf")
 				result <- err
 			}()
 			deadline := time.Now().Add(5 * time.Second)
 			for {
 				var waiting bool
-				if err := f.pool.QueryRow(f.ctx, `SELECT COALESCE(wait_event_type='Lock',false) FROM pg_stat_activity WHERE pid=$1`, pid).Scan(&waiting); err != nil {
+				if err := f.pool.QueryRow(f.ctx, `SELECT COALESCE(wait_event_type='Lock',false) FROM pg_stat_activity WHERE pid=$1`, pid).
+					Scan(&waiting); err != nil {
 					t.Fatal(err)
 				}
 				if waiting {
@@ -123,10 +138,21 @@ func TestAuthLogsNeverContainCredentialsOrTokens(t *testing.T) {
 	cookie := login.Result().Cookies()[0]
 	authRequest(router, "GET", "/auth/me", "", "", cookie, "")
 	authRequest(router, "POST", "/auth/logout", "", "https://flagman.example", cookie, "wrong-csrf-marker")
-	authRequest(router, "POST", "/auth/login", `{"email":"manager@example.test","password":"wrong-password-marker"}`, "https://flagman.example", nil, "")
+	authRequest(
+		router,
+		"POST",
+		"/auth/login",
+		`{"email":"manager@example.test","password":"wrong-password-marker"}`,
+		"https://flagman.example",
+		nil,
+		"",
+	)
 	// A database exception must not be copied to request logs or HTTP errors.
-	f.exec(t, `CREATE FUNCTION fail_auth_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'credential-leak-marker: %', NEW.csrf_token; END; $$;
- CREATE TRIGGER fail_auth_insert BEFORE INSERT ON sessions FOR EACH ROW EXECUTE FUNCTION fail_auth_insert()`)
+	f.exec(
+		t,
+		`CREATE FUNCTION fail_auth_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'credential-leak-marker: %', NEW.csrf_token; END; $$;
+ CREATE TRIGGER fail_auth_insert BEFORE INSERT ON sessions FOR EACH ROW EXECUTE FUNCTION fail_auth_insert()`,
+	)
 	failure := authRequest(router, "POST", "/auth/login", loginBody(f), "https://flagman.example", nil, "")
 	if failure.Code != 500 || len(failure.Result().Cookies()) != 0 {
 		t.Fatal("failed login was not rejected")
@@ -146,7 +172,7 @@ func TestAuthLogsNeverContainCredentialsOrTokens(t *testing.T) {
 		}
 	}
 	// Duplicate cookie authentication is rejected before logout can revoke anything.
-	req := httptest.NewRequest("POST", "/api/v1/auth/logout", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", http.NoBody)
 	req.AddCookie(cookie)
 	req.AddCookie(cookie)
 	req.Header.Set("Origin", "https://flagman.example")

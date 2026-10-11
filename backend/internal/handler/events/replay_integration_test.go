@@ -18,7 +18,7 @@ func TestReplayReconnectDuplicatesRestartAndRetentionResync(t *testing.T) {
 	payload := model.OutboxPayload{OccurredAt: time.Now().UTC(), Topics: []model.EventTopic{model.TopicInventory}}
 	ids := []int64{}
 	for range 205 {
-		ids = append(ids, f.append(t, s, "inventory.changed", payload))
+		ids = append(ids, f.append(t, s, "inventory.changed", &payload))
 	}
 	// Read pages from durable storage; reconnect may replay the same IDs.
 	if err := s.Dispatch(f.ctx); err != nil {
@@ -52,7 +52,7 @@ func TestReplayReconnectDuplicatesRestartAndRetentionResync(t *testing.T) {
 	resp.Body.Close()
 	// Cursor ahead of durable high-water cannot silently skip future events.
 	resp = open(t, server, token, strconv.FormatInt(ids[len(ids)-1]+1, 10))
-	if resp.StatusCode != 422 {
+	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatal(resp.StatusCode)
 	}
 }
@@ -64,7 +64,7 @@ func TestCursorValidationBeforeStreaming(t *testing.T) {
 		resp := open(t, server, token, value)
 		body, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		if err != nil || resp.StatusCode != 422 {
+		if err != nil || resp.StatusCode != http.StatusUnprocessableEntity {
 			t.Fatal(value, resp.StatusCode, err)
 		}
 		if resp.Header.Get("Content-Type") == "text/event-stream" {
@@ -83,7 +83,7 @@ func TestCursorValidationBeforeStreaming(t *testing.T) {
 		}
 	}
 	// Duplicate raw headers are refused by the HTTP endpoint as well.
-	req, _ := http.NewRequest("GET", server.URL+"/api/v1/events", nil)
+	req, _ := http.NewRequest(http.MethodGet, server.URL+"/api/v1/events", http.NoBody)
 	req.AddCookie(&http.Cookie{Name: "flagman_session", Value: token})
 	req.Header.Add("Last-Event-ID", "0")
 	req.Header.Add("Last-Event-ID", "0")
@@ -92,7 +92,7 @@ func TestCursorValidationBeforeStreaming(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 422 {
+	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatal(resp.StatusCode)
 	}
 }

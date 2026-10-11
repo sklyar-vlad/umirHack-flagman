@@ -21,8 +21,8 @@ type Repository interface {
 	LockActor(context.Context, repository.DBTX, uuid.UUID) error
 	LockDish(context.Context, repository.DBTX, uuid.UUID) error
 	Products(context.Context, repository.DBTX, []uuid.UUID, time.Time, bool) ([]model.RecipeProduct, error)
-	Create(context.Context, repository.DBTX, model.Dish) (uuid.UUID, error)
-	Update(context.Context, repository.DBTX, model.Dish) error
+	Create(context.Context, repository.DBTX, *model.Dish) (uuid.UUID, error)
+	Update(context.Context, repository.DBTX, *model.Dish) error
 	AddRecipe(context.Context, repository.DBTX, uuid.UUID, uuid.UUID, []model.RecipeIngredient) error
 }
 
@@ -47,8 +47,8 @@ type Service struct {
 	now          func() time.Time
 }
 
-func NewService(repo Repository, menu MenuReader, transactions Transactions, events EventWriter) *Service {
-	return &Service{repo: repo, menu: menu, transactions: transactions, events: events, now: time.Now}
+func NewService(repo Repository, menuReader MenuReader, transactions Transactions, events EventWriter) *Service {
+	return &Service{repo: repo, menu: menuReader, transactions: transactions, events: events, now: time.Now}
 }
 
 func actor(ctx context.Context) (model.Actor, error) {
@@ -84,14 +84,32 @@ func (s *Service) load(ctx context.Context, tx repository.DBTX, id uuid.UUID, no
 	return items[0], nil
 }
 
-func dishDTO(d model.Dish, now time.Time) (dto.Dish, error) {
+func dishDTO(d *model.Dish, now time.Time) (dto.Dish, error) {
 	a, err := menu.CalculateAvailability(d.IsActive, d.Recipe)
 	if err != nil {
 		return dto.Dish{}, err
 	}
-	result := dto.Dish{ID: d.ID, Name: d.Name, Description: d.Description, IsActive: d.IsActive, Revision: d.Revision, RecipeVersion: d.RecipeVersion, Availability: a, Recipe: []dto.RecipeIngredient{}, Meta: map[string]any{"server_time": now.UTC().Format(time.RFC3339Nano)}}
+	result := dto.Dish{
+		ID:            d.ID,
+		Name:          d.Name,
+		Description:   d.Description,
+		IsActive:      d.IsActive,
+		Revision:      d.Revision,
+		RecipeVersion: d.RecipeVersion,
+		Availability:  a,
+		Recipe:        []dto.RecipeIngredient{},
+		Meta:          map[string]any{"server_time": now.UTC().Format(time.RFC3339Nano)},
+	}
 	for _, item := range d.Recipe {
-		result.Recipe = append(result.Recipe, dto.RecipeIngredient{ProductID: item.ProductID, ProductName: item.ProductName, Unit: item.Unit, QuantityPerPortion: item.QuantityPerPortion})
+		result.Recipe = append(
+			result.Recipe,
+			dto.RecipeIngredient{
+				ProductID:          item.ProductID,
+				ProductName:        item.ProductName,
+				Unit:               item.Unit,
+				QuantityPerPortion: item.QuantityPerPortion,
+			},
+		)
 	}
 	return result, nil
 }
@@ -120,7 +138,7 @@ func (s *Service) Create(ctx context.Context, input dto.CreateDishRequest) (dto.
 		if _, err := s.recipe(ctx, tx, recipe, s.now().UTC(), true); err != nil {
 			return err
 		}
-		id, err := s.repo.Create(ctx, tx, d)
+		id, err := s.repo.Create(ctx, tx, &d)
 		if err != nil {
 			return err
 		}
@@ -132,11 +150,11 @@ func (s *Service) Create(ctx context.Context, input dto.CreateDishRequest) (dto.
 		if err != nil {
 			return err
 		}
-		result, err = dishDTO(after, now)
+		result, err = dishDTO(&after, now)
 		if err != nil {
 			return err
 		}
-		return s.changed(ctx, tx, a, nil, after)
+		return s.changed(ctx, tx, a, nil, &after)
 	})
 	if err != nil {
 		return dto.Dish{}, databaseError(err)
@@ -144,7 +162,13 @@ func (s *Service) Create(ctx context.Context, input dto.CreateDishRequest) (dto.
 	return result, nil
 }
 
-func (s *Service) recipe(ctx context.Context, tx repository.DBTX, input []model.RecipeIngredient, now time.Time, lock bool) ([]model.RecipeIngredient, error) {
+func (s *Service) recipe(
+	ctx context.Context,
+	tx repository.DBTX,
+	input []model.RecipeIngredient,
+	now time.Time,
+	lock bool,
+) ([]model.RecipeIngredient, error) {
 	ids := make([]uuid.UUID, 0, len(input))
 	quantities := make(map[uuid.UUID]string, len(input))
 	for _, item := range input {

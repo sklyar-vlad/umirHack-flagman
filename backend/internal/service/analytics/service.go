@@ -16,7 +16,11 @@ import (
 )
 
 type Repository interface {
-	IngredientShortages(context.Context, repository.DBTX, model.AnalyticsFilter) ([]dto.IngredientShortageAnalytics, int64, error)
+	IngredientShortages(
+		context.Context,
+		repository.DBTX,
+		model.AnalyticsFilter,
+	) ([]dto.IngredientShortageAnalytics, int64, error)
 	WriteOffs(context.Context, repository.DBTX, model.AnalyticsFilter) ([]dto.WriteOffAnalytics, int64, error)
 }
 type Transactions interface {
@@ -41,6 +45,7 @@ func authorize(ctx context.Context) error {
 	}
 	return nil
 }
+
 func safeError(err error) error {
 	var pg *pgconn.PgError
 	if errors.As(err, &pg) {
@@ -48,34 +53,46 @@ func safeError(err error) error {
 	}
 	return err
 }
+
 func (s *Service) WriteOffs(ctx context.Context, f model.AnalyticsFilter) ([]dto.WriteOffAnalytics, int64, error) {
 	if err := authorize(ctx); err != nil {
 		return nil, 0, err
 	}
 	var items []dto.WriteOffAnalytics
 	var total int64
-	err := s.transactions.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx repository.DBTX) error {
-		var err error
-		items, total, err = s.repo.WriteOffs(ctx, tx, f)
-		return err
-	})
+	err := s.transactions.WithinTx(
+		ctx,
+		&pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
+		func(tx repository.DBTX) error {
+			var err error
+			items, total, err = s.repo.WriteOffs(ctx, tx, f)
+			return err
+		},
+	)
 	if err != nil {
 		return nil, 0, safeError(err)
 	}
 	return items, total, nil
 }
 
-func (s *Service) IngredientShortages(ctx context.Context, f model.AnalyticsFilter) ([]dto.IngredientShortageAnalytics, int64, error) {
+func (s *Service) IngredientShortages(
+	ctx context.Context,
+	f model.AnalyticsFilter,
+) ([]dto.IngredientShortageAnalytics, int64, error) {
 	if err := authorize(ctx); err != nil {
 		return nil, 0, err
 	}
 	var items []dto.IngredientShortageAnalytics
 	var total int64
-	err := s.transactions.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx repository.DBTX) error {
-		var err error
-		items, total, err = s.repo.IngredientShortages(ctx, tx, f)
-		return err
-	})
+	err := s.transactions.WithinTx(
+		ctx,
+		&pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
+		func(tx repository.DBTX) error {
+			var err error
+			items, total, err = s.repo.IngredientShortages(ctx, tx, f)
+			return err
+		},
+	)
 	if err != nil {
 		return nil, 0, safeError(err)
 	}

@@ -14,7 +14,13 @@ type Repository struct{}
 
 func NewRepository() *Repository { return &Repository{} }
 
-func (r *Repository) Consumption(ctx context.Context, q repository.DBTX, products []uuid.UUID, now time.Time, days int) ([]model.ConsumptionTotal, error) {
+func (r *Repository) Consumption(
+	ctx context.Context,
+	q repository.DBTX,
+	products []uuid.UUID,
+	now time.Time,
+	days int,
+) ([]model.ConsumptionTotal, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return nil, err
@@ -40,7 +46,12 @@ func (r *Repository) Consumption(ctx context.Context, q repository.DBTX, product
 	return items, rows.Err()
 }
 
-func (r *Repository) Batches(ctx context.Context, q repository.DBTX, products []uuid.UUID, now time.Time) ([]model.OrderBatch, error) {
+func (r *Repository) Batches(
+	ctx context.Context,
+	q repository.DBTX,
+	products []uuid.UUID,
+	now time.Time,
+) ([]model.OrderBatch, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return nil, err

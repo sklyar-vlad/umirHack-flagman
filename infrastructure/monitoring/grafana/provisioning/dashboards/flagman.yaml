@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: Flagman
+    orgId: 1
+    folder: Flagman
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards

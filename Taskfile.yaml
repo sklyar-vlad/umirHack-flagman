@@ -1,7 +1,7 @@
 version: "3"
 
 vars:
-  COMPOSE_CMD: docker compose --env-file ./infrastructure/.env -f ./infrastructure/compose.yaml
+  COMPOSE_CMD: docker compose --env-file ./infrastructure/.env -f ./infrastructure/compose.yaml -f ./infrastructure/compose.local.yaml
   GOOSE_CMD: goose -env ./infrastructure/.env -dir ./backend/database/migrations
 
 tasks:

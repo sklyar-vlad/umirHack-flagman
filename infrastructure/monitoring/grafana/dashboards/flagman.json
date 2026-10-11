@@ -1,0 +1,546 @@
+{
+  "uid": "flagman",
+  "title": "Flagman service and warehouse",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "15s",
+  "timezone": "utc",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "HTTP requests / second",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "flagman-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "flagman-prometheus"
+          },
+          "expr": "sum by(route,status)(rate(flagman_http_requests_total[5m]))",
+          "legendFormat": "{{worker}} {{route}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "title": "HTTP errors / second",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "flagman-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "flagman-prometheus"
+          },
+          "expr": "sum by(route)(rate(flagman_http_requests_total{status=~\"5..\"}[5m]))",
+          "legendFormat": "{{worker}} {{route}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "title": "HTTP latency p95 seconds",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "flagman-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "flagman-prometheus"
+          },
+          "expr": "histogram_quantile(0.95,sum by(le,route)(rate(flagman_http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{worker}} {{route}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "title": "Domain refusals / second",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "flagman-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "flagman-prometheus"
+          },
+          "expr": "sum by(reason)(rate(flagman_domain_refusals_total[5m]))",
+          "legendFormat": "{{worker}} {{route}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 5,
+      "title": "Transaction conflicts / second",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "flagman-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "flagman-prometheus"
+          },
+          "expr": "sum by(reason)(rate(flagman_transaction_conflicts_total[5m]))",
+          "legendFormat": "{{worker}} {{route}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 6,
+      "title": "Worker retries / second",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "flagman-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "flagman-prometheus"
+          },
+          "expr": "sum by(worker)(rate(flagman_transaction_retries_total[5m]))",
+          "legendFormat": "{{worker}} {{route}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 7,
+      "title": "Pending outbox events",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "flagman-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "flagman-prometheus"
+          },
+          "expr": "flagman_outbox_pending_events",
+          "legendFormat": "{{worker}} {{route}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 8,
+      "title": "Oldest pending outbox seconds",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "flagman-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "flagman-prometheus"
+          },
+          "expr": "flagman_outbox_oldest_pending_age_seconds",
+          "legendFormat": "{{worker}} {{route}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 9,
+      "title": "Worker time since successful pass seconds",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "flagman-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "flagman-prometheus"
+          },
+          "expr": "time()-flagman_worker_last_success_timestamp_seconds",
+          "legendFormat": "{{worker}} {{route}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 10,
+      "title": "Expiry worker overdue batch seconds",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "flagman-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "flagman-prometheus"
+          },
+          "expr": "flagman_expiration_oldest_overdue_age_seconds",
+          "legendFormat": "{{worker}} {{route}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 11,
+      "title": "Worker errors / second",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "flagman-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "flagman-prometheus"
+          },
+          "expr": "sum by(worker)(rate(flagman_worker_errors_total[5m]))",
+          "legendFormat": "{{worker}} {{route}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 12,
+      "title": "Worker latency p95 seconds",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "flagman-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "flagman-prometheus"
+          },
+          "expr": "histogram_quantile(0.95,sum by(le,worker)(rate(flagman_worker_pass_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{worker}} {{route}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 13,
+      "title": "Scrape and database health",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "flagman-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "flagman-prometheus"
+          },
+          "expr": "up{job=\"flagman\"} or flagman_metrics_database_up",
+          "legendFormat": "{{worker}} {{route}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 14,
+      "title": "Valid and expired stock by product / unit",
+      "type": "table",
+      "datasource": {
+        "type": "postgres",
+        "uid": "flagman-warehouse"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "flagman-warehouse"
+          },
+          "rawSql": "SELECT product_name,unit,valid_quantity,expired_quantity,target_stock FROM monitoring_stock ORDER BY product_name,product_id",
+          "format": "table",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 15,
+      "title": "Problem batches: expired and expiring",
+      "type": "table",
+      "datasource": {
+        "type": "postgres",
+        "uid": "flagman-warehouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "flagman-warehouse"
+          },
+          "rawSql": "SELECT product_name,unit,remaining_quantity,expires_at,state FROM monitoring_problem_batches ORDER BY expires_at,batch_id",
+          "format": "table",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 16,
+      "title": "Stop list: active unavailable dishes",
+      "type": "table",
+      "datasource": {
+        "type": "postgres",
+        "uid": "flagman-warehouse"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "flagman-warehouse"
+          },
+          "rawSql": "SELECT dish_name,reason FROM monitoring_stop_list ORDER BY dish_name,dish_id",
+          "format": "table",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 17,
+      "title": "Losses in selected UTC period by product / unit / reason",
+      "type": "table",
+      "datasource": {
+        "type": "postgres",
+        "uid": "flagman-warehouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 64,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "flagman-warehouse"
+          },
+          "rawSql": "SELECT product_id,unit,reason,sum(quantity) AS quantity,sum(movements) AS movements FROM monitoring_losses WHERE $__timeFilter(time) GROUP BY product_id,unit,reason ORDER BY product_id,unit,reason",
+          "format": "table",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    }
+  ]
+}

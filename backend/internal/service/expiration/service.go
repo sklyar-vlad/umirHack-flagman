@@ -63,6 +63,7 @@ func (s *Service) Expire(ctx context.Context) error {
 	}
 	return errors.Join(failures...)
 }
+
 func (s *Service) expireBatch(ctx context.Context, id uuid.UUID) error {
 	return s.transactions.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx repository.DBTX) error {
 		m, err := s.repo.LockExpired(ctx, tx, id)
@@ -72,10 +73,34 @@ func (s *Service) expireBatch(ctx context.Context, id uuid.UUID) error {
 		if err := s.repo.WriteExpiration(ctx, tx, m); err != nil {
 			return err
 		}
-		snapshot := &model.StockMovementAuditSnapshot{BatchID: m.BatchID, Type: m.Type, DeltaQuantity: m.DeltaQuantity, RemainingQuantityAfter: m.RemainingQuantityAfter, ProductNameSnapshot: m.ProductNameSnapshot, UnitSnapshot: m.UnitSnapshot}
-		if err := s.events.AppendAudit(ctx, tx, &model.AuditEntry{Action: model.AuditExpiration, EntityType: model.AuditStockMovement, EntityID: &m.ID, After: snapshot}); err != nil {
+		snapshot := &model.StockMovementAuditSnapshot{
+			BatchID:                m.BatchID,
+			Type:                   m.Type,
+			DeltaQuantity:          m.DeltaQuantity,
+			RemainingQuantityAfter: m.RemainingQuantityAfter,
+			ProductNameSnapshot:    m.ProductNameSnapshot,
+			UnitSnapshot:           m.UnitSnapshot,
+		}
+		if err := s.events.AppendAudit(
+			ctx,
+			tx,
+			&model.AuditEntry{
+				Action:     model.AuditExpiration,
+				EntityType: model.AuditStockMovement,
+				EntityID:   &m.ID,
+				After:      snapshot,
+			},
+		); err != nil {
 			return err
 		}
-		return s.events.AppendOutbox(ctx, tx, &model.OutboxEvent{Type: model.InventoryChanged, ProductIDs: []uuid.UUID{m.ProductID}, BatchIDs: []uuid.UUID{m.BatchID}})
+		return s.events.AppendOutbox(
+			ctx,
+			tx,
+			&model.OutboxEvent{
+				Type:       model.InventoryChanged,
+				ProductIDs: []uuid.UUID{m.ProductID},
+				BatchIDs:   []uuid.UUID{m.BatchID},
+			},
+		)
 	})
 }

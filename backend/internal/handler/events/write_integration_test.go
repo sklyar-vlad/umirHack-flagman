@@ -29,7 +29,12 @@ func TestSlowClientWriteDeadlineDoesNotBlockPublication(t *testing.T) {
 	done := make(chan error, 1)
 	start := time.Now()
 	go func() { w := socketWriter{left}; done <- write(http.NewResponseController(w), w, "data: blocked\n\n") }()
-	cursor := f.append(t, s, "inventory.changed", model.OutboxPayload{OccurredAt: time.Now().UTC(), Topics: []model.EventTopic{model.TopicInventory}})
+	cursor := f.append(
+		t,
+		s,
+		"inventory.changed",
+		&model.OutboxPayload{OccurredAt: time.Now().UTC(), Topics: []model.EventTopic{model.TopicInventory}},
+	)
 	if time.Since(start) > time.Second {
 		t.Fatal("slow socket blocked publication")
 	}

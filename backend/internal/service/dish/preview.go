@@ -21,34 +21,54 @@ func (s *Service) Preview(ctx context.Context, input dto.PreviewDishRequest) (dt
 		return dto.DishPreview{}, err
 	}
 	var result dto.DishPreview
-	err = s.transactions.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx repository.DBTX) error {
-		now := s.now().UTC()
-		recipe, err := s.recipe(ctx, tx, in, now, false)
-		if err != nil {
-			return err
-		}
-		availability, err := menu.CalculateAvailability(true, recipe)
-		if err != nil {
-			return err
-		}
-		result = dto.DishPreview{IsAvailable: availability.IsAvailable, AvailablePortions: availability.AvailablePortions, Shortages: availability.Shortages, Requirements: []dto.Requirement{}, Meta: map[string]any{"server_time": now.Format(time.RFC3339Nano)}}
-		for _, item := range recipe {
-			required, err := quantity.ParseMilli(item.QuantityPerPortion)
+	err = s.transactions.WithinTx(
+		ctx,
+		&pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
+		func(tx repository.DBTX) error {
+			now := s.now().UTC()
+			recipe, err := s.recipe(ctx, tx, in, now, false)
 			if err != nil {
 				return err
 			}
-			available, err := quantity.ParseMilli(item.AvailableQuantity)
+			availability, err := menu.CalculateAvailability(true, recipe)
 			if err != nil {
 				return err
 			}
-			missing := new(big.Int).Sub(required, available)
-			if missing.Sign() < 0 {
-				missing.SetInt64(0)
+			result = dto.DishPreview{
+				IsAvailable:       availability.IsAvailable,
+				AvailablePortions: availability.AvailablePortions,
+				Shortages:         availability.Shortages,
+				Requirements:      []dto.Requirement{},
+				Meta:              map[string]any{"server_time": now.Format(time.RFC3339Nano)},
 			}
-			result.Requirements = append(result.Requirements, dto.Requirement{ProductID: item.ProductID, ProductName: item.ProductName, Unit: item.Unit, RequiredQuantity: quantity.FormatMilli(required), AvailableQuantity: quantity.FormatMilli(available), MissingQuantity: quantity.FormatMilli(missing)})
-		}
-		return nil
-	})
+			for _, item := range recipe {
+				required, err := quantity.ParseMilli(item.QuantityPerPortion)
+				if err != nil {
+					return err
+				}
+				available, err := quantity.ParseMilli(item.AvailableQuantity)
+				if err != nil {
+					return err
+				}
+				missing := new(big.Int).Sub(required, available)
+				if missing.Sign() < 0 {
+					missing.SetInt64(0)
+				}
+				result.Requirements = append(
+					result.Requirements,
+					dto.Requirement{
+						ProductID:         item.ProductID,
+						ProductName:       item.ProductName,
+						Unit:              item.Unit,
+						RequiredQuantity:  quantity.FormatMilli(required),
+						AvailableQuantity: quantity.FormatMilli(available),
+						MissingQuantity:   quantity.FormatMilli(missing),
+					},
+				)
+			}
+			return nil
+		},
+	)
 	if err != nil {
 		return dto.DishPreview{}, databaseError(err)
 	}

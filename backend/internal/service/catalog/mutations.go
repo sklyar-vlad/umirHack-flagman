@@ -34,7 +34,11 @@ func (s *Service) CreateCategory(ctx context.Context, input dto.CreateCategoryRe
 	return categoryDTO(c), nil
 }
 
-func (s *Service) UpdateCategory(ctx context.Context, id uuid.UUID, input dto.UpdateCategoryRequest) (dto.CatalogCategory, error) {
+func (s *Service) UpdateCategory(
+	ctx context.Context,
+	id uuid.UUID,
+	input dto.UpdateCategoryRequest,
+) (dto.CatalogCategory, error) {
 	if _, err := actor(ctx, true); err != nil {
 		return dto.CatalogCategory{}, err
 	}
@@ -76,11 +80,19 @@ func (s *Service) categoryReference(ctx context.Context, tx repository.DBTX, id 
 	return err
 }
 
-func (s *Service) CreateProduct(ctx context.Context, input dto.CreateProductRequest) (dto.Product, error) {
+func (s *Service) CreateProduct(ctx context.Context, input *dto.CreateProductRequest) (dto.Product, error) {
 	if _, err := actor(ctx, true); err != nil {
 		return dto.Product{}, err
 	}
-	p := model.Product{Name: input.Name, Category: model.ProductCategory{ID: input.CategoryID}, Unit: input.Unit, DisplayUnit: input.DisplayUnit, StandardShelfLifeHours: input.StandardShelfLifeHours, TargetStock: input.TargetStock, IsActive: true}
+	p := model.Product{
+		Name:                   input.Name,
+		Category:               model.ProductCategory{ID: input.CategoryID},
+		Unit:                   input.Unit,
+		DisplayUnit:            input.DisplayUnit,
+		StandardShelfLifeHours: input.StandardShelfLifeHours,
+		TargetStock:            input.TargetStock,
+		IsActive:               true,
+	}
 	if input.IsActive != nil {
 		p.IsActive = *input.IsActive
 	}
@@ -92,26 +104,33 @@ func (s *Service) CreateProduct(ctx context.Context, input dto.CreateProductRequ
 			return err
 		}
 		var err error
-		p, err = s.repo.CreateProduct(ctx, tx, p)
+		p, err = s.repo.CreateProduct(ctx, tx, &p)
 		if err != nil {
 			return err
 		}
-		return s.productAudit(ctx, tx, nil, p)
+		return s.productAudit(ctx, tx, nil, &p)
 	})
 	if err != nil {
 		return dto.Product{}, err
 	}
-	return productDTO(p), nil
+	return productDTO(&p), nil
 }
 
-func (s *Service) UpdateProduct(ctx context.Context, id uuid.UUID, input dto.UpdateProductRequest) (dto.Product, error) {
+func (s *Service) UpdateProduct(
+	ctx context.Context,
+	id uuid.UUID,
+	input *dto.UpdateProductRequest,
+) (dto.Product, error) {
 	if _, err := actor(ctx, true); err != nil {
 		return dto.Product{}, err
 	}
 	if err := revision(input.ExpectedRevision); err != nil {
 		return dto.Product{}, err
 	}
-	if input.Name == nil && input.CategoryID == nil && input.Unit == nil && input.DisplayUnit == nil && !input.StandardShelfLifeHours.Set && !input.TargetStock.Set && input.IsActive == nil {
+	if input.Name == nil && input.CategoryID == nil && input.Unit == nil && input.DisplayUnit == nil &&
+		!input.StandardShelfLifeHours.Set &&
+		!input.TargetStock.Set &&
+		input.IsActive == nil {
 		return dto.Product{}, field("body")
 	}
 	var p model.Product
@@ -171,14 +190,14 @@ func (s *Service) UpdateProduct(ctx context.Context, id uuid.UUID, input dto.Upd
 				return &apperrors.ProductInUse{Dishes: dishes}
 			}
 		}
-		p, err = s.repo.UpdateProduct(ctx, tx, next)
+		p, err = s.repo.UpdateProduct(ctx, tx, &next)
 		if err != nil {
 			return err
 		}
-		return s.productAudit(ctx, tx, &before, p)
+		return s.productAudit(ctx, tx, &before, &p)
 	})
 	if err != nil {
 		return dto.Product{}, err
 	}
-	return productDTO(p), nil
+	return productDTO(&p), nil
 }

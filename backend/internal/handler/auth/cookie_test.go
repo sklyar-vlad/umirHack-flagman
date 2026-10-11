@@ -20,7 +20,7 @@ func TestSessionCookiePolicy(t *testing.T) {
 		for _, token := range []string{"opaque-token", ""} {
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest(http.MethodPost, "http://api.example/api/v1/auth/login", nil)
+			c.Request = httptest.NewRequest(http.MethodPost, "http://api.example/api/v1/auth/login", http.NoBody)
 			c.Request.Header.Set("X-Forwarded-Proto", "https")
 			expires := time.Now().UTC().Add(authservice.SessionLifetime).Truncate(time.Second)
 			h.setSessionCookie(c, token, expires)
@@ -29,7 +29,11 @@ func TestSessionCookiePolicy(t *testing.T) {
 				t.Fatal("missing cookie")
 			}
 			cookie := cookies[0]
-			if cookie.Name != authservice.SessionCookieName || cookie.Value != token || !cookie.HttpOnly || cookie.SameSite != http.SameSiteLaxMode || cookie.Path != "/api/v1" || cookie.Domain != "" || cookie.Secure != (origin == "https://flagman.example") {
+			if cookie.Name != authservice.SessionCookieName || cookie.Value != token || !cookie.HttpOnly ||
+				cookie.SameSite != http.SameSiteLaxMode ||
+				cookie.Path != "/api/v1" ||
+				cookie.Domain != "" ||
+				cookie.Secure != (origin == "https://flagman.example") {
 				t.Fatal("unsafe cookie policy")
 			}
 			if token != "" && (cookie.MaxAge != 43200 || !cookie.Expires.Equal(expires)) {

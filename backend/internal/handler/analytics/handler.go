@@ -11,6 +11,11 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
+const (
+	queryFrom = "from"
+	queryTo   = "to"
+)
+
 type Service interface {
 	IngredientShortages(context.Context, model.AnalyticsFilter) ([]dto.IngredientShortageAnalytics, int64, error)
 	WriteOffs(context.Context, model.AnalyticsFilter) ([]dto.WriteOffAnalytics, int64, error)
@@ -30,19 +35,29 @@ func (h *Handler) WriteOffs(c *gin.Context) {
 		basehandler.WriteError(c, err)
 		return
 	}
-	c.JSON(200, dto.ListResponse[dto.WriteOffAnalytics]{Items: items, Total: total, Page: f.Page, PageSize: f.PageSize, Meta: map[string]any{}})
+	c.JSON(
+		200,
+		dto.ListResponse[dto.WriteOffAnalytics]{
+			Items:    items,
+			Total:    total,
+			Page:     f.Page,
+			PageSize: f.PageSize,
+			Meta:     map[string]any{},
+		},
+	)
 }
+
 func parseFilter(raw string, losses bool) (model.AnalyticsFilter, error) {
 	var f model.AnalyticsFilter
 	q, err := url.ParseQuery(raw)
 	if err != nil {
 		return f, &validations.FieldError{Field: "query", Message: "Некорректные параметры"}
 	}
-	allowed := []string{"page", "page_size", "from", "to"}
+	allowed := []string{"page", "page_size", queryFrom, queryTo}
 	if losses {
 		allowed = append(allowed, "product_id", "reason")
 	}
-	if err = validations.ValidateQuery(q, allowed...); err != nil {
+	if err := validations.ValidateQuery(q, allowed...); err != nil {
 		return f, err
 	}
 	p, err := validations.ParsePagination(q)
@@ -63,13 +78,13 @@ func parseFilter(raw string, losses bool) (model.AnalyticsFilter, error) {
 			f.ProductID = &id
 		}
 	}
-	for _, name := range []string{"from", "to"} {
+	for _, name := range []string{queryFrom, queryTo} {
 		if values, ok := q[name]; ok {
 			v, err := validations.ParseDateTime(name, values[0])
 			if err != nil {
 				return f, err
 			}
-			if name == "from" {
+			if name == queryFrom {
 				f.DateFrom = &v
 			} else {
 				f.DateTo = &v
@@ -77,7 +92,7 @@ func parseFilter(raw string, losses bool) (model.AnalyticsFilter, error) {
 		}
 	}
 	if f.DateFrom != nil && f.DateTo != nil && f.DateFrom.After(*f.DateTo) {
-		return f, &validations.FieldError{Field: "to", Message: "Конец интервала не может быть раньше начала"}
+		return f, &validations.FieldError{Field: queryTo, Message: "Конец интервала не может быть раньше начала"}
 	}
 	return f, nil
 }
@@ -94,5 +109,14 @@ func (h *Handler) IngredientShortages(c *gin.Context) {
 		basehandler.WriteError(c, err)
 		return
 	}
-	c.JSON(200, dto.ListResponse[dto.IngredientShortageAnalytics]{Items: items, Total: total, Page: f.Page, PageSize: f.PageSize, Meta: map[string]any{}})
+	c.JSON(
+		200,
+		dto.ListResponse[dto.IngredientShortageAnalytics]{
+			Items:    items,
+			Total:    total,
+			Page:     f.Page,
+			PageSize: f.PageSize,
+			Meta:     map[string]any{},
+		},
+	)
 }

@@ -26,7 +26,11 @@ func (r *Repository) Lock(ctx context.Context, q repository.DBTX) error {
 }
 
 func (r *Repository) Pending(ctx context.Context, q repository.DBTX) ([]uuid.UUID, error) {
-	rows, err := q.Query(ctx, `SELECT id FROM outbox_events WHERE published_at IS NULL ORDER BY created_at,id LIMIT $1`, PageSize)
+	rows, err := q.Query(
+		ctx,
+		`SELECT id FROM outbox_events WHERE published_at IS NULL ORDER BY created_at,id LIMIT $1`,
+		PageSize,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("read pending outbox: %w", err)
 	}
@@ -51,7 +55,8 @@ func (r *Repository) Publish(ctx context.Context, q repository.DBTX, ids []uuid.
 	}
 	var high int64
 	for _, id := range ids {
-		if err := tx.QueryRow(ctx, `UPDATE outbox_events SET cursor=nextval('outbox_cursor_seq'),published_at=clock_timestamp() WHERE id=$1 AND published_at IS NULL RETURNING cursor`, id).Scan(&high); err != nil {
+		if err := tx.QueryRow(ctx, `UPDATE outbox_events SET cursor=nextval('outbox_cursor_seq'),published_at=clock_timestamp() WHERE id=$1 AND published_at IS NULL RETURNING cursor`, id).
+			Scan(&high); err != nil {
 			return fmt.Errorf("publish outbox: %w", err)
 		}
 	}

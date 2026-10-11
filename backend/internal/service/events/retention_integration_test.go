@@ -16,8 +16,14 @@ func TestRetentionPublishedPrefixFloorAndRollback(t *testing.T) {
 	// Pending events older than a day must survive until their first publication.
 	pending := f.pending(t)
 	f.exec(t, `UPDATE outbox_events SET created_at=clock_timestamp()-interval '5 days' WHERE id=$1`, pending)
-	f.exec(t, `CREATE FUNCTION fail_retention() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fail'; END $$`)
-	f.exec(t, `CREATE CONSTRAINT TRIGGER fail_retention AFTER DELETE ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fail_retention()`)
+	f.exec(
+		t,
+		`CREATE FUNCTION fail_retention() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fail'; END $$`,
+	)
+	f.exec(
+		t,
+		`CREATE CONSTRAINT TRIGGER fail_retention AFTER DELETE ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fail_retention()`,
+	)
 	if err := f.service().Dispatch(f.ctx); err == nil {
 		t.Fatal("expected deferred failure")
 	}
@@ -30,7 +36,8 @@ func TestRetentionPublishedPrefixFloorAndRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	page, err = f.service().Read(f.ctx, 0)
-	if err != nil || page.RetentionFloor != 1 || len(page.Events) != 3 || page.Events[0].Cursor != 2 || page.Events[1].Cursor != 3 {
+	if err != nil || page.RetentionFloor != 1 || len(page.Events) != 3 || page.Events[0].Cursor != 2 ||
+		page.Events[1].Cursor != 3 {
 		t.Fatal(page, err)
 	}
 	// The newer cursor with an older publication timestamp is held behind the
@@ -62,7 +69,9 @@ func TestReplayReadDoesNotPublishPendingOrModifyFacts(t *testing.T) {
 		t.Fatal(page, err)
 	}
 	var unpublished bool
-	if err := f.pool.QueryRow(f.ctx, `SELECT cursor IS NULL AND published_at IS NULL FROM outbox_events`).Scan(&unpublished); err != nil || !unpublished {
+	if err := f.pool.QueryRow(f.ctx, `SELECT cursor IS NULL AND published_at IS NULL FROM outbox_events`).
+		Scan(&unpublished); err != nil ||
+		!unpublished {
 		t.Fatal(err)
 	}
 }

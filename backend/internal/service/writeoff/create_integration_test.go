@@ -18,7 +18,12 @@ func TestWriteOffValidExpiredAndEmptyBatches(t *testing.T) {
 	if err := json.Unmarshal(r.Body, &m); err != nil {
 		t.Fatal(err)
 	}
-	if r.Status != 201 || m.RemainingQuantityAfter != "8.875" || m.DeltaQuantity != "-1.125" || m.Type != "manual_writeoff" || *m.Note != "Порча продукта" || m.Actor.ID != f.user || m.ProductNameSnapshot != "Молоко" || m.UnitSnapshot != "ml" {
+	if r.Status != 201 || m.RemainingQuantityAfter != "8.875" || m.DeltaQuantity != "-1.125" ||
+		m.Type != "manual_writeoff" ||
+		*m.Note != "Порча продукта" ||
+		m.Actor.ID != f.user ||
+		m.ProductNameSnapshot != "Молоко" ||
+		m.UnitSnapshot != "ml" {
 		t.Fatalf("movement: %+v response %+v", m, r)
 	}
 	f.exec(t, `UPDATE batches SET expires_at=clock_timestamp()-interval '1 day' WHERE id=$1`, f.batch)
@@ -26,10 +31,12 @@ func TestWriteOffValidExpiredAndEmptyBatches(t *testing.T) {
 		t.Fatalf("expired: %+v", r)
 	}
 	r = f.create(t, "0.001", uuid.New())
-	if r.Status != 409 || !bytes.Contains(r.Body, []byte("INSUFFICIENT_BATCH_STOCK")) || f.balance(t) != "0.000" || f.counts(t) != [4]int{2, 2, 2, 3} {
+	if r.Status != 409 || !bytes.Contains(r.Body, []byte("INSUFFICIENT_BATCH_STOCK")) || f.balance(t) != "0.000" ||
+		f.counts(t) != [4]int{2, 2, 2, 3} {
 		t.Fatalf("zero balance: %+v counts %v", r, f.counts(t))
 	}
 }
+
 func TestWriteOffStrictHTTPAndRoles(t *testing.T) {
 	f := newFixture(t)
 	router := f.router()
@@ -39,7 +46,15 @@ func TestWriteOffStrictHTTPAndRoles(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		w := request(router, "POST", "/write-offs", string(f.body("1")), token, session.CSRFToken, "https://flagman.example")
+		w := request(
+			router,
+			"POST",
+			"/write-offs",
+			string(f.body("1")),
+			token,
+			session.CSRFToken,
+			"https://flagman.example",
+		)
 		want := 201
 		if role == "order_operator" {
 			want = 403
@@ -66,7 +81,15 @@ func TestWriteOffStrictHTTPAndRoles(t *testing.T) {
 		}
 	}
 	for _, amount := range []string{"0", "-1", "1e2", "1.0001", "100000000000", "", "NaN"} {
-		w := request(router, "POST", "/write-offs", string(f.body(amount)), token, session.CSRFToken, "https://flagman.example")
+		w := request(
+			router,
+			"POST",
+			"/write-offs",
+			string(f.body(amount)),
+			token,
+			session.CSRFToken,
+			"https://flagman.example",
+		)
 		if w.Code != 422 {
 			t.Fatalf("%s: %d", amount, w.Code)
 		}
@@ -75,7 +98,15 @@ func TestWriteOffStrictHTTPAndRoles(t *testing.T) {
 	if w.Code != 400 {
 		t.Fatalf("JSON: %d", w.Code)
 	}
-	w = request(router, "POST", "/write-offs?unexpected=1", string(f.body("1")), token, session.CSRFToken, "https://flagman.example")
+	w = request(
+		router,
+		"POST",
+		"/write-offs?unexpected=1",
+		string(f.body("1")),
+		token,
+		session.CSRFToken,
+		"https://flagman.example",
+	)
 	if w.Code != 422 {
 		t.Fatalf("query: %d", w.Code)
 	}
@@ -83,6 +114,7 @@ func TestWriteOffStrictHTTPAndRoles(t *testing.T) {
 		t.Fatalf("invalid changed stock %s %v", f.balance(t), f.counts(t))
 	}
 }
+
 func TestWriteOffPiecesMissingAndExcess(t *testing.T) {
 	f := newFixture(t)
 	f.exec(t, `UPDATE products SET unit='pcs',display_unit='pcs' WHERE id=$1`, f.product)

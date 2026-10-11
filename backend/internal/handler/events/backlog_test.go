@@ -51,14 +51,17 @@ func TestLiveRetentionOvertakesConnectionWithRoleFilteredResync(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	w := backlogWriter{recorder, cancel}
 	c, _ := gin.CreateTestContext(w)
-	req := httptest.NewRequest("GET", "/events", nil)
+	req := httptest.NewRequest(http.MethodGet, "/events", http.NoBody)
 	req.AddCookie(&http.Cookie{Name: "flagman_session", Value: "fake-test-token"})
 	c.Request = req.WithContext(ctx)
 	h := NewHandler(&backlogReader{}, activeSession{}, ctx)
 	h.poll = time.Millisecond
 	h.Stream(c)
 	body := recorder.Body.String()
-	if !strings.Contains(body, "id: 200\nevent: resync.required\n") || strings.Contains(body, "hot-offers") || strings.Contains(body, "orders") || strings.Contains(body, "users") || !strings.Contains(body, "procurement-recommendations") {
+	if !strings.Contains(body, "id: 200\nevent: resync.required\n") || strings.Contains(body, "hot-offers") ||
+		strings.Contains(body, "orders") ||
+		strings.Contains(body, "users") ||
+		!strings.Contains(body, "procurement-recommendations") {
 		t.Fatal(body)
 	}
 }
@@ -72,12 +75,13 @@ func (s *expiredSession) CurrentSession(context.Context, string) (model.Session,
 	}
 	return model.Session{Actor: model.Actor{Role: "admin"}}, nil
 }
+
 func TestSessionRevokedBeforeFirstReplayClosesWithoutEvent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(backlogWriter{recorder, cancel})
-	c.Request = httptest.NewRequest("GET", "/events", nil).WithContext(ctx)
+	c.Request = httptest.NewRequest(http.MethodGet, "/events", http.NoBody).WithContext(ctx)
 	c.Request.AddCookie(&http.Cookie{Name: "flagman_session", Value: "fake-test-token"})
 	c.Request.Header.Set("Last-Event-ID", "0")
 	session := &expiredSession{}
@@ -103,7 +107,14 @@ func (r *fullReplay) Read(context.Context, int64) (model.EventPage, error) {
 		return p, nil
 	}
 	for cursor := int64(1); cursor <= 100; cursor++ {
-		p.Events = append(p.Events, model.PublishedEvent{Cursor: cursor, Type: model.InventoryChanged, Payload: model.OutboxPayload{Topics: []model.EventTopic{model.TopicInventory}}})
+		p.Events = append(
+			p.Events,
+			model.PublishedEvent{
+				Cursor:  cursor,
+				Type:    model.InventoryChanged,
+				Payload: model.OutboxPayload{Topics: []model.EventTopic{model.TopicInventory}},
+			},
+		)
 	}
 	return p, nil
 }
@@ -117,12 +128,13 @@ func (s *revokedDuringReplay) CurrentSession(context.Context, string) (model.Ses
 	}
 	return model.Session{Actor: model.Actor{Role: "admin"}}, nil
 }
+
 func TestSessionRevokedWhileDrainingReplayDoesNotFinishPage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(deadlineRecorder{recorder})
-	c.Request = httptest.NewRequest("GET", "/events", nil).WithContext(ctx)
+	c.Request = httptest.NewRequest(http.MethodGet, "/events", http.NoBody).WithContext(ctx)
 	c.Request.AddCookie(&http.Cookie{Name: "flagman_session", Value: "test-token"})
 	c.Request.Header.Set("Last-Event-ID", "0")
 	session := &revokedDuringReplay{}

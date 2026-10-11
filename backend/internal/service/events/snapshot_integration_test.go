@@ -20,7 +20,9 @@ func TestReplayFloorAndEventsShareSnapshotDuringConcurrentCleanup(t *testing.T) 
 	}
 	defer tx.Rollback(f.ctx)
 	var floor int64
-	if err := tx.QueryRow(f.ctx, `SELECT retention_floor FROM outbox_publication_state`).Scan(&floor); err != nil || floor != 0 {
+	if err := tx.QueryRow(f.ctx, `SELECT retention_floor FROM outbox_publication_state`).
+		Scan(&floor); err != nil ||
+		floor != 0 {
 		t.Fatal(floor, err)
 	}
 	if err := f.service().Dispatch(f.ctx); err != nil {

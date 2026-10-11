@@ -12,6 +12,8 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
+const fieldLookbackDays = "lookback_days"
+
 type productUnit struct {
 	id   uuid.UUID
 	unit string
@@ -21,7 +23,7 @@ type productUnit struct {
 // without orders. Absence is unknown demand rather than a known zero rate.
 func consumptionRates(totals []model.ConsumptionTotal, days int) (map[productUnit]*big.Rat, error) {
 	if days < 1 || days > 90 {
-		return nil, &validations.FieldError{Field: "lookback_days", Message: "Допустимо от 1 до 90 дней"}
+		return nil, &validations.FieldError{Field: fieldLookbackDays, Message: "Допустимо от 1 до 90 дней"}
 	}
 	period := big.NewInt(int64(time.Duration(days) * 24 * time.Hour))
 	rates := map[productUnit]*big.Rat{}
@@ -44,7 +46,7 @@ func consumptionRates(totals []model.ConsumptionTotal, days int) (map[productUni
 
 func validateFilter(f model.ForecastFilter) error {
 	if f.LookbackDays < 1 || f.LookbackDays > 90 {
-		return &validations.FieldError{Field: "lookback_days", Message: "Допустимо от 1 до 90 дней"}
+		return &validations.FieldError{Field: fieldLookbackDays, Message: "Допустимо от 1 до 90 дней"}
 	}
 	if f.HorizonHours < 1 || f.HorizonHours > 720 {
 		return &validations.FieldError{Field: "horizon_hours", Message: "Допустимо от 1 до 720 часов"}

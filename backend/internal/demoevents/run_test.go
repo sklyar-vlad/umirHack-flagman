@@ -20,24 +20,24 @@ func TestRunnerBoundsMutationsAndIntervalsAndStopsOnTechnicalFailure(t *testing.
 		t.Run(mode, func(t *testing.T) {
 			var events []time.Time
 			logout := false
-			client, _ := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+			client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
 				case "/api/v1/auth/login":
 					serveLogin(t, w, r)
 				case "/api/v1/auth/logout":
 					logout = true
-					w.WriteHeader(204)
+					w.WriteHeader(http.StatusNoContent)
 				case "/api/v1/orders":
 					events = append(events, time.Now())
 					switch mode {
 					case "failure":
-						w.WriteHeader(503)
+						w.WriteHeader(http.StatusServiceUnavailable)
 						_, _ = w.Write([]byte(`{"error":{"code":"SERVICE_UNAVAILABLE"}}`))
 					case "refusal":
-						w.WriteHeader(409)
+						w.WriteHeader(http.StatusConflict)
 						_, _ = w.Write([]byte(`{"error":{"code":"INSUFFICIENT_STOCK"}}`))
 					default:
-						w.WriteHeader(201)
+						w.WriteHeader(http.StatusCreated)
 						_ = json.NewEncoder(w).Encode(dto.OrderDetail{ID: uuid.New()})
 					}
 				default:
@@ -46,7 +46,13 @@ func TestRunnerBoundsMutationsAndIntervalsAndStopsOnTechnicalFailure(t *testing.
 					_ = json.NewEncoder(w).Encode(dish)
 				}
 			})
-			options := Options{DishID: testDish.ID.String(), Scenario: "depletion", Count: 3, Interval: 20 * time.Millisecond, Expiry: 30 * time.Second}
+			options := Options{
+				DishID:   testDish.ID.String(),
+				Scenario: "depletion",
+				Count:    3,
+				Interval: 20 * time.Millisecond,
+				Expiry:   30 * time.Second,
+			}
 			var out bytes.Buffer
 			err := client.Run(context.Background(), "test-password", options, &out)
 			if mode == "failure" {
@@ -77,13 +83,13 @@ func TestRunnerCancellationDuringIntervalAndHTTPRevokesSession(t *testing.T) {
 			defer cancel()
 			mutations := 0
 			logout := false
-			client, _ := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+			client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
 				case "/api/v1/auth/login":
 					serveLogin(t, w, r)
 				case "/api/v1/auth/logout":
 					logout = true
-					w.WriteHeader(204)
+					w.WriteHeader(http.StatusNoContent)
 				case "/api/v1/orders":
 					mutations++
 					if mode == "request" {
@@ -92,7 +98,7 @@ func TestRunnerCancellationDuringIntervalAndHTTPRevokesSession(t *testing.T) {
 						<-r.Context().Done()
 						return
 					}
-					w.WriteHeader(201)
+					w.WriteHeader(http.StatusCreated)
 					_ = json.NewEncoder(w).Encode(dto.OrderDetail{ID: uuid.New()})
 					cancel()
 				default:
@@ -102,7 +108,18 @@ func TestRunnerCancellationDuringIntervalAndHTTPRevokesSession(t *testing.T) {
 				}
 			})
 			started := time.Now()
-			err := client.Run(ctx, "test-password", Options{DishID: testDish.ID.String(), Scenario: "depletion", Count: 100, Interval: time.Hour, Expiry: 30 * time.Second}, &bytes.Buffer{})
+			err := client.Run(
+				ctx,
+				"test-password",
+				Options{
+					DishID:   testDish.ID.String(),
+					Scenario: "depletion",
+					Count:    100,
+					Interval: time.Hour,
+					Expiry:   30 * time.Second,
+				},
+				&bytes.Buffer{},
+			)
 			if !errors.Is(err, context.Canceled) || mutations != 1 || !logout || time.Since(started) > time.Second {
 				t.Fatalf("cancellation failed: %v mutations=%d logout=%v", err, mutations, logout)
 			}
@@ -112,7 +129,7 @@ func TestRunnerCancellationDuringIntervalAndHTTPRevokesSession(t *testing.T) {
 
 func TestRunnerRejectsInvalidOptionsBeforeLogin(t *testing.T) {
 	contacted := false
-	client, _ := testClient(t, func(w http.ResponseWriter, r *http.Request) { contacted = true })
+	client := testClient(t, func(w http.ResponseWriter, r *http.Request) { contacted = true })
 	valid := Options{Scenario: "normal", Count: 1, Expiry: 30 * time.Second}
 	cases := []Options{}
 	for _, count := range []int{0, -1, 10001} {

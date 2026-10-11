@@ -44,7 +44,7 @@ func RequestLogger(logger *zap.Logger) gin.HandlerFunc {
 		fields := []zap.Field{
 			zap.String("method", c.Request.Method),
 			zap.String("route", route),
-			zap.Int("status", status),
+			zap.Int(responseStatus, status),
 			zap.Duration("duration", time.Since(started)),
 		}
 
@@ -118,7 +118,8 @@ func RateLimit(requestsPerSecond int, burst int) gin.HandlerFunc {
 	)
 
 	return func(c *gin.Context) {
-		if c.Request.Method == http.MethodGet && c.Request.URL.Path == "/api/v1/healthcheck" {
+		if c.Request.Method == http.MethodGet &&
+			(c.Request.URL.Path == "/api/v1/healthcheck" || c.Request.URL.Path == "/api/v1/ready") {
 			c.Next()
 			return
 		}

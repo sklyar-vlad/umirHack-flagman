@@ -44,7 +44,11 @@ func conditions(f model.AnalyticsFilter, losses bool) (string, []any) {
 	return " WHERE " + strings.Join(clauses, " AND "), args
 }
 
-func (r *Repository) WriteOffs(ctx context.Context, q repository.DBTX, f model.AnalyticsFilter) ([]dto.WriteOffAnalytics, int64, error) {
+func (r *Repository) WriteOffs(
+	ctx context.Context,
+	q repository.DBTX,
+	f model.AnalyticsFilter,
+) ([]dto.WriteOffAnalytics, int64, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return nil, 0, err
@@ -65,7 +69,14 @@ func (r *Repository) WriteOffs(ctx context.Context, q repository.DBTX, f model.A
 	if err = tx.QueryRow(ctx, cte+"SELECT count(*) FROM grouped", args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count write-off analytics: %w", err)
 	}
-	rows, err := tx.Query(ctx, fmt.Sprintf(cte+`SELECT product_id,product_name,unit,expired,manual,quantity,movements FROM grouped ORDER BY product_name,product_id,unit LIMIT $%d OFFSET $%d`, len(args)+1, len(args)+2), append(args, f.PageSize, offset)...)
+	rows, err := tx.Query(
+		ctx,
+		fmt.Sprintf(
+			cte+`SELECT product_id,product_name,unit,expired,manual,quantity,movements FROM grouped ORDER BY product_name,product_id,unit LIMIT $%d OFFSET $%d`,
+			len(args)+1,
+			len(args)+2,
+		),
+		append(args, f.PageSize, offset)...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list write-off analytics: %w", err)
 	}
@@ -73,7 +84,15 @@ func (r *Repository) WriteOffs(ctx context.Context, q repository.DBTX, f model.A
 	items := make([]dto.WriteOffAnalytics, 0)
 	for rows.Next() {
 		var item dto.WriteOffAnalytics
-		if err = rows.Scan(&item.ProductID, &item.ProductName, &item.Unit, &item.ExpiredWrittenOffQuantity, &item.ManualWrittenOffQuantity, &item.TotalWrittenOffQuantity, &item.MovementsCount); err != nil {
+		if err = rows.Scan(
+			&item.ProductID,
+			&item.ProductName,
+			&item.Unit,
+			&item.ExpiredWrittenOffQuantity,
+			&item.ManualWrittenOffQuantity,
+			&item.TotalWrittenOffQuantity,
+			&item.MovementsCount,
+		); err != nil {
 			return nil, 0, fmt.Errorf("scan write-off analytics: %w", err)
 		}
 		items = append(items, item)

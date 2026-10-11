@@ -70,11 +70,33 @@ func TestDashboardErrorsNeverReturnPartialResponse(t *testing.T) {
 			product := uuid.New()
 			version := 1
 			now := time.Now().UTC()
-			r := &repositoryStub{stage: stage, err: want, data: model.DashboardData{
-				Settings: model.DashboardSettings{ExpiringThresholdHours: 24},
-				Stock:    []model.ProcurementStock{{Product: model.Product{ID: product, Unit: "g"}, AvailableQuantity: "1.000", ExpiredQuantity: "0.000"}},
-			}, dishes: []model.Dish{{ID: uuid.New(), IsActive: true, RecipeVersion: &version, Recipe: []model.RecipeIngredient{{ProductID: product, Unit: "g", QuantityPerPortion: "1.000"}}}},
-				batches: []model.OrderBatch{{ID: uuid.New(), ProductID: product, RemainingQuantity: "1.000", ExpiresAt: now.Add(time.Hour)}}}
+			r := &repositoryStub{
+				stage: stage,
+				err:   want,
+				data: model.DashboardData{
+					Settings: model.DashboardSettings{ExpiringThresholdHours: 24},
+					Stock: []model.ProcurementStock{
+						{
+							Product:           model.Product{ID: product, Unit: "g"},
+							AvailableQuantity: "1.000",
+							ExpiredQuantity:   "0.000",
+						},
+					},
+				},
+				dishes: []model.Dish{
+					{
+						ID:            uuid.New(),
+						IsActive:      true,
+						RecipeVersion: &version,
+						Recipe: []model.RecipeIngredient{
+							{ProductID: product, Unit: "g", QuantityPerPortion: "1.000"},
+						},
+					},
+				},
+				batches: []model.OrderBatch{
+					{ID: uuid.New(), ProductID: product, RemainingQuantity: "1.000", ExpiresAt: now.Add(time.Hour)},
+				},
+			}
 			tx := &transactionsStub{t: t}
 			switch stage {
 			case "commit":
@@ -97,7 +119,8 @@ func TestDashboardErrorsNeverReturnPartialResponse(t *testing.T) {
 			if err == nil || !reflect.DeepEqual(result, dto.DashboardResponse{}) {
 				t.Fatalf("partial result: %+v %v", result, err)
 			}
-			if (stage == "stock" || stage == "recipes" || stage == "batches" || stage == "commit") && !errors.Is(err, want) {
+			if (stage == "stock" || stage == "recipes" || stage == "batches" || stage == "commit") &&
+				!errors.Is(err, want) {
 				t.Fatal(err)
 			}
 		})

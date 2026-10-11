@@ -15,6 +15,8 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
+const fieldRecipe = "recipe"
+
 type Service interface {
 	Create(context.Context, dto.CreateDishRequest) (dto.Dish, error)
 	Update(context.Context, uuid.UUID, dto.UpdateDishRequest) (dto.Dish, error)
@@ -48,7 +50,8 @@ func object(data []byte, allowed map[string]bool) (map[string]json.RawMessage, e
 			return nil, invalid(name)
 		}
 		nullable, ok := allowed[name]
-		if _, duplicate := fields[name]; !ok || duplicate || (!nullable && bytes.Equal(bytes.TrimSpace(raw), []byte("null"))) {
+		if _, duplicate := fields[name]; !ok || duplicate ||
+			(!nullable && bytes.Equal(bytes.TrimSpace(raw), []byte("null"))) {
 			return nil, invalid(name)
 		}
 		fields[name] = raw
@@ -68,10 +71,10 @@ func decode(c *gin.Context, dst any, allowed map[string]bool) error {
 	if err != nil {
 		return err
 	}
-	if raw, ok := fields["recipe"]; ok {
+	if raw, ok := fields[fieldRecipe]; ok {
 		var items []json.RawMessage
 		if err := json.Unmarshal(raw, &items); err != nil {
-			return invalid("recipe")
+			return invalid(fieldRecipe)
 		}
 		for _, item := range items {
 			if _, err := object(item, map[string]bool{"product_id": false, "quantity_per_portion": false}); err != nil {
@@ -87,7 +90,11 @@ func decode(c *gin.Context, dst any, allowed map[string]bool) error {
 
 func (h *Handler) Create(c *gin.Context) {
 	var input dto.CreateDishRequest
-	if err := decode(c, &input, map[string]bool{"name": false, "description": true, "is_active": false, "recipe": false}); err != nil {
+	if err := decode(
+		c,
+		&input,
+		map[string]bool{"name": false, "description": true, "is_active": false, fieldRecipe: false},
+	); err != nil {
 		basehandler.WriteError(c, err)
 		return
 	}
@@ -106,7 +113,17 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 	var input dto.UpdateDishRequest
-	if err := decode(c, &input, map[string]bool{"name": false, "description": true, "is_active": false, "recipe": false, "expected_revision": false}); err != nil {
+	if err := decode(
+		c,
+		&input,
+		map[string]bool{
+			"name":              false,
+			"description":       true,
+			"is_active":         false,
+			fieldRecipe:         false,
+			"expected_revision": false,
+		},
+	); err != nil {
 		basehandler.WriteError(c, err)
 		return
 	}
@@ -120,7 +137,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 func (h *Handler) Preview(c *gin.Context) {
 	var input dto.PreviewDishRequest
-	if err := decode(c, &input, map[string]bool{"recipe": false}); err != nil {
+	if err := decode(c, &input, map[string]bool{fieldRecipe: false}); err != nil {
 		basehandler.WriteError(c, err)
 		return
 	}

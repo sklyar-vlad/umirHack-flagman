@@ -12,7 +12,7 @@ task up
 
 - Frontend: http://flagman.localhost
 - Healthcheck backend: http://api.flagman.localhost/api/v1/healthcheck
-- Панель Traefik: http://traefik.flagman.localhost/dashboard/
+- Панель Traefik: http://traefik.flagman.localhost:8081/dashboard/ (loopback)
 
 Frontend также проксирует `/api/` в backend, поэтому healthcheck доступен
 по адресу http://flagman.localhost/api/v1/healthcheck.
@@ -26,11 +26,11 @@ Backend подключается к `db:5432` внутри Docker, а Goose и �
 Для подключения к PostgreSQL из VS Code используйте host `127.0.0.1`, port
 `5432`, database из `POSTGRES_DB`, user из `POSTGRES_USER` и пароль из
 `POSTGRES_PASS` в `infrastructure/.env`. SSL для локального подключения
-отключён. Порт БД опубликован на хосте;
+отключён. Порт БД опубликован только на 127.0.0.1 через `compose.local.yaml`;
 backend внутри Docker продолжает подключаться к `db:5432`.
 
 ```sh
-docker compose -f infrastructure/compose.yaml logs -f
+docker compose --env-file infrastructure/.env -f infrastructure/compose.yaml -f infrastructure/compose.local.yaml logs -f
 docker compose -f infrastructure/compose.yaml down
 ```
 
@@ -254,3 +254,96 @@ ENV=demo go -C backend run ./cmd/demo-events --confirm-demo \
   --demo-url http://localhost:8080 --origin http://localhost:5173 \
   --scenario depletion --count 5 --interval 1s
 ```
+
+## Мониторинг
+
+Миграция `00011_monitoring_views.sql` добавляет четыре read-only представления:
+остатки по продукту и единице, положительные проблемные партии, актуальный
+стоп-лист и списания по дням UTC, продуктам и историческим единицам. Списания
+включают только `expiration` и `manual_writeoff`; разные единицы не складываются.
+Представления не раскрывают пользователей, сессии, аудит или текст причин.
+
+Храните три секрета `metrics_token` (не менее 32 случайных байт),
+`grafana_admin_password` и `grafana_pg_password` вне репозитория. Укажите абсолютный
+`FLAGMAN_SECRETS_DIR` в окружении запуска. Файлы должны быть доступны соответствующим
+container UID (Grafana 472, Prometheus 65534), а каталог — только оператору.
+Не передавайте секреты аргументами команд и не включайте их в образы.
+
+После миграций настройте отдельного SQL-пользователя через административное
+подключение к нужной базе. Скрипт не выдаёт ему доступ к исходным таблицам и
+отказывает при уже существующих memberships. Запуск для локального окружения:
+
+```sh
+export FLAGMAN_GRAFANA_PASSWORD="$(cat "$FLAGMAN_SECRETS_DIR/grafana_pg_password")"
+# PGHOST/PGPORT/PGDATABASE/PGUSER и PGPASSFILE задайте для локальной базы.
+psql -X -v ON_ERROR_STOP=1 -f infrastructure/monitoring/grafana-role.sql
+unset FLAGMAN_GRAFANA_PASSWORD
+docker compose --env-file infrastructure/.env -f infrastructure/compose.yaml \
+  -f infrastructure/compose.monitoring.yaml up -d backend prometheus grafana
+```
+
+Grafana: http://127.0.0.1:3000 (логин обязателен). Prometheus не имеет публичного
+порта; scrape идёт по внутренней сети с bearer-файлом. Grafana автоматически
+получает datasource Prometheus и Warehouse, а также dashboard Flagman. SQL-role
+имеет только SELECT на четыре представления, default read-only и timeout 5 секунд.
+Применяйте скрипт повторно после миграций/восстановления; новые таблицы автоматически
+не открываются. Роль не должна использоваться приложением или мигратором.
+Секрет datasource не возвращается через API Grafana. Для удалённого оператора
+используйте SSH-туннель к loopback, например `ssh -L 3000:127.0.0.1:3000 host`.
+
+Технические панели: HTTP RPS/5xx/p95, предметные отказы, конфликты и реальные
+повторы фоновых транзакций, backlog/возраст outbox, overdue-expiry, время последнего
+успешного прохода, ошибки и p95 worker, состояние scrape/DB. SQL-панели: остатки,
+проблемные партии, стоп-лист, списания в выбранном UTC диапазоне. SQL losses
+агрегируются по полным UTC дням; используйте границы дней в time picker.
+
+
+## Изоляция и резервное восстановление
+
+Базовый Compose не публикует PostgreSQL. БД доступна backend и Grafana только
+через внутреннюю сеть `flagman-warehouse`; Grafana получает отдельную SQL-роль.
+`task up` явно добавляет `compose.local.yaml` для Goose/редактора на 127.0.0.1.
+Не добавляйте этот override на VPS. Traefik dashboard слушает отдельный admin
+entrypoint, опубликованный только на 127.0.0.1:8081. У публичного backend router
+есть ограничение `/api/`; `/metrics` доступен только внутри сети с bearer token.
+На frontend `/metrics` возвращает SPA, но не содержимое метрик.
+
+Backup содержит пользовательские данные, сессии и аудит: храните его вне Git,
+шифруйте внешнюю копию и ограничивайте доступ. Скрипты требуют PostgreSQL client
+той же основной версии (18) или новее; можно запускать их в `postgres:18-alpine`.
+Для host-команд задайте PGHOST, PGPORT, PGUSER, PGDATABASE и PGPASSFILE вне
+репозитория (права 0600); пароль не передавайте в argv. Пример для локальной БД:
+
+```sh
+# Каталог backup должен находиться вне репозитория; файл ещё не должен существовать.
+sh infrastructure/database/backup.sh /srv/flagman-backups/warehouse.dump
+sh infrastructure/database/restore-test.sh /srv/flagman-backups/warehouse.dump flagman_restore_test_20261011
+```
+
+`pg_dump -Fc` создаёт согласованный архив схемы и данных без остановки приложения.
+Скрипт проверяет оглавление архива и удаляет частичный файл при отказе. Restore
+создаёт новую базу с обязательным префиксом, не перезаписывает существующую и
+применяет архив одной транзакцией без owners/ACL. SQL-проверка читает все четыре
+monitoring views, Goose и считает строки всех таблиц. Сравните количества и
+предметные факты со snapshot backup; при продолжающихся записях текущая база
+может уже отличаться. Запустите тот же backend только с URL тестовой базы и
+проверьте `/api/v1/ready`. После реального аварийного восстановления оператор
+повторно выдаёт права отдельной Grafana-роли; архив приложения не переносит
+кластерные роли. Подмена рабочей базы и удаление тестовой базы выполняются
+оператором отдельно после проверки; скрипт этого не делает.
+
+Локальные проверки actual pg_dump/pg_restore, защиты существующей базы,
+всех данных/Goose и readiness:
+
+```sh
+FLAGMAN_TEST_BACKUP=1 go -C backend test -count=1 -run TestBackupRestore ./database
+```
+
+Используется только `FLAGMAN_TEST_DATABASE_URL` выделенной локальной test-БД,
+новые временные базы и Docker `postgres:18-alpine`. Проверка удаляет лишь созданные
+ею test-базы. Работа с VPS и расписание/внешнее хранение backup остаются оператору.
+
+
+## HTTPS на VPS
+
+Отдельная полная конфигурация и порядок rollout/backup/restore/проверок: [HTTPS.md](HTTPS.md). Реальное развёртывание и проверка конечного домена выполняются владельцем после локальной верификации.

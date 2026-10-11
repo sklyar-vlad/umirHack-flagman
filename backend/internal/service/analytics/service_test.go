@@ -32,8 +32,12 @@ func TestAnalyticsServiceRejectsMissingAndForbiddenActorsBeforeDatabase(t *testi
 		}
 	}
 }
+
 func TestAnalyticsErrorsPreserveCancellationAndHidePostgresDetails(t *testing.T) {
-	original := fmt.Errorf("wrapped: %w", &pgconn.PgError{Code: "22003", Message: "secret-message", Detail: "secret-detail"})
+	original := fmt.Errorf(
+		"wrapped: %w",
+		&pgconn.PgError{Code: "22003", Message: "secret-message", Detail: "secret-detail"},
+	)
 	if got := safeError(original).Error(); got != "analytics: database error (SQLSTATE 22003)" {
 		t.Fatal(got)
 	}

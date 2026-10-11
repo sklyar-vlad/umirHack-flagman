@@ -35,6 +35,11 @@ type Repository interface {
 	RevokeSession(context.Context, string) error
 }
 
+type Service struct {
+	repo           Repository
+	frontendOrigin string
+}
+
 // Authenticate does not return the raw token in an API response. The handler
 // places it only in a host-only session cookie.
 func (s *Service) Authenticate(ctx context.Context, email, password string) (model.Session, string, error) {
@@ -59,7 +64,13 @@ func (s *Service) Authenticate(ctx context.Context, email, password string) (mod
 	if err != nil {
 		return model.Session{}, "", err
 	}
-	session, err := s.repo.CreateSession(ctx, credentials.User.ID, credentials.PasswordHash, SessionTokenHash(token), csrf)
+	session, err := s.repo.CreateSession(
+		ctx,
+		credentials.User.ID,
+		credentials.PasswordHash,
+		SessionTokenHash(token),
+		csrf,
+	)
 	if err != nil {
 		return model.Session{}, "", err
 	}
@@ -80,11 +91,6 @@ func (s *Service) CurrentSession(ctx context.Context, token string) (model.Sessi
 
 func (s *Service) Revoke(ctx context.Context, token string) error {
 	return s.repo.RevokeSession(ctx, SessionTokenHash(token))
-}
-
-type Service struct {
-	repo           Repository
-	frontendOrigin string
 }
 
 func NewService(repo Repository, frontendOrigin string) (*Service, error) {
@@ -162,6 +168,7 @@ func (s *Service) activeSession(ctx context.Context, token string) (model.Sessio
 func (s *Service) SecureCookies() bool { return strings.HasPrefix(s.frontendOrigin, "https://") }
 
 func (s *Service) AllowedOrigin(origin string) bool { return origin == s.frontendOrigin }
-func (s *Service) ValidMutation(session model.Session, origin, csrf string) bool {
-	return s.AllowedOrigin(origin) && session.CSRFToken != "" && subtle.ConstantTimeCompare([]byte(csrf), []byte(session.CSRFToken)) == 1
+func (s *Service) ValidMutation(session *model.Session, origin, csrf string) bool {
+	return s.AllowedOrigin(origin) && session.CSRFToken != "" &&
+		subtle.ConstantTimeCompare([]byte(csrf), []byte(session.CSRFToken)) == 1
 }

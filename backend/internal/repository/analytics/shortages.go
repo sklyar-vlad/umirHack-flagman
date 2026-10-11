@@ -10,7 +10,11 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
-func (r *Repository) IngredientShortages(ctx context.Context, q repository.DBTX, f model.AnalyticsFilter) ([]dto.IngredientShortageAnalytics, int64, error) {
+func (r *Repository) IngredientShortages(
+	ctx context.Context,
+	q repository.DBTX,
+	f model.AnalyticsFilter,
+) ([]dto.IngredientShortageAnalytics, int64, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return nil, 0, err
@@ -34,7 +38,14 @@ func (r *Repository) IngredientShortages(ctx context.Context, q repository.DBTX,
 	if err = tx.QueryRow(ctx, cte+"SELECT count(*) FROM grouped", args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count ingredient shortage analytics: %w", err)
 	}
-	rows, err := tx.Query(ctx, fmt.Sprintf(cte+`SELECT product_id,product_name,unit,attempts,quantity FROM grouped ORDER BY attempts DESC,product_id,unit LIMIT $%d OFFSET $%d`, len(args)+1, len(args)+2), append(args, f.PageSize, offset)...)
+	rows, err := tx.Query(
+		ctx,
+		fmt.Sprintf(
+			cte+`SELECT product_id,product_name,unit,attempts,quantity FROM grouped ORDER BY attempts DESC,product_id,unit LIMIT $%d OFFSET $%d`,
+			len(args)+1,
+			len(args)+2,
+		),
+		append(args, f.PageSize, offset)...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list ingredient shortage analytics: %w", err)
 	}
@@ -42,7 +53,13 @@ func (r *Repository) IngredientShortages(ctx context.Context, q repository.DBTX,
 	items := make([]dto.IngredientShortageAnalytics, 0)
 	for rows.Next() {
 		var item dto.IngredientShortageAnalytics
-		if err = rows.Scan(&item.ProductID, &item.ProductName, &item.Unit, &item.RejectedAttemptsCount, &item.TotalMissingQuantity); err != nil {
+		if err = rows.Scan(
+			&item.ProductID,
+			&item.ProductName,
+			&item.Unit,
+			&item.RejectedAttemptsCount,
+			&item.TotalMissingQuantity,
+		); err != nil {
 			return nil, 0, fmt.Errorf("scan ingredient shortage analytics: %w", err)
 		}
 		items = append(items, item)

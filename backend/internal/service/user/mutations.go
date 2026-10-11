@@ -20,13 +20,16 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
+const roleAdmin = "admin"
+
 func field(field string) *validations.FieldError {
 	return &validations.FieldError{Field: field, Message: "Некорректное значение"}
 }
 
 func validateName(name string) (string, error) {
 	name = strings.TrimSpace(name)
-	if !utf8.ValidString(name) || utf8.RuneCountInString(name) < 1 || utf8.RuneCountInString(name) > 200 || strings.ContainsFunc(name, unicode.IsControl) {
+	if !utf8.ValidString(name) || utf8.RuneCountInString(name) < 1 || utf8.RuneCountInString(name) > 200 ||
+		strings.ContainsFunc(name, unicode.IsControl) {
 		return "", field("name")
 	}
 	return name, nil
@@ -35,7 +38,8 @@ func validateName(name string) (string, error) {
 func validateEmail(email string) (string, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	parsed, err := mail.ParseAddress(email)
-	if err != nil || parsed.Address != email || len(email) > 254 || !utf8.ValidString(email) || strings.ContainsAny(email, "\x00\r\n") {
+	if err != nil || parsed.Address != email || len(email) > 254 || !utf8.ValidString(email) ||
+		strings.ContainsAny(email, "\x00\r\n") {
 		return "", field("email")
 	}
 	return email, nil
@@ -98,16 +102,21 @@ func (s *Service) Create(ctx context.Context, input dto.CreateUserRequest) (dto.
 			return err
 		}
 		var err error
-		result, err = s.repo.Create(ctx, tx, model.User{Name: name, Email: email, Role: input.Role, IsActive: active}, hash)
+		result, err = s.repo.Create(
+			ctx,
+			tx,
+			&model.User{Name: name, Email: email, Role: input.Role, IsActive: active},
+			hash,
+		)
 		if err != nil {
 			return err
 		}
-		return s.appendAudit(ctx, tx, nil, result, model.AuditCreate)
+		return s.appendAudit(ctx, tx, nil, &result, model.AuditCreate)
 	})
 	if err != nil {
 		return dto.User{}, mutationError(err)
 	}
-	return userDTO(result), nil
+	return userDTO(&result), nil
 }
 
 func (s *Service) Update(ctx context.Context, id uuid.UUID, input dto.UpdateUserRequest) (dto.User, error) {
@@ -162,7 +171,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, input dto.UpdateUser
 		if input.IsActive != nil {
 			next.IsActive = *input.IsActive
 		}
-		if before.IsActive && before.Role == "admin" && (!next.IsActive || next.Role != "admin") {
+		if before.IsActive && before.Role == roleAdmin && (!next.IsActive || next.Role != roleAdmin) {
 			count, err := s.repo.CountActiveAdmins(ctx, tx)
 			if err != nil {
 				return err
@@ -171,7 +180,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, input dto.UpdateUser
 				return apperrors.ErrLastAdmin
 			}
 		}
-		result, err = s.repo.Update(ctx, tx, next)
+		result, err = s.repo.Update(ctx, tx, &next)
 		if err != nil {
 			return err
 		}
@@ -180,12 +189,12 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, input dto.UpdateUser
 				return err
 			}
 		}
-		return s.appendAudit(ctx, tx, &before, result, model.AuditUpdate)
+		return s.appendAudit(ctx, tx, &before, &result, model.AuditUpdate)
 	})
 	if err != nil {
 		return dto.User{}, mutationError(err)
 	}
-	return userDTO(result), nil
+	return userDTO(&result), nil
 }
 
 func (s *Service) Password(ctx context.Context, id uuid.UUID, input dto.UserPasswordRequest) (dto.User, error) {
@@ -221,12 +230,12 @@ func (s *Service) Password(ctx context.Context, id uuid.UUID, input dto.UserPass
 		if err := s.repo.RevokeSessions(ctx, tx, id); err != nil {
 			return err
 		}
-		return s.appendAudit(ctx, tx, &before, result, model.AuditPasswordChange)
+		return s.appendAudit(ctx, tx, &before, &result, model.AuditPasswordChange)
 	})
 	if err != nil {
 		return dto.User{}, mutationError(err)
 	}
-	return userDTO(result), nil
+	return userDTO(&result), nil
 }
 
 // Read committed gives each statement a fresh snapshot after the advisory wait.
@@ -243,7 +252,7 @@ func (s *Service) lockAdministration(ctx context.Context, tx repository.DBTX) er
 	if err != nil {
 		return err
 	}
-	if !current.IsActive || current.Role != "admin" {
+	if !current.IsActive || current.Role != roleAdmin {
 		return apperrors.ErrForbidden
 	}
 	return nil

@@ -2,6 +2,8 @@ package user
 
 import (
 	"context"
+	"net/http"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -9,8 +11,6 @@ import (
 	basehandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
-	"net/http"
-	"net/url"
 )
 
 type Service interface {
@@ -53,7 +53,10 @@ func (h *Handler) List(c *gin.Context) {
 		basehandler.WriteError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.UserListResponse{Items: items, Total: total, Page: f.Page, PageSize: f.PageSize, Meta: map[string]any{}})
+	c.JSON(
+		http.StatusOK,
+		dto.UserListResponse{Items: items, Total: total, Page: f.Page, PageSize: f.PageSize, Meta: map[string]any{}},
+	)
 }
 
 func (h *Handler) Get(c *gin.Context) {

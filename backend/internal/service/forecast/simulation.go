@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"slices"
+	"sort"
 	"time"
 
 	"github.com/sklyar-vlad/umirHack-flagman/internal/fefo"
@@ -19,12 +20,19 @@ type simulatedBatch struct {
 // ingredientStop simulates continuous average warehouse consumption, independent
 // of the candidate dish. Missing history uses an explicit expiry-only scenario.
 // Every quantity and event offset stays rational until the returned timestamp.
-func ingredientStop(batches []model.OrderBatch, required *big.Int, rate *big.Rat, now time.Time, horizon time.Duration) (*time.Time, string, error) {
+func ingredientStop(
+	batches []model.OrderBatch,
+	required *big.Int,
+	rate *big.Rat,
+	now time.Time,
+	horizon time.Duration,
+) (*time.Time, string, error) {
 	ordered := slices.Clone(batches)
-	slices.SortFunc(ordered, fefo.CompareBatches)
+	sort.Slice(ordered, func(i, j int) bool { return fefo.CompareBatches(&ordered[i], &ordered[j]) < 0 })
 	stock := []simulatedBatch{}
 	total := new(big.Rat)
-	for _, b := range ordered {
+	for i := range ordered {
+		b := &ordered[i]
 		n, err := quantity.ParseMilli(b.RemainingQuantity)
 		if err != nil {
 			return nil, "", fmt.Errorf("forecast batch: %w", err)
@@ -71,7 +79,7 @@ func ingredientStop(batches []model.OrderBatch, required *big.Int, rate *big.Rat
 			}
 		}
 		if next.Cmp(end) > 0 {
-			return nil, "unknown", nil
+			return nil, causeUnknown, nil
 		}
 		used := new(big.Rat).Mul(rate, new(big.Rat).Sub(next, cursor))
 		total.Sub(total, used)
@@ -87,5 +95,5 @@ func ingredientStop(batches []model.OrderBatch, required *big.Int, rate *big.Rat
 			return &at, "expiry", nil
 		}
 	}
-	return nil, "unknown", nil
+	return nil, causeUnknown, nil
 }

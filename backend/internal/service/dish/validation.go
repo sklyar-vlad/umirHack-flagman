@@ -30,7 +30,8 @@ func validateDish(d *model.Dish) error {
 			return field("name")
 		}
 	}
-	if d.Description != nil && (!utf8.ValidString(*d.Description) || utf8.RuneCountInString(*d.Description) > 2000 || strings.ContainsRune(*d.Description, 0)) {
+	if d.Description != nil &&
+		(!utf8.ValidString(*d.Description) || utf8.RuneCountInString(*d.Description) > 2000 || strings.ContainsRune(*d.Description, 0)) {
 		return field("description")
 	}
 	return nil
@@ -51,14 +52,20 @@ func validateRecipe(input []dto.RecipeInput) ([]model.RecipeIngredient, error) {
 			return nil, apperrors.ErrDuplicateIngredient
 		}
 		seen[id] = true
-		value, err := validations.ParseQuantity(fmt.Sprintf("recipe[%d].quantity_per_portion", i), item.QuantityPerPortion)
+		value, err := validations.ParseQuantity(
+			fmt.Sprintf("recipe[%d].quantity_per_portion", i),
+			item.QuantityPerPortion,
+		)
 		if err != nil {
 			return nil, err
 		}
 		if value <= 0 {
 			return nil, field(fmt.Sprintf("recipe[%d].quantity_per_portion", i))
 		}
-		result = append(result, model.RecipeIngredient{ProductID: id, QuantityPerPortion: fmt.Sprintf("%d.%03d", value/1000, value%1000)})
+		result = append(
+			result,
+			model.RecipeIngredient{ProductID: id, QuantityPerPortion: fmt.Sprintf("%d.%03d", value/1000, value%1000)},
+		)
 	}
 	return result, nil
 }
