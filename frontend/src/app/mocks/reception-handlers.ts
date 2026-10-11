@@ -1,3 +1,4 @@
+import { catalogProductHandlers } from './catalog-handlers'
 import { delay } from 'msw'
 import { http } from 'msw/http'
 import { z } from 'zod'
@@ -7,15 +8,7 @@ import { createMockError, createHealthcheckResponse } from './responses'
 import { getMockScenario } from './scenarios'
 
 export const receptionHandlers = [
-  http.get('/api/v1/products', async ({ request }) => {
-    const scenario = getMockScenario()
-    if (['network-error', 'unauthorized', 'forbidden', 'server-error', 'invalid-json', 'invalid-schema'].includes(scenario)) return createHealthcheckResponse(scenario)
-    if (scenario === 'products-slow') await delay(2000)
-    if (scenario === 'products-error') return createMockError(500, 'INTERNAL_ERROR', 'Каталог недоступен')
-    const url = new URL(request.url), page = Number(url.searchParams.get('page') ?? 1), page_size = Number(url.searchParams.get('page_size') ?? 50)
-    const products = scenario === 'products-empty' ? [] : receptionProducts
-    return Response.json({ items: products.slice((page - 1) * page_size, page * page_size), total: products.length, page, page_size, meta: {} })
-  }),
+  ...catalogProductHandlers,
   http.post('/api/v1/supplies', async ({ request }) => {
     const scenario = getMockScenario()
     if (['network-error', 'unauthorized', 'forbidden', 'server-error', 'invalid-json', 'invalid-schema'].includes(scenario)) return createHealthcheckResponse(scenario)

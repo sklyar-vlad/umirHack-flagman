@@ -1,4 +1,8 @@
 export const mockScenarios = [
+  { value: 'categories-empty', label: 'Категории · Пустой каталог' },
+  { value: 'category-save-slow', label: 'Категории · Сохранение' },
+  { value: 'category-revision-conflict', label: 'Категории · Конфликт ревизии' },
+  { value: 'category-lost-response', label: 'Категории · Ответ потерян после записи' },
   { value: 'dashboard-empty', label: 'Обзор · Пустые блоки' },
   { value: 'dashboard-preview', label: 'Обзор · Больше 20 партий' },
   { value: 'dashboard-expired', label: 'Обзор · Партия истекла' },

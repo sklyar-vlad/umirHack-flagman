@@ -1,3 +1,5 @@
-export { productApi, useActiveProductsQuery } from './api/product-api'
+export { productApi, useActiveProductsQuery, useProductsQuery } from './api/product-api'
 export { productSchema, productListSchema } from './model/contracts'
 export type { Product } from './model/contracts'
+export { defaultProductSearch, readProductSearch, productSearchParams, changeProductSearch, safeProductListUrl } from './model/product-search'
+export type { ProductSearch } from './model/product-search'

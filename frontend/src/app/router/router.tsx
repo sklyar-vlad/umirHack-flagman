@@ -10,6 +10,7 @@ import { SuppliesPage, SupplyEntryPage, SupplyDetailPage } from '@/pages/supplie
 import { OrdersPage, OrderDetailPage, NewOrderPage } from '@/pages/orders'
 import { ProcurementPage, RecommendationsLanding } from '@/pages/procurement'
 import { HotOffersPage } from '@/pages/hot-offers'
+import { ProductsPage, CategoriesPage, ProductEntryPage } from '@/pages/admin-products'
 import { DashboardPage } from '@/pages/dashboard'
 import { StopListPage } from '@/pages/stop-list'
 import { RouteError } from './RouteError'
@@ -25,11 +26,13 @@ const orders = sections.find((section) => section.id === 'orders')!
 const protectedRoutes: RouteObject[] = [
   ...sections.map((section): RouteObject => ({
     path: section.path,
-    element: guarded(section, section.id === 'overview' ? <DashboardPage /> : section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'offers' ? <HotOffersPage /> : section.id === 'procurement' ? <ProcurementPage /> : section.id === 'recommendations'
+    element: guarded(section, section.id === 'products' ? <ProductsPage /> : section.id === 'categories' ? <CategoriesPage /> : section.id === 'overview' ? <DashboardPage /> : section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'offers' ? <HotOffersPage /> : section.id === 'procurement' ? <ProcurementPage /> : section.id === 'recommendations'
       ? <RecommendationsLanding />
       : <SectionPage section={section} />),
   })),
   { path: '/dashboard', element: guarded(sections.find((section) => section.id === 'overview')!, <DashboardPage />) },
+  { path: '/admin/products/new', element: guarded(sections.find((section) => section.id === 'products')!, <ProductEntryPage />) },
+  { path: '/admin/products/:id', element: guarded(sections.find((section) => section.id === 'products')!, <ProductEntryPage />) },
   { path: '/admin', element: guarded(administration, <SectionLanding group="admin" />) },
   { path: '/dishes/:id', element: guarded(dishes) },
   { path: '/supplies/new', element: guarded(supplies, <SupplyEntryPage />) },

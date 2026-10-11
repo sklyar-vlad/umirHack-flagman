@@ -46,3 +46,5 @@ DEV-only /dev/access внутри оболочки использует healthch
 ## Приёмка (F08)
 
 reception-handlers.ts/reception-fixtures.ts добавляют GET /products и explicit POST /supplies. Панель содержит products-empty/error/slow и reception-slow/network/lost-response/validation/conflict/in-progress. Потеря ответа происходит после фиксации синтетического результата; повтор ключа/тела возвращает тот же SupplyDetail. Mock-only tab-local storage сохраняет результаты при reload. История, детали и склад читают синтетические принятые партии. Эти сценарии не доказывают настоящую серверную идемпотентность или CSRF/RBAC. Неизвестные endpoints остаются 501, production использует real API. Подробности — frontend/docs/supplies.md.
+
+F16: административный каталог явно читает all/true/false с серверными фильтрами и sort=name. Категории используют опубликованные GET/POST/PATCH и отдельное синтетическое sessionStorage-состояние. Сценарии categories-empty, category-save-slow, category-revision-conflict, category-lost-response проверяют UI, а не реальный backend. Неизвестный исход записи не вызывает автоматического повторения.

@@ -1,9 +1,21 @@
 import { baseApi, type ApiError } from '@/shared/api'
-import { productListSchema, type Product } from '../model/contracts'
+import { productListSchema, type Product, type ProductList } from '../model/contracts'
+
+import type { ProductSearch } from '../model/product-search'
 
 const invalid: ApiError = { status: 'INVALID_RESPONSE', code: 'INVALID_RESPONSE', message: 'Некорректный ответ каталога продуктов.', details: {} }
 export const productApi = baseApi.enhanceEndpoints({ addTagTypes: ['Products'] }).injectEndpoints({
   endpoints: (build) => ({
+    products: build.query<ProductList, ProductSearch>({
+      providesTags: ['Products'],
+      queryFn: async ({ search, category_id, ...params }, _api, _options, query) => {
+        const result = await query({ url: '/products', params: { ...params, ...(search && { search }), ...(category_id && { category_id }) } })
+        if (result.error) return { error: result.error }
+        const parsed = productListSchema.safeParse(result.data)
+        if (!parsed.success || parsed.data.page !== params.page || parsed.data.page_size !== params.page_size || parsed.data.items.length > params.page_size || parsed.data.items.length > parsed.data.total || new Set(parsed.data.items.map((item) => item.id)).size !== parsed.data.items.length) return { error: invalid }
+        return { data: parsed.data }
+      },
+    }),
     activeProducts: build.query<Product[], void>({
       providesTags: ['Products'],
       queryFn: async (_arg, _api, _options, query) => {
@@ -23,4 +35,4 @@ export const productApi = baseApi.enhanceEndpoints({ addTagTypes: ['Products'] }
     }),
   }),
 })
-export const { useActiveProductsQuery } = productApi
+export const { useActiveProductsQuery, useProductsQuery } = productApi

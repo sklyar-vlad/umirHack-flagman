@@ -8,8 +8,10 @@ export const productSchema = productBriefSchema.extend({
   target_stock: z.string().regex(/^\d{1,11}(?:\.\d{1,3})?$/).nullable(),
   is_active: z.boolean(), revision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   created_at: z.string().refine((value) => { try { parseApiDateTime(value); return true } catch { return false } }),
-})
+}).refine((value) => value.unit !== 'pcs' || value.target_stock === null || /^\d+(?:\.0+)?$/.test(value.target_stock), 'Целевой запас штук должен быть целым')
 export const productListSchema = z.object({
   items: z.array(productSchema), total: z.number().int().nonnegative(), page: z.number().int().positive(), page_size: z.number().int().min(1).max(100), meta: z.object({}).passthrough(),
 })
 export type Product = z.infer<typeof productSchema>
+
+export type ProductList = z.infer<typeof productListSchema>

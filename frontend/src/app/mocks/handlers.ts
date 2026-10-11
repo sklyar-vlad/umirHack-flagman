@@ -1,3 +1,4 @@
+import { catalogHandlers } from './catalog-handlers'
 import { dashboardHandlers } from './dashboard-handlers'
 import { hotOfferHandlers } from './hot-offer-handlers'
 import { procurementHandlers } from './procurement-handlers'
@@ -25,6 +26,7 @@ export const handlers = [
   ...procurementHandlers,
   ...hotOfferHandlers,
   ...orderCompositionHandlers,
+  ...catalogHandlers,
   ...inventoryHandlers,
   ...supplyHandlers,
   ...receptionHandlers,

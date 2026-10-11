@@ -1,3 +1,4 @@
+import { readProductSearch, productSearchParams, safeProductListUrl } from '@/entities/product'
 import { z } from 'zod'
 import { procurementSearchParams, readProcurementSearch } from '@/entities/procurement'
 import { inventorySearchParams, readInventorySearch, inventorySelectionParams } from '@/entities/inventory'
@@ -10,6 +11,13 @@ export function safeReturnUrl(value: string | null | undefined): string {
   if (!value || !value.startsWith('/') || value.startsWith('//') || /[\\\s%]/u.test(value.split(/[?#]/)[0])) return '/'
   const url = new URL(value, 'https://internal.invalid')
   if (url.origin !== 'https://internal.invalid' || /^\/login(?:\/|$)/i.test(url.pathname)) return '/'
+  if (url.pathname === '/admin/products') {
+    const params = productSearchParams(readProductSearch(url.searchParams))
+    return url.pathname + (params.size ? `?${params}` : '')
+  }
+  if (/^\/admin\/products\/(?:new|[0-9a-f-]{36})$/i.test(url.pathname) && url.searchParams.has('returnTo')) {
+    return `${url.pathname}?${new URLSearchParams({ returnTo: safeProductListUrl(url.searchParams.get('returnTo')) })}`
+  }
   // Published warehouse filters and F07 UI-only product/supply selection.
   if (url.pathname === '/inventory') {
     const allowed = inventorySearchParams(readInventorySearch(url.searchParams))

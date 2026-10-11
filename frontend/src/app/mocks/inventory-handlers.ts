@@ -1,3 +1,4 @@
+import { catalogCategories } from './catalog-fixtures'
 import { consumedCompositionAmounts } from './order-composition-fixtures'
 import { orderDemoInventory, orderDemoSupplies } from './order-detail-warehouse-fixtures'
 import type { Batch } from '@/entities/inventory'
@@ -8,7 +9,7 @@ import { http } from 'msw/http'
 import type { InventoryFilter, InventoryResponse } from '@/entities/inventory'
 import { createHealthcheckResponse, createMockError } from './responses'
 import { getMockScenario, type MockScenario } from './scenarios'
-import { inventoryBatches, inventoryCategories, inventoryItems, inventoryServerTime } from './inventory-fixtures'
+import { inventoryBatches, inventoryItems, inventoryServerTime } from './inventory-fixtures'
 
 async function scenarioError(scenario: MockScenario, scope: 'inventory' | 'batches' | 'categories') {
   if (scenario === 'slow' || scope === 'batches' && scenario === 'batches-slow') await delay(2000)
@@ -79,7 +80,7 @@ export const inventoryHandlers = [
   http.get('/api/v1/product-categories', async ({ request }) => {
     const scenario = getMockScenario(), error = await scenarioError(scenario, 'categories')
     if (error) return error
-    return response(pageEnvelope(inventoryCategories, new URL(request.url), {}))
+    return response(pageEnvelope(catalogCategories(), new URL(request.url), {}))
   }),
   http.get('/api/v1/products/:id/batches', async ({ request, params }) => {
     const scenario = getMockScenario(), error = await scenarioError(scenario, 'batches')
