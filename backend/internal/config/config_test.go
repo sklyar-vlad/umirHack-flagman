@@ -19,10 +19,10 @@ func TestExternalRuntimeConfiguration(t *testing.T) {
 	dir := t.TempDir()
 	database := filepath.Join(dir, "database")
 	token := filepath.Join(dir, "token")
-	if err := os.WriteFile(database, []byte("postgres://test:test@db:5432/test\n"), 0600); err != nil {
+	if err := os.WriteFile(database, []byte("postgres://test:test@db:5432/test\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(token, []byte(strings.Repeat("x", 32)+"\n"), 0600); err != nil {
+	if err := os.WriteFile(token, []byte(strings.Repeat("x", 32)+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("POSTGRES_URL_FILE", database)
@@ -38,7 +38,8 @@ func TestExternalRuntimeConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Database.PostgresURL != "postgres://test:test@db:5432/test" || cfg.MetricsToken != strings.Repeat("x", 32) || cfg.Auth.FrontendOrigin != "https://flagman.example" {
+	if cfg.Database.PostgresURL != "postgres://test:test@db:5432/test" || cfg.MetricsToken != strings.Repeat("x", 32) ||
+		cfg.Auth.FrontendOrigin != "https://flagman.example" {
 		t.Fatal("external configuration mismatch")
 	}
 	t.Setenv("POSTGRES_URL", "secret-that-must-not-be-logged")
@@ -52,7 +53,7 @@ func TestExternalRuntimeConfiguration(t *testing.T) {
 	}
 	t.Setenv("POSTGRES_URL_FILE", database)
 	for _, value := range []string{"", "short"} {
-		if err := os.WriteFile(token, []byte(value), 0600); err != nil {
+		if err := os.WriteFile(token, []byte(value), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := NewConfig(); err == nil {
@@ -75,7 +76,7 @@ func TestExplicitLocalHTTPConfiguration(t *testing.T) {
 	if cfg.Auth.FrontendOrigin != "http://flagman.localhost" {
 		t.Fatal("local origin changed")
 	}
-	if err := os.WriteFile(".env", []byte("! invalid environment"), 0600); err != nil {
+	if err := os.WriteFile(".env", []byte("! invalid environment"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := NewConfig(); err == nil {

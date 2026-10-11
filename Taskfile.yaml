@@ -175,6 +175,44 @@ tasks:
 
 ### LINTING
 
+  backend:format-check:
+    desc: Проверить gofmt без изменения файлов
+    cmds:
+      - bash ./scripts/backend-checks.sh format
+
+  backend:lint:
+    desc: Проверить backend существующими правилами golangci-lint без исправлений
+    cmds:
+      - bash ./scripts/backend-checks.sh lint
+
+  backend:test:
+    desc: Модульные проверки backend без PostgreSQL (включая точные расчёты)
+    cmds:
+      - bash ./scripts/backend-checks.sh unit
+
+  backend:vet:
+    cmds:
+      - bash ./scripts/backend-checks.sh vet
+
+  backend:build:
+    cmds:
+      - bash ./scripts/backend-checks.sh build
+
+  backend:check:
+    desc: Неизменяющие исходники format/lint/test/vet/build для локальной разработки и CI
+    cmds:
+      - bash ./scripts/backend-checks.sh all
+
+  backend:integration:
+    desc: Все PostgreSQL тесты в новой временной БД на локальном Docker с Goose миграциями
+    cmds:
+      - bash ./scripts/backend-ci.sh integration
+
+  backend:smoke:
+    desc: Собрать образ backend и проверить API/readiness в отдельном Compose без БД приложения
+    cmds:
+      - bash ./scripts/backend-ci.sh smoke
+
   lint:
     dir: backend
     desc: formatting project
@@ -184,4 +222,3 @@ tasks:
       - golangci-lint run --fix
       - echo "✅ linting and formatting finished ✅"
     silent: true
-
