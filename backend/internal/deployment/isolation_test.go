@@ -9,8 +9,24 @@ import (
 )
 
 func TestComposeEndpointIsolation(t *testing.T) {
-	cmd := exec.Command("docker", "compose", "-f", infra+"/compose.yaml", "-f", infra+"/compose.monitoring.yaml", "config", "--format", "json")
-	cmd.Env = append(os.Environ(), "POSTGRES_DB=test", "POSTGRES_USER=test", "POSTGRES_PASS=test", "FLAGMAN_SECRETS_DIR=/tmp/flagman-test-secrets")
+	cmd := exec.Command(
+		"docker",
+		"compose",
+		"-f",
+		infra+"/compose.yaml",
+		"-f",
+		infra+"/compose.monitoring.yaml",
+		"config",
+		"--format",
+		"json",
+	)
+	cmd.Env = append(
+		os.Environ(),
+		"POSTGRES_DB=test",
+		"POSTGRES_USER=test",
+		"POSTGRES_PASS=test",
+		"FLAGMAN_SECRETS_DIR=/tmp/flagman-test-secrets",
+	)
 	b, err := cmd.Output()
 	if err != nil {
 		t.Fatal("compose config", err)

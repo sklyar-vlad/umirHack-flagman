@@ -1,6 +1,7 @@
 package database
 
 import (
+	"bytes"
 	"context"
 	"net"
 	"net/url"
@@ -34,14 +35,20 @@ func TestBackupRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer admin.Close()
-	if _, err := admin.Exec(ctx, "CREATE DATABASE "+pgx.Identifier{source}.Sanitize()+" TEMPLATE template0"); err != nil {
+	if _, err := admin.Exec(
+		ctx,
+		"CREATE DATABASE "+pgx.Identifier{source}.Sanitize()+" TEMPLATE template0",
+	); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
 		clean, stop := context.WithTimeout(context.Background(), 10*time.Second)
 		defer stop()
 		for _, name := range []string{target, source} {
-			if _, err := f.pool.Exec(clean, "DROP DATABASE IF EXISTS "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)"); err != nil {
+			if _, err := f.pool.Exec(
+				clean,
+				"DROP DATABASE IF EXISTS "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)",
+			); err != nil {
 				t.Error(err)
 			}
 		}
@@ -64,10 +71,30 @@ func TestBackupRestore(t *testing.T) {
 	secretPath := filepath.Join(dir, "postgres_url")
 	c := cfg.ConnConfig
 	sourceURL := (&url.URL{Scheme: "postgres", User: url.UserPassword(c.User, c.Password), Host: net.JoinHostPort(c.Host, strconv.Itoa(int(c.Port))), Path: "/" + source, RawQuery: "sslmode=disable"}).String()
-	if err := os.WriteFile(secretPath, []byte(sourceURL), 0600); err != nil {
+	if err := os.WriteFile(secretPath, []byte(sourceURL), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	migrate := exec.CommandContext(ctx, "docker", "run", "--rm", "--pull=never", "--network=host", "--read-only", "--user", strconv.Itoa(os.Getuid())+":"+strconv.Itoa(os.Getgid()), "-v", scripts+":/scripts:ro", "-v", migrationDir+":/migrations:ro", "-v", secretPath+":/run/secrets/postgres_url:ro", "--entrypoint", "sh", "gomicro/goose:latest", "/scripts/migrate.sh")
+	migrate := exec.CommandContext(
+		ctx,
+		"docker",
+		"run",
+		"--rm",
+		"--pull=never",
+		"--network=host",
+		"--read-only",
+		"--user",
+		strconv.Itoa(os.Getuid())+":"+strconv.Itoa(os.Getgid()),
+		"-v",
+		scripts+":/scripts:ro",
+		"-v",
+		migrationDir+":/migrations:ro",
+		"-v",
+		secretPath+":/run/secrets/postgres_url:ro",
+		"--entrypoint",
+		"sh",
+		"gomicro/goose:latest",
+		"/scripts/migrate.sh",
+	)
 	if out, err := migrate.CombinedOutput(); err != nil {
 		t.Fatalf("isolated migration tool failed: %v %s", err, out)
 	}
@@ -77,9 +104,47 @@ func TestBackupRestore(t *testing.T) {
 	seedMonitoring(t, &fixture{ctx: ctx, pool: pool})
 
 	run := func(script string, args ...string) error {
-		cmd := exec.CommandContext(ctx, "docker", append([]string{"run", "--rm", "--pull=never", "--network=host", "--read-only", "--cap-drop=ALL", "--user", strconv.Itoa(os.Getuid()) + ":" + strconv.Itoa(os.Getgid()), "-v", scripts + ":/scripts:ro", "-v", dir + ":/backup", "-e", "PGHOST", "-e", "PGPORT", "-e", "PGUSER", "-e", "PGPASSWORD", "-e", "PGDATABASE", "postgres:18-alpine", "sh", "/scripts/" + script}, args...)...)
+		cmd := exec.CommandContext(
+			ctx,
+			"docker",
+			append(
+				[]string{
+					"run",
+					"--rm",
+					"--pull=never",
+					"--network=host",
+					"--read-only",
+					"--cap-drop=ALL",
+					"--user",
+					strconv.Itoa(os.Getuid()) + ":" + strconv.Itoa(os.Getgid()),
+					"-v",
+					scripts + ":/scripts:ro",
+					"-v",
+					dir + ":/backup",
+					"-e",
+					"PGHOST",
+					"-e",
+					"PGPORT",
+					"-e",
+					"PGUSER",
+					"-e",
+					"PGPASSWORD",
+					"-e",
+					"PGDATABASE",
+					"postgres:18-alpine",
+					"sh",
+					"/scripts/" + script,
+				},
+				args...)...)
 		c := cfg.ConnConfig
-		cmd.Env = append(os.Environ(), "PGHOST="+c.Host, "PGPORT="+strconv.Itoa(int(c.Port)), "PGUSER="+c.User, "PGPASSWORD="+c.Password, "PGDATABASE="+source)
+		cmd.Env = append(
+			os.Environ(),
+			"PGHOST="+c.Host,
+			"PGPORT="+strconv.Itoa(int(c.Port)),
+			"PGUSER="+c.User,
+			"PGPASSWORD="+c.Password,
+			"PGDATABASE="+source,
+		)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Logf("script %s: %s", script, out)
@@ -97,7 +162,7 @@ func TestBackupRestore(t *testing.T) {
 		t.Fatal("overwrote archive")
 	}
 	current, _ := os.ReadFile(filepath.Join(dir, "warehouse.dump"))
-	if string(original) != string(current) {
+	if !bytes.Equal(original, current) {
 		t.Fatal("archive changed")
 	}
 	if err := run("restore-test.sh", "/backup/warehouse.dump", source); err == nil {
@@ -119,7 +184,10 @@ func TestBackupRestore(t *testing.T) {
 		t.Fatal("restored readiness", err)
 	}
 	// Compare every stored fact and ledger, not just row counts.
-	rows, err := pool.Query(ctx, `SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY table_name`)
+	rows, err := pool.Query(
+		ctx,
+		`SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY table_name`,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +205,9 @@ func TestBackupRestore(t *testing.T) {
 	}
 	names = append(names, "monitoring_stock", "monitoring_problem_batches", "monitoring_stop_list", "monitoring_losses")
 	for _, name := range names {
-		query := `SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text),'[]'::jsonb)::text FROM ` + pgx.Identifier{name}.Sanitize() + ` r`
+		query := `SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text),'[]'::jsonb)::text FROM ` + pgx.Identifier{
+			name,
+		}.Sanitize() + ` r`
 		var before, after string
 		if err := pool.QueryRow(ctx, query).Scan(&before); err != nil {
 			t.Fatal(err)

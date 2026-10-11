@@ -44,7 +44,17 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cert := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "flagman.example"}, DNSNames: []string{"flagman.example"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(48 * time.Hour), KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, IsCA: true, BasicConstraintsValid: true}
+	cert := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "flagman.example"},
+		DNSNames:              []string{"flagman.example"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(48 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
 	der, err := x509.CreateCertificate(rand.Reader, cert, cert, &key.PublicKey, key)
 	if err != nil {
 		t.Fatal(err)
@@ -52,12 +62,15 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
 	write := func(name string, b []byte) {
 		t.Helper()
-		if err := os.WriteFile(filepath.Join(dir, name), b, 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, name), b, 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
 	write("fullchain.pem", certPEM)
-	write("privkey.pem", pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}))
+	write(
+		"privkey.pem",
+		pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}),
+	)
 	// Exercise the operator preflight with real external certificate/secret files.
 	for _, name := range []string{"postgres_password", "postgres_url", "grafana_admin_password", "grafana_pg_password"} {
 		write(name, []byte("isolated-test-secret"))
@@ -65,7 +78,15 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 	write("metrics_token", []byte(strings.Repeat("a", 64)))
 	preflight := func(domain, secretDir string) error {
 		cmd := exec.Command("sh", "../../../../infrastructure/deploy-check.sh")
-		cmd.Env = append(os.Environ(), "FLAGMAN_DOMAIN="+domain, "POSTGRES_DB=test", "POSTGRES_USER=test", "FLAGMAN_SECRETS_DIR="+secretDir, "FLAGMAN_TLS_DIR="+dir, "FLAGMAN_BACKUP_DIR="+dir)
+		cmd.Env = append(
+			os.Environ(),
+			"FLAGMAN_DOMAIN="+domain,
+			"POSTGRES_DB=test",
+			"POSTGRES_USER=test",
+			"FLAGMAN_SECRETS_DIR="+secretDir,
+			"FLAGMAN_TLS_DIR="+dir,
+			"FLAGMAN_BACKUP_DIR="+dir,
+		)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Logf("preflight rejection: %s", out)
@@ -95,12 +116,33 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 	}
 	nginx := strings.ReplaceAll(string(raw), "listen 80;", fmt.Sprintf("listen 127.0.0.1:%d;", nginxPort))
 	nginx = strings.ReplaceAll(nginx, "http://backend:8080", server.URL)
-	write("nginx.conf", []byte("pid /tmp/nginx.pid; error_log stderr warn; events {} http { access_log off; client_body_temp_path /tmp/client; proxy_temp_path /tmp/proxy; fastcgi_temp_path /tmp/fastcgi; uwsgi_temp_path /tmp/uwsgi; scgi_temp_path /tmp/scgi; "+nginx+" }"))
+	write(
+		"nginx.conf",
+		[]byte(
+			"pid /tmp/nginx.pid; error_log stderr warn; events {} http { access_log off; client_body_temp_path /tmp/client; proxy_temp_path /tmp/proxy; fastcgi_temp_path /tmp/fastcgi; uwsgi_temp_path /tmp/uwsgi; scgi_temp_path /tmp/scgi; "+nginx+" }",
+		),
+	)
 	startProxy(t, dir, "flagman-frontend:latest", "nginx", "-c", "/test/nginx.conf", "-g", "daemon off;")
 	waitProxy(t, fmt.Sprintf("http://127.0.0.1:%d", nginxPort))
 	// Render the actual standalone deployment. Only ports/provider change for isolation.
-	command := exec.Command("docker", "compose", "-f", "../../../../infrastructure/compose.https.yaml", "config", "--format", "json")
-	command.Env = append(os.Environ(), "POSTGRES_DB=test", "POSTGRES_USER=test", "FLAGMAN_DOMAIN=flagman.example", "FLAGMAN_SECRETS_DIR=/tmp/test-secrets", "FLAGMAN_TLS_DIR=/tmp/test-certs", "FLAGMAN_BACKUP_DIR=/tmp/test-backup")
+	command := exec.Command(
+		"docker",
+		"compose",
+		"-f",
+		"../../../../infrastructure/compose.https.yaml",
+		"config",
+		"--format",
+		"json",
+	)
+	command.Env = append(
+		os.Environ(),
+		"POSTGRES_DB=test",
+		"POSTGRES_USER=test",
+		"FLAGMAN_DOMAIN=flagman.example",
+		"FLAGMAN_SECRETS_DIR=/tmp/test-secrets",
+		"FLAGMAN_TLS_DIR=/tmp/test-certs",
+		"FLAGMAN_BACKUP_DIR=/tmp/test-backup",
+	)
 	b, err := command.Output()
 	if err != nil {
 		t.Fatal(err)
@@ -178,10 +220,17 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 	waitProxy(t, fmt.Sprintf("http://127.0.0.1:%d", tlsPort))
 	roots := x509.NewCertPool()
 	roots.AppendCertsFromPEM(certPEM)
-	transport := &http.Transport{TLSClientConfig: &tls.Config{RootCAs: roots, ServerName: "flagman.example", MinVersion: tls.VersionTLS12}}
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{RootCAs: roots, ServerName: "flagman.example", MinVersion: tls.VersionTLS12},
+	}
 	defer transport.CloseIdleConnections()
 	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Transport: transport, Jar: jar, Timeout: 8 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{
+		Transport:     transport,
+		Jar:           jar,
+		Timeout:       8 * time.Second,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+	}
 	base := fmt.Sprintf("https://127.0.0.1:%d", tlsPort)
 	request := func(method, path, body, origin, csrf string) *http.Response {
 		t.Helper()
@@ -203,7 +252,7 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 		}
 		return res
 	}
-	req, _ := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/api/v1/auth/me", httpPort), http.NoBody)
+	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d/api/v1/auth/me", httpPort), http.NoBody)
 	req.Host = "flagman.example"
 	var res *http.Response
 	deadline := time.Now().Add(5 * time.Second)
@@ -211,7 +260,7 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 		res, err = client.Do(req)
 		if err == nil {
 			res.Body.Close()
-			if res.StatusCode == 301 || res.StatusCode == 308 {
+			if res.StatusCode == http.StatusMovedPermanently || res.StatusCode == http.StatusPermanentRedirect {
 				break
 			}
 		}
@@ -220,44 +269,60 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if (res.StatusCode != 301 && res.StatusCode != 308) || !strings.HasPrefix(res.Header.Get("Location"), "https://") {
+	if (res.StatusCode != http.StatusMovedPermanently && res.StatusCode != http.StatusPermanentRedirect) ||
+		!strings.HasPrefix(res.Header.Get("Location"), "https://") {
 		t.Fatal("HTTP did not redirect to TLS", res.StatusCode)
 	}
 	// The redirect router can appear before file-provider TLS configuration.
 	// Wait for the actual trusted handshake and application route, not just TCP.
-	readyReq, _ := http.NewRequest("GET", base+"/api/v1/auth/me", http.NoBody)
+	readyReq, _ := http.NewRequest(http.MethodGet, base+"/api/v1/auth/me", http.NoBody)
 	readyReq.Host = "flagman.example"
 	deadline = time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		res, err = client.Do(readyReq)
 		if err == nil {
 			res.Body.Close()
-			if res.StatusCode == 401 {
+			if res.StatusCode == http.StatusUnauthorized {
 				break
 			}
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	if err != nil || res.StatusCode != 401 {
+	if err != nil || res.StatusCode != http.StatusUnauthorized {
 		t.Fatal("HTTPS application did not become ready", err)
 	}
 	for _, origin := range []string{"http://flagman.example", "https://flagman.example.evil", "https://flagman.example:443"} {
-		res = request("POST", "/api/v1/auth/login", `{"email":"user@example.test","password":"`+password+`"}`, origin, "")
+		res = request(
+			"POST",
+			"/api/v1/auth/login",
+			`{"email":"user@example.test","password":"`+password+`"}`,
+			origin,
+			"",
+		)
 		res.Body.Close()
-		if res.StatusCode != 403 || res.Header.Get("Access-Control-Allow-Origin") != "" {
+		if res.StatusCode != http.StatusForbidden || res.Header.Get("Access-Control-Allow-Origin") != "" {
 			t.Fatal("wrong origin accepted", origin, res.StatusCode)
 		}
 	}
-	res = request("POST", "/api/v1/auth/login", `{"email":"user@example.test","password":"`+password+`"}`, "https://flagman.example", "")
-	if res.StatusCode != 200 {
+	res = request(
+		"POST",
+		"/api/v1/auth/login",
+		`{"email":"user@example.test","password":"`+password+`"}`,
+		"https://flagman.example",
+		"",
+	)
+	if res.StatusCode != http.StatusOK {
 		res.Body.Close()
 		t.Fatal("login failed", res.StatusCode)
 	}
 	cookies := res.Cookies()
-	if len(cookies) != 1 || !cookies[0].Secure || !cookies[0].HttpOnly || cookies[0].Domain != "" || cookies[0].SameSite != http.SameSiteLaxMode || cookies[0].Path != "/api/v1" {
+	if len(cookies) != 1 || !cookies[0].Secure || !cookies[0].HttpOnly || cookies[0].Domain != "" ||
+		cookies[0].SameSite != http.SameSiteLaxMode ||
+		cookies[0].Path != "/api/v1" {
 		t.Fatal("unsafe proxied session cookie")
 	}
-	if res.Header.Get("Access-Control-Allow-Origin") != "https://flagman.example" || res.Header.Get("Access-Control-Allow-Credentials") != "true" {
+	if res.Header.Get("Access-Control-Allow-Origin") != "https://flagman.example" ||
+		res.Header.Get("Access-Control-Allow-Credentials") != "true" {
 		t.Fatal("CORS mismatch")
 	}
 	var login dto.AuthResponse
@@ -267,7 +332,7 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 	res.Body.Close()
 	res = request("GET", "/api/v1/auth/me", "", "https://flagman.example", "")
 	res.Body.Close()
-	if res.StatusCode != 200 {
+	if res.StatusCode != http.StatusOK {
 		t.Fatal("cookie jar session failed")
 	}
 	for _, path := range []string{"/metrics", "/dashboard/", "/api/rawdata"} {
@@ -277,7 +342,8 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(string(b), "flagman_http_requests_total") || strings.Contains(string(b), "\"routers\"") || strings.Contains(string(b), "Traefik") {
+		if strings.Contains(string(b), "flagman_http_requests_total") || strings.Contains(string(b), "\"routers\"") ||
+			strings.Contains(string(b), "Traefik") {
 			t.Fatal("technical endpoint exposed", path)
 		}
 	}
@@ -287,12 +353,12 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 		t.Fatal(err)
 	}
 	res.Body.Close()
-	if res.StatusCode != 200 {
+	if res.StatusCode != http.StatusOK {
 		t.Fatal("admin route unavailable")
 	}
 	res = request("GET", "/api/v1/events", "", "", "")
 	defer res.Body.Close()
-	if res.StatusCode != 200 || !strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream") {
+	if res.StatusCode != http.StatusOK || !strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream") {
 		t.Fatal("SSE failed", res.StatusCode)
 	}
 	reader := bufio.NewReader(res.Body)
@@ -300,24 +366,29 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 		t.Fatal("buffered first SSE frame", err)
 	}
 	time.Sleep(200 * time.Millisecond) // Beyond the backend's ordinary response deadline.
-	cursor := f.append(t, service, "inventory.changed", &model.OutboxPayload{Topics: []model.EventTopic{model.TopicInventory}})
+	cursor := f.append(
+		t,
+		service,
+		"inventory.changed",
+		&model.OutboxPayload{Topics: []model.EventTopic{model.TopicInventory}},
+	)
 	if event := next(t, reader); event.ID != cursor {
 		t.Fatal("TLS SSE event mismatch", event.ID, cursor)
 	}
 	res.Body.Close()
 	res = request("POST", "/api/v1/auth/logout", "", "https://flagman.example", "")
 	res.Body.Close()
-	if res.StatusCode != 403 {
+	if res.StatusCode != http.StatusForbidden {
 		t.Fatal("missing CSRF accepted")
 	}
 	res = request("POST", "/api/v1/auth/logout", "", "https://flagman.example", login.CSRFToken)
 	res.Body.Close()
-	if res.StatusCode != 204 {
+	if res.StatusCode != http.StatusNoContent {
 		t.Fatal("safe logout failed")
 	}
 	res = request("GET", "/api/v1/auth/me", "", "", "")
 	res.Body.Close()
-	if res.StatusCode != 401 {
+	if res.StatusCode != http.StatusUnauthorized {
 		t.Fatal("revoked cookie accepted")
 	}
 	// Unknown SNI must be refused, rather than serving an unrelated certificate.
