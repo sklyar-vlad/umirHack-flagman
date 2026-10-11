@@ -13,6 +13,8 @@ for (const width of [360, 390, 1024, 1440]) {
     await expect(page.getByRole('table', { name: 'Пример складских остатков' })).toBeVisible({ visible: width >= 768 })
     await expect(page.getByRole('region', { name: 'Пример складских остатков' })).toBeVisible({ visible: width < 768 })
     await page.keyboard.press('Tab')
+    await expect(page.getByLabel('Сценарий API')).toBeFocused()
+    await page.keyboard.press('Tab')
     await expect(page.getByRole('link', { name: '← На главную' })).toBeFocused()
     await page.keyboard.press('Tab')
     const trigger = page.getByRole('button', { name: 'Открыть диалог' })
@@ -75,9 +77,9 @@ for (const width of [360, 390, 1024, 1440]) {
     await name.fill('Новое несохранённое значение')
     await page.getByRole('link', { name: '← На главную' }).click()
     await guard.getByRole('button', { name: 'Уйти без сохранения' }).click()
-    await expect(page).toHaveURL('/')
+    await expect(page).toHaveURL('/login')
     expect(errors).toEqual([])
-    expect(apiRequests).toEqual([])
+    expect(apiRequests.map((url) => new URL(url).pathname)).toEqual(['/api/v1/auth/me'])
   })
 }
 

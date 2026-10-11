@@ -1,9 +1,11 @@
 import { configureStore } from '@reduxjs/toolkit'
+import { sessionReducer } from '@/entities/session'
 import { baseApi } from '@/shared/api'
 import { apiTransport } from './session-transport'
 
 export const store = configureStore({
   reducer: {
+    session: sessionReducer,
     [baseApi.reducerPath]: baseApi.reducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware({

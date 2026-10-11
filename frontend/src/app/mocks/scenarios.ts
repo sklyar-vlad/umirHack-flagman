@@ -1,4 +1,7 @@
 export const mockScenarios = [
+  { value: 'invalid-password', label: 'Вход · Неверный пароль' },
+  { value: 'disabled-user', label: 'Вход · Пользователь отключён' },
+  { value: 'session-expired', label: 'Сессия истекла' },
   { value: 'success', label: 'Успешный ответ' },
   { value: 'slow', label: 'Медленный ответ · 2 секунды' },
   { value: 'network-error', label: 'Обрыв сети' },

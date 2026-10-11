@@ -1,10 +1,12 @@
 import { createBrowserRouter, type RouteObject } from 'react-router'
+import { SessionGate } from '@/features/auth'
 import { AppHome } from './AppHome'
 import { RouteError } from './RouteError'
 import { RouteLoading } from './RouteLoading'
 
 const routes: RouteObject[] = [
-  { path: '/', Component: AppHome, ErrorBoundary: RouteError, HydrateFallback: RouteLoading },
+  { path: '/login', lazy: async () => { const { LoginPage } = await import('@/pages/login'); return { Component: LoginPage } }, ErrorBoundary: RouteError, HydrateFallback: RouteLoading },
+  { Component: SessionGate, ErrorBoundary: RouteError, children: [{ path: '/', Component: AppHome }] },
 ]
 
 if (import.meta.env.DEV) {

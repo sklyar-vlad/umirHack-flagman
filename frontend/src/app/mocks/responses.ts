@@ -29,6 +29,9 @@ export function createMockError(
 /** Ошибки здесь намеренно форсируются для проверки транспорта, не прав healthcheck. */
 export function createHealthcheckResponse(scenario: MockScenario): Response {
   switch (scenario) {
+    case 'invalid-password':
+    case 'disabled-user':
+    case 'session-expired':
     case 'success':
     case 'slow': {
       const body: HealthcheckResponse = { status: 'ok', service: 'umirHack-flagman' }

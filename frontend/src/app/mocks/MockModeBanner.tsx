@@ -23,7 +23,7 @@ export function MockModeBanner() {
         <p className="text-caption">API заменён тестовыми ответами. Это не проверка backend.</p>
       </div>
       <label className={styles.field} htmlFor="mock-scenario">
-        <span className="text-label">Сценарий healthcheck</span>
+        <span className="text-label">Сценарий API</span>
         <select
           className="ui-select"
           id="mock-scenario"
