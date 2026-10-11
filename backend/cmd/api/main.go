@@ -21,6 +21,7 @@ import (
 	cataloghandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/catalog"
 	dashboardhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/dashboard"
 	dishhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/dish"
+	forecasthandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/forecast"
 	offershandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/hotoffers"
 	inventoryhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/inventory"
 	menuhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/menu"
@@ -40,6 +41,7 @@ import (
 	dashboardrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/dashboard"
 	dishrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/dish"
 	expirationrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/expiration"
+	forecastrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/forecast"
 	offersrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/hotoffers"
 	inventoryrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/inventory"
 	menurepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/menu"
@@ -59,6 +61,7 @@ import (
 	dashboardservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/dashboard"
 	dishservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/dish"
 	expirationservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/expiration"
+	forecastservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/forecast"
 	offersservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/hotoffers"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
 	inventoryservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/inventory"
@@ -110,6 +113,7 @@ func main() {
 	dishes := dishservice.NewService(dishrepository.NewRepository(), menurepository.NewRepository(), repo, repo)
 	settings := settingsservice.NewService(settingsrepository.NewRepository(), repo, repo)
 	analytics := analyticsservice.NewService(analyticsrepository.NewRepository(), repo)
+	forecast := forecastservice.NewService(forecastrepository.NewRepository(), menurepository.NewRepository(), repo)
 	stockMovements := writeoffservice.NewHistoryService(writeoffrepository.NewRepository(), repo)
 	writeOff := writeoffservice.NewService(writeoffrepository.NewRepository(), repo, idem)
 	auditLog := auditlogservice.NewService(auditlogrepository.NewRepository(), repo)
@@ -170,6 +174,7 @@ func main() {
 	mux.NoRoute(handler.NotFound)
 
 	api := mux.Group("/api/v1", access.RequireRouteAccess)
+	handler.RegisterStopListForecastRoutes(api, forecasthandler.NewHandler(forecast))
 	handler.RegisterIngredientShortageAnalyticsRoutes(api, analyticshandler.NewHandler(analytics))
 	handler.RegisterWriteOffAnalyticsRoutes(api, analyticshandler.NewHandler(analytics))
 	handler.RegisterStockMovementRoutes(api, writeoffhandler.NewHistoryHandler(stockMovements))

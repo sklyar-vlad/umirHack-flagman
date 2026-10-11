@@ -14,7 +14,7 @@ info:
     GET /roles, GET /users, GET /users/{id}, POST /users, PATCH /users/{id}, POST /users/{id}/password,
     GET/POST /product-categories, GET/PATCH /product-categories/{id}, GET/PATCH /products/{id}, POST /products.
     GET/PATCH /settings, GET /audit-log, POST /write-offs и GET /stock-movements,
-    GET /analytics/write-offs и GET /analytics/ingredient-shortages.
+    GET /analytics/write-offs, GET /analytics/ingredient-shortages и GET /analytics/stop-list-forecast.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
@@ -2203,6 +2203,52 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '500':
           $ref: '#/components/responses/InternalError'
+  /analytics/stop-list-forecast:
+    get:
+      tags: [Analytics]
+      operationId: getStopListForecast
+      summary: Оценка момента возникновения стоп-листа
+      x-implementation-status: implemented
+      description: |
+        Только admin/manager. Все активные блюда с текущими рецептами. История только
+        order_consumption по product_id/unit в [server_time-lookback_days,server_time),
+        среднее за все 24-часовые дни периода. Непрерывное ожидаемое потребление склада
+        по FEFO (expires_at, received_at, batch ID), исключение остатка при expires_at.
+        Поиск первой невозможности приготовить порцию с учётом следующих партий.
+        При расходе время — первая наносекунда после пересечения порога одной порции;
+        при истечении — expires_at. Не предполагает будущие поставки и смену рецепта.
+        Нет истории в текущей единице — неизвестный спрос, insufficient_data, отдельно
+        оценка сроков без неизвестного расхода. Положительная история даёт только low.
+        null/unknown различают no_stop_within_horizon и недостаток истории в assumptions.
+        Уже недоступное блюдо имеет server_time/already_unavailable; без рецепта
+        limiting_product_id=null. Сортировка estimated_stop_at ASC NULLS LAST, dish_id;
+        при совпадении ограничений выбирается меньший product_id. Пагинация после расчёта.
+        Один read-only Repeatable Read снимок рецептов, партий и истории. Никаких записей.
+        Cache-Control no-store. Дубликаты, неизвестные и некорректные параметры дают 422.
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - name: lookback_days
+        in: query
+        schema: {type: integer, minimum: 1, maximum: 90, default: 7}
+      - name: horizon_hours
+        in: query
+        schema: {type: integer, minimum: 1, maximum: 720, default: 72}
+      responses:
+        '200':
+          description: Оценки; total — число активных блюд до пагинации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StopListForecastListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     SessionCookie:
@@ -2306,6 +2352,42 @@ components:
         $ref: '#/components/schemas/UUID'
       example: 99999999-9999-4999-8999-999999999999
   schemas:
+    StopListForecast:
+      type: object
+      additionalProperties: false
+      required: [dish_id, dish_name, estimated_stop_at, cause, limiting_product_id, confidence, assumptions]
+      properties:
+        dish_id:
+          $ref: '#/components/schemas/UUID'
+        dish_name: {type: string}
+        estimated_stop_at: {type: string, format: date-time, nullable: true}
+        cause: {type: string, enum: [already_unavailable, expiry, estimated_demand, unknown]}
+        limiting_product_id: {type: string, format: uuid, nullable: true}
+        confidence: {type: string, enum: [low, insufficient_data]}
+        assumptions:
+          type: array
+          items: {type: string}
+          description: |
+            estimate_only, no_future_supplies, current_recipe_unchanged,
+            constant_average_product_consumption_full_lookback, continuous_expected_consumption;
+            дополнительно expiry_only_for_missing_history, missing_history:<product UUID>,
+            recipe_missing, no_stop_within_horizon либо unknown_demand_no_expiry_stop_within_horizon.
+    StopListForecastListResponse:
+      allOf:
+      - $ref: '#/components/schemas/ListEnvelope'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/StopListForecast'
+          meta:
+            type: object
+            required: [server_time, lookback_days, horizon_hours]
+            properties:
+              server_time: {type: string, format: date-time}
+              lookback_days: {type: integer, minimum: 1, maximum: 90}
+              horizon_hours: {type: integer, minimum: 1, maximum: 720}
     WriteOffRequest:
       type: object
       additionalProperties: false
