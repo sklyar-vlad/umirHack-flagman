@@ -13,6 +13,7 @@ info:
     POST /auth/login, GET /auth/me и POST /auth/logout,
     GET /roles, GET /users, GET /users/{id}, POST /users, PATCH /users/{id}, POST /users/{id}/password,
     GET/POST /product-categories, GET/PATCH /product-categories/{id}, GET/PATCH /products/{id}, POST /products.
+    GET/PATCH /settings и GET /audit-log.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
@@ -1900,6 +1901,129 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/Unavailable'
+  /settings:
+    get:
+      tags: [Settings]
+      operationId: getSettings
+      summary: Настройки единственного ресторана
+      description: Все четыре активные роли. Cache-Control no-store. Возвращает текущую revision.
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Настройки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      tags: [Settings]
+      operationId: updateSettings
+      summary: Изменить настройки по ожидаемой ревизии
+      description: |
+        Только admin; точный Origin и CSRF. Требует expected_revision и хотя бы одно изменяемое поле.
+        Отсутствующие поля сохраняются; null, повторы, неизвестные поля и неверные типы запрещены.
+        Имя обрезается по краям; timezone — имя IANA, кроме host-dependent Local.
+        Конкурирующие сохранения сериализуются; устаревшая ревизия возвращает 409 REVISION_CONFLICT
+        с details.current_revision. До реализации expiry worker включение auto_writeoff_expired
+        возвращает 422 FEATURE_UNAVAILABLE без частичного сохранения или событий.
+        Успех атомарно увеличивает revision, пишет типизированный аудит до/после и settings.changed outbox.
+        Cache-Control no-store.
+      x-implementation-status: implemented
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettingsRequest'
+      responses:
+        '200':
+          description: Обновлённые настройки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          description: Ошибка валидации или FEATURE_UNAVAILABLE при включении неготового автосписания
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /audit-log:
+    get:
+      tags: [AuditLog]
+      operationId: listAuditLog
+      summary: Журнал успешных изменений
+      description: |
+        Только admin; Cache-Control no-store. Read-only repeatable-read снимок списка и total.
+        Буквальный регистронезависимый поиск по имени автора, действию, типу/UUID объекта и request_id.
+        %, _ и обратный слеш — обычные символы. Для системного автора поиск system или Система.
+        actor_id=system фильтрует null actor; настройки имеют entity_id=null.
+        Интервал created_at — [from,to); сортировка created_at DESC, id DESC до пагинации.
+        before/after проецируются на разрешённые поля, включая вложенные рецепты/партии.
+        Пароли, хеши, токены и cookie не возвращаются. Нет маршрутов изменения журнала.
+      x-implementation-status: implemented
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - name: search
+        in: query
+        schema: {type: string}
+      - name: actor_id
+        in: query
+        description: UUID пользователя или system для системных действий
+        schema:
+          oneOf:
+          - {type: string, format: uuid}
+          - {type: string, enum: [system]}
+      - name: action
+        in: query
+        schema: {type: string, enum: [create, update, password_change, manual_writeoff, expiration]}
+      - name: entity_type
+        in: query
+        schema: {type: string, enum: [product_category, product, dish, supply, order, stock_movement, user, settings]}
+      - name: entity_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - $ref: '#/components/parameters/HistoryFrom'
+      - $ref: '#/components/parameters/HistoryTo'
+      - $ref: '#/components/parameters/HistorySort'
+      responses:
+        '200':
+          description: Страница журнала
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     SessionCookie:
@@ -2003,6 +2127,63 @@ components:
         $ref: '#/components/schemas/UUID'
       example: 99999999-9999-4999-8999-999999999999
   schemas:
+    Settings:
+      type: object
+      additionalProperties: false
+      required: [restaurant_name, timezone, expiring_threshold_hours, auto_writeoff_expired, revision]
+      properties:
+        restaurant_name: {type: string, minLength: 1, maxLength: 200}
+        timezone: {type: string, minLength: 1, maxLength: 100, example: Europe/Moscow}
+        expiring_threshold_hours: {type: integer, minimum: 1, maximum: 720}
+        auto_writeoff_expired: {type: boolean, example: false}
+        revision: {type: integer, minimum: 1}
+    UpdateSettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_revision]
+      minProperties: 2
+      properties:
+        restaurant_name: {type: string, minLength: 1, maxLength: 200}
+        timezone: {type: string, minLength: 1, maxLength: 100}
+        expiring_threshold_hours: {type: integer, minimum: 1, maximum: 720}
+        auto_writeoff_expired: {type: boolean, description: Включение недоступно до реализации expiry worker}
+        expected_revision: {type: integer, minimum: 1, maximum: 2147483646}
+    AuditLogEntry:
+      type: object
+      additionalProperties: false
+      required: [id, created_at, actor, action, entity_type, entity_id, request_id, before, after]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        created_at: {type: string, format: date-time}
+        actor:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [id, name]
+          properties:
+            id:
+              $ref: '#/components/schemas/UUID'
+            name: {type: string}
+        action: {type: string, example: update}
+        entity_type: {type: string, example: settings}
+        entity_id: {type: string, format: uuid, nullable: true, description: null для singleton settings}
+        request_id: {type: string, nullable: true}
+        before: {type: object, nullable: true, description: Разрешённый типизированный снимок; null для создания}
+        after: {type: object, nullable: true, description: Разрешённый типизированный снимок; неизвестные legacy типы скрываются}
+    AuditLogListResponse:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, page_size, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLogEntry'
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        meta: {type: object}
     Role:
       type: object
       additionalProperties: false

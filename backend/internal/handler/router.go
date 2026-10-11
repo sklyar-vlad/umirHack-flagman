@@ -179,3 +179,19 @@ type DishPreviewHandler interface{ Preview(*gin.Context) }
 func RegisterDishPreviewRoutes(group *gin.RouterGroup, h DishPreviewHandler) {
 	group.POST("/dishes/preview", h.Preview)
 }
+
+type SettingsHandler interface {
+	Get(*gin.Context)
+	Update(*gin.Context)
+}
+
+func RegisterSettingsRoutes(group *gin.RouterGroup, h SettingsHandler) {
+	group.GET("/settings", h.Get)
+	group.PATCH("/settings", h.Update)
+}
+
+type AuditLogHandler interface{ List(*gin.Context) }
+
+func RegisterAuditLogRoutes(group *gin.RouterGroup, h AuditLogHandler) {
+	group.GET("/audit-log", h.List)
+}

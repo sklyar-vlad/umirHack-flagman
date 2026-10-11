@@ -15,7 +15,7 @@ const verifiedSessionKey = "flagman.verified_session"
 
 func (h *Handler) RequireRouteAccess(c *gin.Context) {
 	path := strings.TrimPrefix(c.FullPath(), "/api/v1")
-	if strings.HasPrefix(path, "/auth/") || path == "/roles" || path == "/users" || strings.HasPrefix(path, "/users/") {
+	if strings.HasPrefix(path, "/auth/") || path == "/settings" || path == "/audit-log" || path == "/roles" || path == "/users" || strings.HasPrefix(path, "/users/") {
 		c.Header("Cache-Control", "no-store")
 	}
 	if (c.Request.Method == http.MethodGet && (path == "/healthcheck" || path == "/ready")) ||

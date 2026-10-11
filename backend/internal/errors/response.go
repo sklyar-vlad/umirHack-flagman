@@ -27,6 +27,10 @@ func MakeResponse(
 	var maxBytesError *http.MaxBytesError
 
 	switch {
+	case errors.Is(err, ErrFeatureUnavailable):
+		status = http.StatusUnprocessableEntity
+		body.Code = "FEATURE_UNAVAILABLE"
+		body.Message = "Автоматическое списание пока недоступно"
 	case errors.Is(err, ErrDuplicateIngredient):
 		status = http.StatusUnprocessableEntity
 		body.Code = "DUPLICATE_INGREDIENT"
