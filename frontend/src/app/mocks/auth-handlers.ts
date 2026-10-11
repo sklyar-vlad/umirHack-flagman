@@ -12,6 +12,14 @@ const fixture = {
 function sessionCookie(value: string, expired = false) {
   return `${cookieName}=${value}; Path=/; SameSite=Lax; ${expired ? 'Max-Age=0' : 'Max-Age=3600'}`
 }
+function roleFixture() {
+  const scenario = getMockScenario()
+  // Role belongs to the mock cookie session and survives reload; never used by production.
+  const stored = document.cookie.split(';').find((value) => value.trim().startsWith('flagman_mock_role='))?.split('=')[1]
+  const selected = scenario === 'role-admin' ? 'admin' : scenario === 'role-storekeeper' ? 'storekeeper' : scenario === 'role-order-operator' ? 'order_operator' : null
+  const role = selected ?? (['admin', 'storekeeper', 'order_operator'].includes(stored ?? '') ? stored : 'manager')
+  return { ...fixture, user: { ...fixture.user, role } }
+}
 function hasSession() {
   // Deliberately readable mock-only cookie, never a replacement for server HttpOnly auth.
   return document.cookie.split(';').some((value) => value.trim() === `${cookieName}=active`)
@@ -25,7 +33,7 @@ export const authHandlers = [
     if (scenario === 'invalid-schema') return Response.json({ user: {} })
     if (scenario === 'disabled-user') return createMockError(403, 'USER_DISABLED', 'Учётная запись отключена')
     if (!hasSession() || scenario === 'unauthorized' || scenario === 'session-expired') return createMockError(401, 'UNAUTHORIZED', 'Нет сессии')
-    return Response.json(fixture, { headers: { 'X-Mock-Mode': 'true' } })
+    return Response.json(roleFixture(), { headers: { 'X-Mock-Mode': 'true' } })
   }),
   http.post('/api/v1/auth/login', async ({ request }) => {
     const scenario = getMockScenario()
@@ -40,13 +48,15 @@ export const authHandlers = [
     // Synthetic Set-Cookie is held in MSW's virtual jar, not browser cookies.
     // Use this explicit mock-only browser cookie to model reload and expiration.
     document.cookie = sessionCookie('active')
-    const { user, csrf_token, session_expires_at } = fixture
+    const { user, csrf_token, session_expires_at } = roleFixture()
+    document.cookie = `flagman_mock_role=${user.role}; Path=/; SameSite=Lax; Max-Age=3600`
     return Response.json({ user, csrf_token, session_expires_at }, { headers: { 'X-Mock-Mode': 'true' } })
   }),
   http.post('/api/v1/auth/logout', async ({ request }) => {
     if (getMockScenario() === 'network-error') return Response.error()
     if (request.headers.get('X-CSRF-Token') !== mockCsrf) return createMockError(403, 'CSRF_INVALID', 'Неверный CSRF')
     document.cookie = sessionCookie('', true)
+    document.cookie = 'flagman_mock_role=; Path=/; SameSite=Lax; Max-Age=0'
     return new Response(null, { status: 204, headers: { 'X-Mock-Mode': 'true' } })
   }),
 ]

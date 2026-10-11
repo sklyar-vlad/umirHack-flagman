@@ -24,6 +24,6 @@ export function SessionGate() {
   }, [auth, session.status, session.expiresAt])
   if (session.status === 'unknown' || session.status === 'restoring' || session.status === 'signing-out') return <main className="app-placeholder ui-panel"><Skeleton label={session.status === 'signing-out' ? 'Выполняем выход' : 'Проверяем сессию'} /></main>
   if (session.status === 'error') return <main className="app-placeholder ui-panel"><ErrorState description={session.notice ?? undefined} onRetry={() => { void auth.restore() }} /></main>
-  if (session.status !== 'authenticated') return <Navigate to={loginUrl(location.pathname)} replace />
+  if (session.status !== 'authenticated') return <Navigate to={loginUrl(location.pathname === '/logout' ? '/' : location.pathname)} replace />
   return <Outlet />
 }

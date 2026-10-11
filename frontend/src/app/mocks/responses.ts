@@ -29,6 +29,9 @@ export function createMockError(
 /** Ошибки здесь намеренно форсируются для проверки транспорта, не прав healthcheck. */
 export function createHealthcheckResponse(scenario: MockScenario): Response {
   switch (scenario) {
+    case 'role-admin':
+    case 'role-storekeeper':
+    case 'role-order-operator':
     case 'invalid-password':
     case 'disabled-user':
     case 'session-expired':

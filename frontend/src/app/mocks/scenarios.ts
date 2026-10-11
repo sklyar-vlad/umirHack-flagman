@@ -1,4 +1,7 @@
 export const mockScenarios = [
+  { value: 'role-admin', label: 'Роль · Администратор' },
+  { value: 'role-storekeeper', label: 'Роль · Кладовщик' },
+  { value: 'role-order-operator', label: 'Роль · Оператор заказов' },
   { value: 'invalid-password', label: 'Вход · Неверный пароль' },
   { value: 'disabled-user', label: 'Вход · Пользователь отключён' },
   { value: 'session-expired', label: 'Сессия истекла' },

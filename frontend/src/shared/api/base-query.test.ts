@@ -37,6 +37,15 @@ describe('business request session barrier', () => {
     expect(onUnauthorized).toHaveBeenCalledTimes(1)
     expect(fetch).toHaveBeenCalledTimes(1)
   })
+  it('returns server 403 to the page without logging out or retrying', async () => {
+    const onUnauthorized = vi.fn()
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => Response.json({ error: { code: 'FORBIDDEN', message: 'Denied', details: {} }, request_id: 'test-request' }, { status: 403 }))
+    vi.stubGlobal('fetch', fetch)
+    const result = await baseQuery('http://localhost/api/v1/orders', api({ getCsrfToken: () => null, waitForSession: async () => true, onUnauthorized }), {})
+    expect(result.error).toMatchObject({ status: 403, code: 'FORBIDDEN' })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
   it('rechecks access after the asynchronous barrier when logout occurs between microtasks', async () => {
     const fetch = vi.fn()
     vi.stubGlobal('fetch', fetch)

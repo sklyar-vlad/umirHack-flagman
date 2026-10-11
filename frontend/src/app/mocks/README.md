@@ -26,3 +26,9 @@ MSW 3 перехватывает запросы на уровне браузер
 ## Auth (F03)
 
 `auth-handlers.ts` использует плановые auth-поля README через документированный draft-адаптер; опубликованные OpenAPI схемы и реальная интеграция ещё ожидают S15. Login выдаёт mock-cookie, me загружает user/settings/CSRF, logout проверяет mock-CSRF и удаляет mock-cookie. Fixtures не содержат production credentials. Панель переключает «Сценарий API», включая неверный пароль, отключённого пользователя и истечение. Подробности и ограничения — `frontend/docs/auth-session.md`.
+
+## Роли и навигация (F04)
+
+Сценарии role-admin, role-storekeeper и role-order-operator выбирают роль при login/me. Fixture success — manager; mock-only cookie flagman_mock_role сохраняет роль выданной тестовой сессии после reload и удаляется при logout. Переключение сценария не меняет уже принятую Redux-сессию до следующего me/login.
+
+DEV-only /dev/access внутри оболочки использует healthcheck для проверки серверного 403 и тестового несекретного черновика. Forbidden показывает общий экран без деталей сервера, не очищая сессию; возврат к success восстанавливает черновик. Бизнес-запросы ещё не добавлены. См. frontend/docs/navigation.md.

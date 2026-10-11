@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useSelector } from 'react-redux'
 import { useNavigate, useSearchParams } from 'react-router'
-import type { SessionState } from '@/entities/session'
+import { permittedReturnPath, type SessionState } from '@/entities/session'
 import { isApiError } from '@/shared/api'
 import { Button, FormField, Input } from '@/shared/ui'
 import { authErrorMessage, type LoginCredentials } from '../api/draft-auth-adapter'
@@ -36,8 +36,8 @@ export function LoginForm() {
   }, [deadline])
   useEffect(() => { if (error) errorRef.current?.focus() }, [error])
   useEffect(() => {
-    if (session.status === 'authenticated') void navigate(safeReturnUrl(params.get('returnTo')), { replace: true })
-  }, [navigate, params, session.status])
+    if (session.status === 'authenticated' && session.user) void navigate(permittedReturnPath(session.user.role, safeReturnUrl(params.get('returnTo'))), { replace: true })
+  }, [navigate, params, session.status, session.user])
   async function submit(credentials: LoginCredentials) {
     setError(null)
     try { await auth.login(credentials) }
