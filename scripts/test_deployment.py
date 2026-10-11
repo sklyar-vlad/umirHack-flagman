@@ -74,6 +74,24 @@ class DeploymentTests(unittest.TestCase):
                             for v in services["traefik"]["volumes"]))
         self.assertIn("--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web",
                       services["traefik"]["command"])
+        self.assertNotEqual(services["traefik"].get("labels", {}).get("traefik.enable"), "true")
+        self.assertIn("--providers.file.filename=/etc/traefik/dashboard.yaml",
+                      services["traefik"]["command"])
+
+    def test_invalid_metrics_or_domain_are_rejected_without_secret_output(self):
+        for token, domain, accepted in (
+            ("secret-too-short", "warehouse.example.com", False),
+            ("a" * 32, "warehouse.example.com", True),
+            ("a" * 32, "https://warehouse.example.com", False),
+            ("a" * 32, "warehouse.example.com:8444", False),
+        ):
+            with self.subTest(token_length=len(token), domain=domain):
+                env = os.environ.copy()
+                env.update(METRICS_TOKEN=token, FLAGMAN_DOMAIN=domain)
+                result = subprocess.run(["sh", "infrastructure/validate-vps-env.sh"],
+                                        cwd=ROOT, env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode == 0, accepted)
+                self.assertNotIn(token, result.stdout + result.stderr)
 
     def fake_tools(self):
         tools = self.path / "bin"
@@ -116,6 +134,10 @@ class DeploymentTests(unittest.TestCase):
                     self.assertTrue(any("run" in call and "seed-users" in call for call in calls))
                 if action == "seed":
                     self.assertEqual(sum("exec" in call for call in calls), 2)
+                if action == "up":
+                    validation = next(i for i, call in enumerate(calls) if "validate-config" in call)
+                    stop = next(i for i, call in enumerate(calls) if "stop" in call)
+                    self.assertLess(validation, stop)
 
     def test_local_migrations_keep_host_goose(self):
         env = self.fake_tools()

@@ -42,6 +42,9 @@ seed_users() {
 case "${1:-}" in
  up)
   dc config --quiet
+  if [ "$mode" = vps ]; then
+   dc run --rm --no-deps validate-config
+  fi
   dc stop frontend backend
   dc up -d --wait --wait-timeout 120 db
   migrate up
