@@ -1167,3 +1167,21 @@ order_consumption, expiration, manual_writeoff), `from`/`to` (RFC3339).
 не текущий. order_item_id/order_id null для движений без заказа; actor null для
 системного списания. Count и страница читаются в одной read-only repeatable-read
 транзакции; пустая страница содержит items=[] и полный total. Ответы no-store.
+
+## S22: аналитика списаний
+
+`GET /api/v1/analytics/write-offs` доступен admin/manager. Фильтры и фиксированная
+сортировка приведены выше. Группы — product_id/unit, total — число групп; имена
+взяты из последнего движения внутри отфильтрованной группы. Переименование не
+дробит историю. Причина фильтрует движения до суммирования, даты — [from,to).
+Суммы возвращаются точными строками с тремя знаками без предела одной партии.
+Штатный расход и приёмка не включаются. Count и страница используют один
+read-only Repeatable Read снимок; пустой items — [], Cache-Control no-store.
+
+`GET /api/v1/analytics/ingredient-shortages` доступен admin/manager, принимает
+только page/page_size/from/to. Сортировка rejected_attempts_count DESC, product_id,
+unit. Читает сохранённые shortages только INSUFFICIENT_STOCK, считает distinct
+attempt_id и точную сумму missing_quantity по product_id/unit. Имя — последний
+снимок в группе. Другие причины отказа не учитываются; check и успешные заказы
+не создают попытки, replay ключа не добавляет строк. Даты created_at — [from,to).
+Отчёт описывает отклонённый спрос; общей суммы несовместимых единиц нет.

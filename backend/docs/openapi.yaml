@@ -13,7 +13,8 @@ info:
     POST /auth/login, GET /auth/me и POST /auth/logout,
     GET /roles, GET /users, GET /users/{id}, POST /users, PATCH /users/{id}, POST /users/{id}/password,
     GET/POST /product-categories, GET/PATCH /product-categories/{id}, GET/PATCH /products/{id}, POST /products.
-    GET/PATCH /settings, GET /audit-log, POST /write-offs и GET /stock-movements.
+    GET/PATCH /settings, GET /audit-log, POST /write-offs и GET /stock-movements,
+    GET /analytics/write-offs и GET /analytics/ingredient-shortages.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
@@ -2127,6 +2128,81 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '500':
           $ref: '#/components/responses/InternalError'
+  /analytics/write-offs:
+    get:
+      tags: [Analytics]
+      operationId: getWriteOffAnalytics
+      summary: Потери по продукту и исторической единице
+      x-implementation-status: implemented
+      description: |
+        Только admin/manager. Только expiration/manual_writeoff, без receipt и
+        order_consumption. Интервал occurred_at [from,to). Суммы точные, положительные,
+        не ограничены размером партии. Группы product_id/unit; product_name — последний
+        снимок в отфильтрованной группе, переименование не дробит её. Причина ограничивает
+        движения до суммирования. Сортировка product_name, product_id, unit; sort не принимается.
+        Count и страница в одном read-only Repeatable Read снимке. Cache-Control no-store.
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/HistoryFrom'
+      - $ref: '#/components/parameters/HistoryTo'
+      - name: product_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - name: reason
+        in: query
+        schema: {type: string, enum: [all, expiration, manual_writeoff], default: all}
+      responses:
+        '200':
+          description: Группы потерь; total — число групп до пагинации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WriteOffAnalyticsListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /analytics/ingredient-shortages:
+    get:
+      tags: [Analytics]
+      operationId: getIngredientShortageAnalytics
+      summary: Недостача ингредиентов из отклонённых заказов
+      x-implementation-status: implemented
+      description: |
+        Только admin/manager. Только сохранённые shortages попыток INSUFFICIENT_STOCK.
+        Интервал created_at [from,to). Группы product_id/unit, точная сумма missing_quantity
+        и число различных попыток. Последний исторический product_name внутри фильтра.
+        Сортировка rejected_attempts_count DESC, product_id, unit; sort не принимается.
+        Check, успешный заказ и другие причины отказа не учитываются; replay ключа не
+        создаёт новую попытку. Дефицит отражает отклонённый спрос, не будущие заказы.
+        Нет общей суммы разных единиц. Count и страница используют один read-only
+        Repeatable Read снимок. Cache-Control no-store.
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/HistoryFrom'
+      - $ref: '#/components/parameters/HistoryTo'
+      responses:
+        '200':
+          description: Группы дефицита; total — число групп до пагинации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngredientShortageAnalyticsListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     SessionCookie:
@@ -2240,6 +2316,54 @@ components:
         quantity:
           $ref: '#/components/schemas/Quantity'
         reason: {type: string, minLength: 1, maxLength: 500}
+    IngredientShortageAnalytics:
+      type: object
+      additionalProperties: false
+      required: [product_id, product_name, unit, rejected_attempts_count, total_missing_quantity]
+      properties:
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        unit:
+          $ref: '#/components/schemas/Unit'
+        rejected_attempts_count: {type: integer, format: int64, minimum: 1}
+        total_missing_quantity:
+          $ref: '#/components/schemas/AggregateQuantity'
+    IngredientShortageAnalyticsListResponse:
+      allOf:
+      - $ref: '#/components/schemas/ListEnvelope'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/IngredientShortageAnalytics'
+    WriteOffAnalytics:
+      type: object
+      additionalProperties: false
+      required: [product_id, product_name, unit, expired_written_off_quantity, manual_written_off_quantity, total_written_off_quantity, movements_count]
+      properties:
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        unit:
+          $ref: '#/components/schemas/Unit'
+        expired_written_off_quantity:
+          $ref: '#/components/schemas/AggregateQuantity'
+        manual_written_off_quantity:
+          $ref: '#/components/schemas/AggregateQuantity'
+        total_written_off_quantity:
+          $ref: '#/components/schemas/AggregateQuantity'
+        movements_count: {type: integer, format: int64, minimum: 1}
+    WriteOffAnalyticsListResponse:
+      allOf:
+      - $ref: '#/components/schemas/ListEnvelope'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/WriteOffAnalytics'
     StockMovement:
       type: object
       additionalProperties: false

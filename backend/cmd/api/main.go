@@ -14,6 +14,7 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/database"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/config"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/handler"
+	analyticshandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/analytics"
 	auditloghandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auditlog"
 	authhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auth"
 	batchhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/batch"
@@ -31,6 +32,7 @@ import (
 	userhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/user"
 	writeoffhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/writeoff"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
+	analyticsrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/analytics"
 	auditlogrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auditlog"
 	authrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auth"
 	batchrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/batch"
@@ -49,6 +51,7 @@ import (
 	userrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/user"
 	writeoffrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/writeoff"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service"
+	analyticsservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/analytics"
 	auditlogservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auditlog"
 	authservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auth"
 	batchservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/batch"
@@ -106,6 +109,7 @@ func main() {
 	catalog := catalogservice.NewService(catalogrepository.NewRepository(), repo, repo)
 	dishes := dishservice.NewService(dishrepository.NewRepository(), menurepository.NewRepository(), repo, repo)
 	settings := settingsservice.NewService(settingsrepository.NewRepository(), repo, repo)
+	analytics := analyticsservice.NewService(analyticsrepository.NewRepository(), repo)
 	stockMovements := writeoffservice.NewHistoryService(writeoffrepository.NewRepository(), repo)
 	writeOff := writeoffservice.NewService(writeoffrepository.NewRepository(), repo, idem)
 	auditLog := auditlogservice.NewService(auditlogrepository.NewRepository(), repo)
@@ -166,6 +170,8 @@ func main() {
 	mux.NoRoute(handler.NotFound)
 
 	api := mux.Group("/api/v1", access.RequireRouteAccess)
+	handler.RegisterIngredientShortageAnalyticsRoutes(api, analyticshandler.NewHandler(analytics))
+	handler.RegisterWriteOffAnalyticsRoutes(api, analyticshandler.NewHandler(analytics))
 	handler.RegisterStockMovementRoutes(api, writeoffhandler.NewHistoryHandler(stockMovements))
 	handler.RegisterWriteOffRoutes(api, writeoffhandler.NewHandler(writeOff))
 	handler.RegisterAuditLogRoutes(api, auditloghandler.NewHandler(auditLog))
