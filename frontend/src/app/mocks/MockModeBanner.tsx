@@ -1,3 +1,4 @@
+import { dishApi } from '@/entities/dish'
 import { invalidateOrders } from '@/entities/order'
 import { useState } from 'react'
 import { productApi } from '@/entities/product'
@@ -21,6 +22,7 @@ export function MockModeBanner() {
     dispatch(inventoryApi.util.invalidateTags(['Inventory', 'Batches', 'ProductCategories']))
     dispatch(invalidateSupplies())
     dispatch(invalidateOrders())
+    dispatch(dishApi.util.invalidateTags(['Dishes']))
     dispatch(productApi.util.invalidateTags(['Products']))
   }
 

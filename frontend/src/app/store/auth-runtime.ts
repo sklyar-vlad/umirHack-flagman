@@ -2,6 +2,7 @@ import { replaceSession } from '@/entities/session'
 import { createSessionController, draftAuthAdapter } from '@/features/auth'
 import { baseApi } from '@/shared/api'
 import { store } from './store'
+import { persistOrder } from './order-persistence'
 import { persistReception } from './reception-persistence'
 import { apiTransport, setCsrfToken } from './session-transport'
 
@@ -22,5 +23,5 @@ apiTransport.hasSessionAccess = authController.hasAccess
 
 // Only the reception allowlist is persisted; session tokens and CSRF stay in memory.
 if (typeof window !== 'undefined') {
-  try { persistReception(store, window.sessionStorage) } catch { /* Browser storage disabled. */ }
+  try { persistReception(store, window.sessionStorage); persistOrder(store, window.sessionStorage) } catch { /* Browser storage disabled. */ }
 }

@@ -1,0 +1,12 @@
+.composer { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: var(--space-24); align-items: start; }
+.catalogue, .basket { min-width: 0; display: grid; gap: var(--space-16); }
+.search { display: flex; align-items: end; gap: var(--space-12); }
+.search > :first-child { flex: 1; min-width: 0; }
+.dishes, .lines { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-16); }
+.dishes > li, .lines > li { display: grid; gap: var(--space-12); min-width: 0; }
+.composer details { overflow-wrap: anywhere; }
+.composer summary { cursor: pointer; padding-block: var(--space-8); }
+.composer ul ul { padding-left: var(--space-20); }
+.notice { padding: var(--space-16); border: 1px solid var(--color-border); border-radius: var(--radius-6); overflow-wrap: anywhere; }
+@media (max-width: 1100px) { .composer { grid-template-columns: minmax(0, 1fr); } .composer :global(.ui-table-wrap) { display: none; } .composer :global(.ui-mobile-records) { display: block; } }
+@media (max-width: 480px) { .search { align-items: stretch; flex-direction: column; } }

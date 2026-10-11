@@ -1,5 +1,7 @@
-import { z } from 'zod'
+import { requirementSchema, shortageSchema } from '@/shared/api/order-work'
+export { requirementSchema, shortageSchema } from '@/shared/api/order-work'
 import { formatQuantity } from '@/shared/lib/quantity'
+import { z } from 'zod'
 import { parseApiDateTime } from '@/shared/lib/restaurant-time'
 
 // Published OrderSummary, OrderAttempt and their historical snapshots.
@@ -14,14 +16,6 @@ export const orderReasons: Record<OrderReason, string> = {
 export const orderItemSchema = z.object({
   dish_id: z.uuid(), dish_name: z.string(), portions: integer.min(1).max(1000), recipe_version: integer.min(1).nullable(),
 })
-const aggregate = z.string().regex(/^\d+(?:\.\d{1,3})?$/)
-export const shortageSchema = z.object({
-  product_id: z.uuid(), product_name: z.string(), unit: z.enum(['g', 'ml', 'pcs']),
-  required_quantity: aggregate, available_quantity: aggregate, missing_quantity: aggregate, expired_quantity: aggregate,
-  reason_code: z.enum(['ingredient_shortage', 'only_expired_stock']),
-}).refine((value) => {
-  try { for (const quantity of [value.required_quantity, value.available_quantity, value.missing_quantity, value.expired_quantity]) formatQuantity(quantity, value.unit); return true } catch { return false }
-}, 'Количество несовместимо с единицей продукта.')
 export const orderIssueSchema = z.object({
   dish_id: z.uuid(), code: z.enum(['dish_inactive', 'recipe_missing', 'recipe_changed']), message: z.string(), current_recipe_version: integer.min(1).nullable(),
 })
@@ -41,3 +35,23 @@ export type OrderSummary = z.infer<typeof orderSummarySchema>
 export type OrderAttempt = z.infer<typeof orderAttemptSchema>
 export type OrderList = z.infer<typeof orderListSchema>
 export type OrderAttemptList = z.infer<typeof orderAttemptListSchema>
+
+export const orderCheckSchema = z.object({
+  can_create: z.boolean(), items: z.array(orderItemSchema).min(1).max(100),
+  requirements: z.array(requirementSchema), shortages: z.array(shortageSchema), issues: z.array(orderIssueSchema), meta: z.object({ server_time: instant }).passthrough(),
+}).refine((value) => !value.can_create || value.shortages.length === 0 && value.issues.length === 0 && value.items.every((item) => item.recipe_version !== null) && value.requirements.every((item) => /^0+(?:\.0+)?$/.test(item.missing_quantity)))
+const quantity = z.string().regex(/^\d{1,11}(?:\.\d{1,3})?$/)
+export const allocationSchema = z.object({
+  movement_id: z.uuid(), product_id: z.uuid(), product_name: z.string(), unit: z.enum(['g', 'ml', 'pcs']),
+  batch_id: z.uuid(), supply_id: z.uuid(), supply_number: z.string(), line_number: integer.min(1),
+  quantity: quantity.refine((value) => !/^0+(?:\.0+)?$/.test(value)), batch_remaining_quantity_after: quantity,
+}).refine((value) => { try { formatQuantity(value.quantity, value.unit); formatQuantity(value.batch_remaining_quantity_after, value.unit); return true } catch { return false } })
+export const orderDetailSchema = z.object({
+  id: z.uuid(), number: z.string().regex(/^\d+$/), status: z.literal('completed'), created_at: instant, created_by: actor,
+  items: z.array(orderItemSchema.extend({ id: z.uuid(), recipe_version: integer.min(1), allocations: z.array(allocationSchema).min(1) })).min(1).max(100),
+})
+export const orderRefusalSchema = z.object({ attempt_id: z.uuid(), requirements: z.array(requirementSchema), shortages: z.array(shortageSchema), issues: z.array(orderIssueSchema) })
+export type OrderCheck = z.infer<typeof orderCheckSchema>
+export type OrderDetail = z.infer<typeof orderDetailSchema>
+export type OrderRefusal = z.infer<typeof orderRefusalSchema>
+export type Requirement = z.infer<typeof requirementSchema>

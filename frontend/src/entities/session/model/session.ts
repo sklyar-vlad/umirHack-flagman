@@ -1,3 +1,4 @@
+import { orderDraftSchema, type OrderDraft } from '@/shared/api/order-work'
 import { receptionDraftSchema, type ReceptionDraft } from '@/shared/api/supply-request'
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 
@@ -10,7 +11,7 @@ export interface SessionUser {
 export interface SessionSettings { timezone: string; restaurantName: string; expiringThresholdHours: number; autoWriteoffExpired: boolean; revision: number }
 export interface SessionSnapshot { user: SessionUser; settings: SessionSettings; csrfToken: string; expiresAt: string }
 /** Only these non-secret fields may survive expiration; never store arbitrary form values. */
-export interface WorkDraft { title?: string; note?: string; reception?: ReceptionDraft }
+export interface WorkDraft { title?: string; note?: string; reception?: ReceptionDraft; order?: OrderDraft }
 export interface BasketLine { dishId: string; portions: number }
 export interface SessionState {
   status: 'unknown' | 'restoring' | 'authenticated' | 'anonymous' | 'error' | 'signing-out'
@@ -29,19 +30,26 @@ const slice = createSlice({
   name: 'session',
   initialState: initialSessionState,
   reducers: {
-    replaceSession: (_state, action: PayloadAction<SessionState>) => action.payload,
+    replaceSession: (_state, action: PayloadAction<SessionState>) => {
+      const next = action.payload
+      const order = next.status === 'authenticated' && next.draftOwner === next.user?.id ? next.drafts.order?.order : undefined
+      return order ? { ...next, basket: order.lines.filter((line) => /^\d+$/.test(line.portions) && Number(line.portions) >= 1 && Number(line.portions) <= 1000).map((line) => ({ dishId: line.dish.id, portions: Number(line.portions) })) } : next
+    },
     saveWorkDraft: (state, { payload }: PayloadAction<{ key: string; draft: WorkDraft }>) => {
       if (state.status !== 'authenticated' || !state.user) return
       state.draftOwner = state.user.id
       // Explicit allowlist also strips unexpected keys supplied by JS callers.
       const reception = receptionDraftSchema.safeParse(payload.draft.reception)
+      const order = orderDraftSchema.safeParse(payload.draft.order)
+      if (payload.key === 'order' && order.success) state.basket = order.data.lines.filter((line) => /^\d+$/.test(line.portions) && Number(line.portions) >= 1 && Number(line.portions) <= 1000).map((line) => ({ dishId: line.dish.id, portions: Number(line.portions) }))
       state.drafts[payload.key] = {
         ...(reception.success ? { reception: reception.data } : {}),
+        ...(order.success ? { order: order.data } : {}),
         ...(typeof payload.draft.title === 'string' ? { title: payload.draft.title } : {}),
         ...(typeof payload.draft.note === 'string' ? { note: payload.draft.note } : {}),
       }
     },
-    clearWorkDraft: (state, { payload }: PayloadAction<string>) => { delete state.drafts[payload] },
+    clearWorkDraft: (state, { payload }: PayloadAction<string>) => { delete state.drafts[payload]; if (payload === 'order') state.basket = [] },
     replaceBasket: (state, { payload }: PayloadAction<BasketLine[]>) => {
       if (state.status === 'authenticated') state.basket = payload.map(({ dishId, portions }) => ({ dishId, portions }))
     },
