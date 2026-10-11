@@ -23,8 +23,8 @@ type User struct {
 }
 
 type AuthResponse struct {
-	User             User               `json:"user"`
-	CSRFToken        string             `json:"csrf_token"`
-	SessionExpiresAt time.Time          `json:"session_expires_at"`
-	Settings         *DashboardSettings `json:"settings,omitempty"`
+	User             User      `json:"user"`
+	CSRFToken        string    `json:"csrf_token"`
+	SessionExpiresAt time.Time `json:"session_expires_at"`
+	Settings         *Settings `json:"settings,omitempty"`
 }

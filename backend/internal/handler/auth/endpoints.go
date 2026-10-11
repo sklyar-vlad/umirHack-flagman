@@ -136,10 +136,12 @@ func authResponse(session *model.Session, settings bool) dto.AuthResponse {
 		SessionExpiresAt: session.ExpiresAt,
 	}
 	if settings {
-		response.Settings = &dto.DashboardSettings{
+		response.Settings = &dto.Settings{
 			RestaurantName:         session.Settings.RestaurantName,
 			Timezone:               session.Settings.Timezone,
 			ExpiringThresholdHours: session.Settings.ExpiringThresholdHours,
+			AutoWriteOffExpired:    session.Settings.AutoWriteOffExpired,
+			Revision:               session.Settings.Revision,
 		}
 	}
 	return response

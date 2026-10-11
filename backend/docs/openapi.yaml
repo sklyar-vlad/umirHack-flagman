@@ -2806,7 +2806,7 @@ components:
           required: [settings]
           properties:
             settings:
-              $ref: '#/components/schemas/DashboardSettings'
+              $ref: '#/components/schemas/Settings'
     UUID:
       type: string
       format: uuid

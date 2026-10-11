@@ -62,9 +62,11 @@ func (r *Repository) CreateSession(
 func (r *Repository) FindActiveSession(ctx context.Context, tokenHash string) (model.Session, error) {
 	var session model.Session
 	destinations := append(userDestinations(&session.User), &session.CSRFToken, &session.ExpiresAt,
-		&session.Settings.RestaurantName, &session.Settings.Timezone, &session.Settings.ExpiringThresholdHours)
+		&session.Settings.RestaurantName, &session.Settings.Timezone, &session.Settings.ExpiringThresholdHours,
+		&session.Settings.AutoWriteOffExpired, &session.Settings.Revision)
 	err := r.db.QueryRow(ctx, `SELECT u.id,u.name,u.email,u.role::text,u.is_active,u.revision,u.created_at,u.last_login_at,
- s.csrf_token,s.expires_at,COALESCE(r.restaurant_name,''),COALESCE(r.timezone,'Europe/Moscow'),COALESCE(r.expiring_threshold_hours,24)
+ s.csrf_token,s.expires_at,COALESCE(r.restaurant_name,''),COALESCE(r.timezone,'Europe/Moscow'),COALESCE(r.expiring_threshold_hours,24),
+ COALESCE(r.auto_writeoff_expired,false),COALESCE(r.revision,1)
  FROM sessions s JOIN users u ON u.id=s.user_id LEFT JOIN restaurant_settings r ON r.id=1
  WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND u.is_active`, tokenHash).
 		Scan(destinations...)
