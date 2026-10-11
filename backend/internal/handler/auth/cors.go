@@ -41,7 +41,7 @@ func (h *Handler) CORS() gin.HandlerFunc {
 		for _, line := range c.Request.Header.Values("Access-Control-Request-Headers") {
 			for _, name := range strings.Split(line, ",") {
 				switch strings.ToLower(strings.TrimSpace(name)) {
-				case "content-type", "x-csrf-token", "x-request-id", "idempotency-key":
+				case "content-type", "x-csrf-token", "x-request-id", "idempotency-key", "last-event-id":
 				default:
 					basehandler.WriteError(c, apperrors.ErrForbidden)
 					return
@@ -49,7 +49,7 @@ func (h *Handler) CORS() gin.HandlerFunc {
 			}
 		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token, X-Request-ID, Idempotency-Key")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token, X-Request-ID, Idempotency-Key, Last-Event-ID")
 		c.AbortWithStatus(http.StatusNoContent)
 	}
 }

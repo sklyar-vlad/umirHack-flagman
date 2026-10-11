@@ -92,6 +92,57 @@ tags:
   - name: Orders
     description: Проверка корзины, создание и чтение заказа
 paths:
+  /events:
+    get:
+      tags: [System]
+      operationId: streamEvents
+      summary: Поток изменений с durable replay
+      x-implementation-status: implemented
+      description: |
+        Все четыре роли, действующая cookie-сессия, без CSRF на GET.
+        id — опубликованный cursor, event — тип, data — occurred_at, доступные
+        роли topics и списки UUID. Нет request_id, имён, рецептов или секретов.
+        Без Last-Event-ID читается только новый хвост; 0 запрашивает всю историю.
+        Replay строго по cursor; пропуски sequence допустимы. История минимум
+        24 часа после публикации. Старый cursor получает resync.required с
+        текущим high-water ID и перечитывает доступные разделы. Некорректный,
+        повторный или будущий cursor даёт 422 до начала потока.
+        Дубли при reconnect допустимы. Heartbeat-комментарий каждые 20 секунд;
+        inventory.time_changed каждые 30 секунд. Сессия проверяется каждый цикл
+        и при чтении backlog; отзыв, expiry, disable и shutdown закрывают поток.
+      parameters:
+        - name: Last-Event-ID
+          in: header
+          required: false
+          description: Один десятичный неотрицательный int64; не больше durable high-water.
+          schema: {type: string, pattern: '^[0-9]{1,19}$'}
+          example: '123'
+      responses:
+        '200':
+          description: Длительный поток SSE; каждое сообщение заканчивается пустой строкой.
+          headers:
+            Cache-Control:
+              schema: {type: string, enum: [no-cache]}
+            X-Accel-Buffering:
+              schema: {type: string, enum: ['no']}
+          content:
+            text/event-stream:
+              schema: {type: string}
+              example: |
+                id: 123
+                event: inventory.changed
+                data: {"occurred_at":"2026-10-09T09:00:00Z","topics":["inventory"]}
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /healthcheck:
     get:
       tags: [System]

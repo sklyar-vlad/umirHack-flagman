@@ -225,3 +225,7 @@ type StopListForecastHandler interface{ List(*gin.Context) }
 func RegisterStopListForecastRoutes(group *gin.RouterGroup, h StopListForecastHandler) {
 	group.GET("/analytics/stop-list-forecast", h.List)
 }
+
+type EventHandler interface{ Stream(*gin.Context) }
+
+func RegisterEventRoutes(group *gin.RouterGroup, h EventHandler) { group.GET("/events", h.Stream) }

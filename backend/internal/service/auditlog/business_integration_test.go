@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/dto"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
@@ -125,6 +126,29 @@ func TestAuditListsEveryImplementedBusinessMutationWithoutSecrets(t *testing.T) 
 		if count != 0 {
 			t.Fatal("audit coverage", action, count)
 		}
+	}
+	// No dispatcher has run. A new connection pool must see all committed
+	// business notifications unchanged, with no early cursor assignment.
+	config := f.pool.Config()
+	var pendingBefore []byte
+	if err := f.pool.QueryRow(ctx, `SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM outbox_events e`).Scan(&pendingBefore); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	var pendingAfter []byte
+	if err := fresh.QueryRow(ctx, `SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM outbox_events e`).Scan(&pendingAfter); err != nil {
+		t.Fatal(err)
+	}
+	if string(pendingBefore) != string(pendingAfter) {
+		t.Fatal("committed outbox changed across reconnect")
+	}
+	var count, early int
+	if err := fresh.QueryRow(ctx, `SELECT count(*),count(*) FILTER (WHERE cursor IS NOT NULL OR published_at IS NOT NULL) FROM outbox_events`).Scan(&count, &early); err != nil || count != 5 || early != 0 {
+		t.Fatal("pending durable events", count, early, err)
 	}
 	raw, _ := json.Marshal(got)
 	for _, secret := range []string{"private original password", "private reset password", f.hash, "password_hash", "session_token", "csrf_token"} {
