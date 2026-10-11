@@ -21,14 +21,33 @@ import (
 func TestForecastRealOrdersReplayRefusalCheckAndWriteOff(t *testing.T) {
 	f := newFixture(t)
 	pcs, batch := uuid.New(), uuid.New()
-	f.exec(t, `INSERT INTO products(id,category_id,name,unit,display_unit) VALUES($1,$2,'Pieces','pcs','pcs')`, pcs, f.category)
-	f.exec(t, `INSERT INTO batches(id,product_id,supply_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,$3,2,10,10,'explicit',$4)`, batch, pcs, f.supply, f.now.Add(1000*time.Hour))
-	f.exec(t, `INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) VALUES($1,$2,1)`, f.recipe, pcs)
+	f.exec(
+		t,
+		`INSERT INTO products(id,category_id,name,unit,display_unit) VALUES($1,$2,'Pieces','pcs','pcs')`,
+		pcs,
+		f.category,
+	)
+	f.exec(
+		t,
+		`INSERT INTO batches(id,product_id,supply_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,$3,2,10,10,'explicit',$4)`,
+		batch,
+		pcs,
+		f.supply,
+		f.now.Add(1000*time.Hour),
+	)
+	f.exec(
+		t,
+		`INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) VALUES($1,$2,1)`,
+		f.recipe,
+		pcs,
+	)
 	base := repository.NewRepository(f.pool, zap.NewNop())
 	order := orderservice.NewCreateService(orderrepo.NewRepository(), base, idempotency.NewService(base))
 	check := orderservice.NewService(menurepo.NewRepository(), base)
 	version := 1
-	basket := dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: f.dish.String(), RecipeVersion: &version, Portions: 7}}}
+	basket := dto.OrderRequest{
+		Items: []dto.OrderRequestItem{{DishID: f.dish.String(), RecipeVersion: &version, Portions: 7}},
+	}
 	body, err := json.Marshal(basket)
 	if err != nil {
 		t.Fatal(err)
@@ -40,12 +59,14 @@ func TestForecastRealOrdersReplayRefusalCheckAndWriteOff(t *testing.T) {
 	}
 	// Use a time strictly after both real consumption facts; the history upper
 	// boundary excludes records at the snapshot timestamp itself.
-	if err := f.pool.QueryRow(f.ctx, `SELECT MAX(occurred_at) FROM stock_movements WHERE type='order_consumption'`).Scan(&f.now); err != nil {
+	if err := f.pool.QueryRow(f.ctx, `SELECT MAX(occurred_at) FROM stock_movements WHERE type='order_consumption'`).
+		Scan(&f.now); err != nil {
 		t.Fatal(err)
 	}
 	f.now = f.now.Add(time.Microsecond)
 	initial := f.forecast(t)
-	if initial.Confidence != "low" || initial.Cause != "estimated_demand" || initial.EstimatedStopAt == nil || !initial.EstimatedStopAt.Equal(f.now.Add(48*time.Hour+1)) {
+	if initial.Confidence != "low" || initial.Cause != "estimated_demand" || initial.EstimatedStopAt == nil ||
+		!initial.EstimatedStopAt.Equal(f.now.Add(48*time.Hour+1)) {
 		t.Fatal(initial)
 	}
 	state := f.state(t)
@@ -87,7 +108,8 @@ func TestForecastRealOrdersReplayRefusalCheckAndWriteOff(t *testing.T) {
 	}
 	state = f.state(t)
 	got := f.forecast(t)
-	if got.Cause != "estimated_demand" || *got.LimitingProductID != f.product || !got.EstimatedStopAt.Equal(f.now.Add(24*time.Hour+1)) {
+	if got.Cause != "estimated_demand" || *got.LimitingProductID != f.product ||
+		!got.EstimatedStopAt.Equal(f.now.Add(24*time.Hour+1)) {
 		t.Fatal("stock recalculation or writeoff counted as history", got)
 	}
 	if f.state(t) != state {

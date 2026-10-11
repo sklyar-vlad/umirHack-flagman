@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/sklyar-vlad/umirHack-flagman/internal/telemetry"
 	"go.uber.org/zap"
 )
 
@@ -33,7 +35,13 @@ func (r *repository) WithinTx(
 	ctx context.Context,
 	options *pgx.TxOptions,
 	fn func(tx DBTX) error,
-) error {
+) (result error) {
+	defer func() {
+		var pg *pgconn.PgError
+		if errors.As(result, &pg) {
+			telemetry.Default.Conflict(pg.Code)
+		}
+	}()
 	txOptions := pgx.TxOptions{}
 	if options != nil {
 		txOptions = *options

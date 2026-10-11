@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 )
 

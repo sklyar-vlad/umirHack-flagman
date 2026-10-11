@@ -7,6 +7,12 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	responseService = "service"
+	responseStatus  = "status"
+	serviceName     = "umirHack-flagman"
+)
+
 type SupplyHandler interface {
 	ListSupplies(*gin.Context)
 	CreateSupply(*gin.Context)
@@ -34,7 +40,7 @@ func (h *handler) GetSupply(c *gin.Context)           { h.supplies.GetSupply(c) 
 
 func (h *handler) Healthcheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"status":  "ok",
-		"service": "umirHack-flagman",
+		responseStatus:  "ok",
+		responseService: serviceName,
 	})
 }

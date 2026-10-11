@@ -48,19 +48,37 @@ func NewClient(environment, destination, origin string) (*Client, error) {
 		return nil, errors.New("demo-events requires ENV=demo")
 	}
 	base, err := url.Parse(destination)
-	if err != nil || base == nil || (base.Scheme != "http" && base.Scheme != "https") || base.Hostname() == "" || base.User != nil || base.RawQuery != "" || base.Fragment != "" || (base.Path != "" && base.Path != "/") {
-		return nil, errors.New("explicit --demo-url must be an HTTP(S) origin without credentials, path, query or fragment")
+	if err != nil || base == nil || (base.Scheme != "http" && base.Scheme != "https") || base.Hostname() == "" ||
+		base.User != nil ||
+		base.RawQuery != "" ||
+		base.Fragment != "" ||
+		(base.Path != "" && base.Path != "/") {
+		return nil, errors.New(
+			"explicit --demo-url must be an HTTP(S) origin without credentials, path, query or fragment",
+		)
 	}
 	frontend, err := url.Parse(origin)
-	if err != nil || frontend == nil || (frontend.Scheme != "http" && frontend.Scheme != "https") || frontend.Hostname() == "" || frontend.User != nil || frontend.Path != "" || frontend.RawQuery != "" || frontend.Fragment != "" {
+	if err != nil || frontend == nil || (frontend.Scheme != "http" && frontend.Scheme != "https") ||
+		frontend.Hostname() == "" ||
+		frontend.User != nil ||
+		frontend.Path != "" ||
+		frontend.RawQuery != "" ||
+		frontend.Fragment != "" {
 		return nil, errors.New("--origin must be the configured frontend HTTP(S) origin")
 	}
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, errors.New("cannot initialize session cookies")
 	}
-	return &Client{base: strings.TrimSuffix(base.String(), "/") + "/api/v1", origin: origin,
-		http: &http.Client{Jar: jar, Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	return &Client{
+		base:   strings.TrimSuffix(base.String(), "/") + "/api/v1",
+		origin: origin,
+		http: &http.Client{
+			Jar:           jar,
+			Timeout:       15 * time.Second,
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
+	}, nil
 }
 
 func (c *Client) Login(ctx context.Context, password string) error {
@@ -68,10 +86,18 @@ func (c *Client) Login(ctx context.Context, password string) error {
 		return errors.New("DEMO_MANAGER_PASSWORD is required")
 	}
 	var result dto.AuthResponse
-	if err := c.request(ctx, http.MethodPost, "/auth/login", "", dto.LoginRequest{Email: demoEmail, Password: password}, &result); err != nil {
+	if err := c.request(
+		ctx,
+		http.MethodPost,
+		"/auth/login",
+		"",
+		dto.LoginRequest{Email: demoEmail, Password: password},
+		&result,
+	); err != nil {
 		return err
 	}
-	if result.CSRFToken == "" || result.User.Email != demoEmail || result.User.Role != "manager" || !result.User.IsActive {
+	if result.CSRFToken == "" || result.User.Email != demoEmail || result.User.Role != "manager" ||
+		!result.User.IsActive {
 		return errors.New("technical: login did not return the demo manager session")
 	}
 	c.csrf = result.CSRFToken
@@ -114,27 +140,43 @@ func (c *Client) request(ctx context.Context, method, path, key string, input, o
 		}
 		return &APIError{Code: "TRANSPORT_ERROR"}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024+1))
 	if err != nil || len(raw) > 2*1024*1024 {
-		return &APIError{Status: resp.StatusCode, Code: "INVALID_RESPONSE"}
+		return &APIError{Status: resp.StatusCode, Code: invalidResponseCode}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var response dto.ErrorResponse
 		_ = json.Unmarshal(raw, &response)
 		code := safeCode(response.Error.Code)
-		refusal := method == http.MethodPost && path == "/orders" && resp.StatusCode == http.StatusConflict && (code == "INSUFFICIENT_STOCK" || code == "RECIPE_CHANGED" || code == "DISH_UNAVAILABLE")
+		refusal := method == http.MethodPost && path == "/orders" && resp.StatusCode == http.StatusConflict &&
+			(code == "INSUFFICIENT_STOCK" || code == "RECIPE_CHANGED" || code == "DISH_UNAVAILABLE")
 		return &APIError{Status: resp.StatusCode, Code: code, Refusal: refusal}
 	}
 	if output != nil && json.Unmarshal(raw, output) != nil {
-		return &APIError{Status: resp.StatusCode, Code: "INVALID_RESPONSE"}
+		return &APIError{Status: resp.StatusCode, Code: invalidResponseCode}
 	}
 	return nil
 }
 
 func safeCode(code string) string {
 	switch code {
-	case "INSUFFICIENT_STOCK", "RECIPE_CHANGED", "DISH_UNAVAILABLE", "VALIDATION_ERROR", "INVALID_JSON", "SHELF_LIFE_REQUIRED", "UNAUTHORIZED", "FORBIDDEN", "NOT_FOUND", "IDEMPOTENCY_CONFLICT", "REQUEST_IN_PROGRESS", "CONFLICT", "SERVICE_UNAVAILABLE", "INTERNAL_ERROR", "TOO_MANY_REQUESTS", "PAYLOAD_TOO_LARGE":
+	case "INSUFFICIENT_STOCK",
+		"RECIPE_CHANGED",
+		"DISH_UNAVAILABLE",
+		"VALIDATION_ERROR",
+		"INVALID_JSON",
+		"SHELF_LIFE_REQUIRED",
+		"UNAUTHORIZED",
+		"FORBIDDEN",
+		"NOT_FOUND",
+		"IDEMPOTENCY_CONFLICT",
+		"REQUEST_IN_PROGRESS",
+		"CONFLICT",
+		"SERVICE_UNAVAILABLE",
+		"INTERNAL_ERROR",
+		"TOO_MANY_REQUESTS",
+		"PAYLOAD_TOO_LARGE":
 		return code
 	default:
 		return "HTTP_ERROR"
@@ -153,12 +195,20 @@ func (c *Client) dish(ctx context.Context, id string) (dto.Dish, error) {
 	}
 	for page := 1; ; page++ {
 		var result dto.DishListResponse
-		if err := c.request(ctx, http.MethodGet, fmt.Sprintf("/dishes?page=%d&page_size=100", page), "", nil, &result); err != nil {
+		if err := c.request(
+			ctx,
+			http.MethodGet,
+			fmt.Sprintf("/dishes?page=%d&page_size=100", page),
+			"",
+			nil,
+			&result,
+		); err != nil {
 			return dto.Dish{}, err
 		}
-		for _, dish := range result.Items {
+		for i := range result.Items {
+			dish := &result.Items[i]
 			if dish.IsActive && dish.RecipeVersion != nil {
-				return dish, nil
+				return *dish, nil
 			}
 		}
 		if len(result.Items) == 0 || int64(page)*100 >= result.Total {
@@ -167,11 +217,15 @@ func (c *Client) dish(ctx context.Context, id string) (dto.Dish, error) {
 	}
 }
 
-func basket(dish dto.Dish, portions int) dto.OrderRequest {
-	return dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: dish.ID.String(), Portions: portions, RecipeVersion: dish.RecipeVersion}}}
+func basket(dish *dto.Dish, portions int) dto.OrderRequest {
+	return dto.OrderRequest{
+		Items: []dto.OrderRequestItem{
+			{DishID: dish.ID.String(), Portions: portions, RecipeVersion: dish.RecipeVersion},
+		},
+	}
 }
 
-func (c *Client) order(ctx context.Context, dish dto.Dish, portions int, out io.Writer) error {
+func (c *Client) order(ctx context.Context, dish *dto.Dish, portions int, out io.Writer) error {
 	key := uuid.NewString()
 	var result dto.OrderDetail
 	err := c.request(ctx, http.MethodPost, "/orders", key, basket(dish, portions), &result)
@@ -184,7 +238,7 @@ func (c *Client) order(ctx context.Context, dish dto.Dish, portions int, out io.
 		return err
 	}
 	if result.ID == uuid.Nil {
-		return &APIError{Code: "INVALID_RESPONSE"}
+		return &APIError{Code: invalidResponseCode}
 	}
 	_, err = fmt.Fprintf(out, "order created id=%s key=%s portions=%d\n", result.ID, key, portions)
 	return err
@@ -196,5 +250,5 @@ func (c *Client) Order(ctx context.Context, dishID string, out io.Writer) error 
 	if err != nil {
 		return err
 	}
-	return c.order(ctx, dish, 1, out)
+	return c.order(ctx, &dish, 1, out)
 }

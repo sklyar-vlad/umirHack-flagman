@@ -26,18 +26,43 @@ func TestCatalogSafeAtomicAuditMetadataAndSnapshots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := f.catalog.CreateProduct(ctx, dto.CreateProductRequest{Name: "Before product", CategoryID: c.ID, Unit: "g", DisplayUnit: "kg", TargetStock: ptr("10.001"), StandardShelfLifeHours: ptr(24)})
+	p, err := f.catalog.CreateProduct(
+		ctx,
+		&dto.CreateProductRequest{
+			Name:                   "Before product",
+			CategoryID:             c.ID,
+			Unit:                   "g",
+			DisplayUnit:            "kg",
+			TargetStock:            ptr("10.001"),
+			StandardShelfLifeHours: ptr(24),
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = f.catalog.UpdateProduct(ctx, p.ID, dto.UpdateProductRequest{Name: ptr("After product"), TargetStock: dto.Nullable[string]{Set: true}, ExpectedRevision: 1})
+	_, err = f.catalog.UpdateProduct(
+		ctx,
+		p.ID,
+		&dto.UpdateProductRequest{
+			Name:             ptr("After product"),
+			TargetStock:      dto.Nullable[string]{Set: true},
+			ExpectedRevision: 1,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	f.catalog.CreateCategory(ctx, dto.CreateCategoryRequest{Name: "after CATEGORY"})
-	f.catalog.UpdateProduct(ctx, p.ID, dto.UpdateProductRequest{Name: ptr("Stale"), ExpectedRevision: 1})
-	f.catalog.UpdateProduct(ctx, p.ID, dto.UpdateProductRequest{TargetStock: dto.Nullable[string]{Set: true, Value: ptr("-1")}, ExpectedRevision: 2})
-	rows, err := f.pool.Query(ctx, `SELECT actor_id,action,entity_type,entity_id,request_id,before_data,after_data FROM audit_log ORDER BY created_at,id`)
+	f.catalog.UpdateProduct(ctx, p.ID, &dto.UpdateProductRequest{Name: ptr("Stale"), ExpectedRevision: 1})
+	f.catalog.UpdateProduct(
+		ctx,
+		p.ID,
+		&dto.UpdateProductRequest{TargetStock: dto.Nullable[string]{Set: true, Value: ptr("-1")}, ExpectedRevision: 2},
+	)
+	rows, err := f.pool.Query(
+		ctx,
+		`SELECT actor_id,action,entity_type,entity_id,request_id,before_data,after_data FROM audit_log ORDER BY created_at,id`,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,11 +83,16 @@ func TestCatalogSafeAtomicAuditMetadataAndSnapshots(t *testing.T) {
 		if i%2 == 1 {
 			expectedAction = "update"
 		}
-		if i > 3 || actor != f.user || entity != expectedID || typ != expectedType || action != expectedAction || rid != "catalog-audit" {
+		if i > 3 || actor != f.user || entity != expectedID || typ != expectedType || action != expectedAction ||
+			rid != "catalog-audit" {
 			t.Fatal("metadata", i, action, typ, rid)
 		}
 		var next, old map[string]any
-		if err := json.Unmarshal(after, &next); err != nil || len(next) != fields || next["revision"] != float64(i%2+1) {
+		if err := json.Unmarshal(
+			after,
+			&next,
+		); err != nil || len(next) != fields ||
+			next["revision"] != float64(i%2+1) {
 			t.Fatal(string(after), err)
 		}
 		if i%2 == 0 {
@@ -77,7 +107,8 @@ func TestCatalogSafeAtomicAuditMetadataAndSnapshots(t *testing.T) {
 				t.Fatal("before overwritten")
 			}
 		}
-		if i == 3 && (next["target_stock"] != nil || old["target_stock"] != "10.001" || old["standard_shelf_life_hours"] != float64(24)) {
+		if i == 3 &&
+			(next["target_stock"] != nil || old["target_stock"] != "10.001" || old["standard_shelf_life_hours"] != float64(24)) {
 			t.Fatal("nullable snapshot", next, old)
 		}
 		i++
@@ -97,11 +128,20 @@ func TestCatalogAuditFailureRollsBackAndHidesDatabaseDetails(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				f.exec(t, `CREATE FUNCTION reject_catalog_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'catalog private database detail'; END $$`)
+				f.exec(
+					t,
+					`CREATE FUNCTION reject_catalog_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'catalog private database detail'; END $$`,
+				)
 				if deferred {
-					f.exec(t, `CREATE CONSTRAINT TRIGGER reject_audit AFTER INSERT ON audit_log DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION reject_catalog_audit()`)
+					f.exec(
+						t,
+						`CREATE CONSTRAINT TRIGGER reject_audit AFTER INSERT ON audit_log DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION reject_catalog_audit()`,
+					)
 				} else {
-					f.exec(t, `CREATE TRIGGER reject_audit BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION reject_catalog_audit()`)
+					f.exec(
+						t,
+						`CREATE TRIGGER reject_audit BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION reject_catalog_audit()`,
+					)
 				}
 				core, logs := observer.New(zap.DebugLevel)
 				r := gin.New()
@@ -136,7 +176,11 @@ func TestCatalogAuditFailureRollsBackAndHidesDatabaseDetails(t *testing.T) {
 					t.Fatal("category partial write", category, err)
 				}
 				var products, categories, audits int
-				if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM products),(SELECT count(*) FROM product_categories),(SELECT count(*) FROM audit_log)`).Scan(&products, &categories, &audits); err != nil || products != 1 || categories != 1 || audits != 2 {
+				if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM products),(SELECT count(*) FROM product_categories),(SELECT count(*) FROM audit_log)`).
+					Scan(&products, &categories, &audits); err != nil ||
+					products != 1 ||
+					categories != 1 ||
+					audits != 2 {
 					t.Fatal("rollback counts", products, categories, audits, err)
 				}
 				for _, entry := range logs.All() {

@@ -15,6 +15,7 @@ import (
 	apperrors "github.com/sklyar-vlad/umirHack-flagman/internal/errors"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
+	"github.com/sklyar-vlad/umirHack-flagman/internal/telemetry"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
@@ -60,6 +61,7 @@ func (s *Service) Execute(
 	hash := sha256.Sum256(body)
 	requestHash := hex.EncodeToString(hash[:])
 	var response model.IdempotencyResponse
+	replay := false
 	err := s.repo.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(q repository.DBTX) error {
 		acquired, err := s.repo.TryIdempotencyLock(ctx, q, &scope)
 		if err != nil {
@@ -76,6 +78,7 @@ func (s *Service) Execute(
 			if record.RequestHash != requestHash {
 				return apperrors.ErrIdempotencyConflict
 			}
+			replay = true
 			response = record.Response
 			return nil
 		}
@@ -112,6 +115,9 @@ func (s *Service) Execute(
 	})
 	if err != nil {
 		return model.IdempotencyResponse{}, err
+	}
+	if !replay && response.Status >= 400 {
+		telemetry.Default.Refusal(response.Body)
 	}
 	return response, nil
 }

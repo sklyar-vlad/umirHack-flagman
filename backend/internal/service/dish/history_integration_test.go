@@ -24,7 +24,9 @@ import (
 )
 
 func orderBody(d uuid.UUID, version int) []byte {
-	data, _ := json.Marshal(dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: d.String(), Portions: 1, RecipeVersion: &version}}})
+	data, _ := json.Marshal(
+		dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: d.String(), Portions: 1, RecipeVersion: &version}}},
+	)
 	return data
 }
 
@@ -52,25 +54,39 @@ func TestDishEditPreservesRealHistoricalOrderAndRefusesStaleRecipe(t *testing.T)
 		t.Fatal(err)
 	}
 	var linked uuid.UUID
-	if err := f.pool.QueryRow(f.ctx, `SELECT recipe_version_id FROM order_items WHERE order_id=$1`, order.ID).Scan(&linked); err != nil {
+	if err := f.pool.QueryRow(f.ctx, `SELECT recipe_version_id FROM order_items WHERE order_id=$1`, order.ID).
+		Scan(&linked); err != nil {
 		t.Fatal(err)
 	}
-	next, err := f.dishes.Update(f.actor(), d.ID, dto.UpdateDishRequest{ExpectedRevision: 1, Name: ptr("New name"), Recipe: ptr(recipe(p2, "2"))})
+	next, err := f.dishes.Update(
+		f.actor(),
+		d.ID,
+		dto.UpdateDishRequest{ExpectedRevision: 1, Name: ptr("New name"), Recipe: ptr(recipe(p2, "2"))},
+	)
 	if err != nil || *next.RecipeVersion != 2 {
 		t.Fatal(err)
 	}
-	if _, err := f.catalog.UpdateProduct(f.actor(), p, dto.UpdateProductRequest{ExpectedRevision: 1, Name: ptr("Renamed historical product"), IsActive: ptr(false)}); err != nil {
+	if _, err := f.catalog.UpdateProduct(
+		f.actor(),
+		p,
+		&dto.UpdateProductRequest{ExpectedRevision: 1, Name: ptr("Renamed historical product"), IsActive: ptr(false)},
+	); err != nil {
 		t.Fatal(err)
 	}
 	got, err := history.GetOrder(f.actor(), order.ID)
 	if err != nil || !reflect.DeepEqual(old, got) {
 		t.Fatal("historical order changed", err)
 	}
-	if got.Items[0].DishName != "Original" || *got.Items[0].RecipeVersion != 1 || got.Items[0].Allocations[0].ProductID != p || got.Items[0].Allocations[0].ProductName != "Old ingredient" || got.Items[0].Allocations[0].Quantity != "1.000" {
+	if got.Items[0].DishName != "Original" || *got.Items[0].RecipeVersion != 1 ||
+		got.Items[0].Allocations[0].ProductID != p ||
+		got.Items[0].Allocations[0].ProductName != "Old ingredient" ||
+		got.Items[0].Allocations[0].Quantity != "1.000" {
 		t.Fatalf("history snapshots: %+v", got)
 	}
 	var oldRecipeProduct uuid.UUID
-	if err := f.pool.QueryRow(f.ctx, `SELECT product_id FROM recipe_items WHERE recipe_version_id=$1`, linked).Scan(&oldRecipeProduct); err != nil || oldRecipeProduct != p {
+	if err := f.pool.QueryRow(f.ctx, `SELECT product_id FROM recipe_items WHERE recipe_version_id=$1`, linked).
+		Scan(&oldRecipeProduct); err != nil ||
+		oldRecipeProduct != p {
 		t.Fatal("order recipe link changed")
 	}
 	movements := f.count(t, "stock_movements")
@@ -90,7 +106,11 @@ func TestDishEditPreservesRealHistoricalOrderAndRefusesStaleRecipe(t *testing.T)
 	if err != nil || response.Status != 201 {
 		t.Fatalf("new recipe order: %d %v", response.Status, err)
 	}
-	if err := json.Unmarshal(response.Body, &order); err != nil || order.Items[0].DishName != "New name" || order.Items[0].Allocations[0].ProductID != p2 || order.Items[0].Allocations[0].Quantity != "2.000" {
+	if err := json.Unmarshal(
+		response.Body,
+		&order,
+	); err != nil || order.Items[0].DishName != "New name" || order.Items[0].Allocations[0].ProductID != p2 ||
+		order.Items[0].Allocations[0].Quantity != "2.000" {
 		t.Fatal("new order did not use new recipe")
 	}
 }
@@ -101,7 +121,12 @@ type pausedRecipe struct {
 	release  chan struct{}
 }
 
-func (p pausedRecipe) AddRecipe(ctx context.Context, tx repository.DBTX, dishID, actorID uuid.UUID, recipe []model.RecipeIngredient) error {
+func (p pausedRecipe) AddRecipe(
+	ctx context.Context,
+	tx repository.DBTX,
+	dishID, actorID uuid.UUID,
+	recipe []model.RecipeIngredient,
+) error {
 	if err := p.Repository.AddRecipe(ctx, tx, dishID, actorID, recipe); err != nil {
 		return err
 	}
@@ -121,7 +146,12 @@ func TestOrderWaitsForRecipeSaveThenRechecksLatestVersion(t *testing.T) {
 	f.batch(t, p, "10.000", time.Now().Add(time.Hour))
 	base := repository.NewRepository(f.pool, zap.NewNop())
 	inserted, release := make(chan struct{}), make(chan struct{})
-	s := dishservice.NewService(pausedRecipe{dishrepository.NewRepository(), inserted, release}, menurepository.NewRepository(), base, base)
+	s := dishservice.NewService(
+		pausedRecipe{dishrepository.NewRepository(), inserted, release},
+		menurepository.NewRepository(),
+		base,
+		base,
+	)
 	saved := make(chan error, 1)
 	go func() {
 		_, err := s.Update(f.actor(), d.ID, dto.UpdateDishRequest{ExpectedRevision: 1, Recipe: ptr(recipe(p, "2"))})
@@ -149,7 +179,9 @@ func TestOrderWaitsForRecipeSaveThenRechecksLatestVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	response := <-result
-	if response.Status != 409 || !strings.Contains(string(response.Body), "RECIPE_CHANGED") || f.count(t, "orders") != 0 || f.count(t, "stock_movements") != 0 {
+	if response.Status != 409 || !strings.Contains(string(response.Body), "RECIPE_CHANGED") ||
+		f.count(t, "orders") != 0 ||
+		f.count(t, "stock_movements") != 0 {
 		t.Fatalf("stale version after wait: %d %s", response.Status, response.Body)
 	}
 }
@@ -159,7 +191,12 @@ func TestRecipeSaveHoldsActorAndProductGuardsUntilCommit(t *testing.T) {
 	p := f.product(t, "Ingredient", "g", true)
 	base := repository.NewRepository(f.pool, zap.NewNop())
 	inserted, release := make(chan struct{}), make(chan struct{})
-	s := dishservice.NewService(pausedRecipe{dishrepository.NewRepository(), inserted, release}, menurepository.NewRepository(), base, base)
+	s := dishservice.NewService(
+		pausedRecipe{dishrepository.NewRepository(), inserted, release},
+		menurepository.NewRepository(),
+		base,
+		base,
+	)
 	saved := make(chan error, 1)
 	go func() {
 		_, err := s.Create(f.actor(), dto.CreateDishRequest{Name: "New active dish", Recipe: recipe(p, "1")})
@@ -172,7 +209,11 @@ func TestRecipeSaveHoldsActorAndProductGuardsUntilCommit(t *testing.T) {
 	}
 	productResult := make(chan error, 1)
 	go func() {
-		_, err := f.catalog.UpdateProduct(f.actor(), p, dto.UpdateProductRequest{ExpectedRevision: 1, IsActive: ptr(false)})
+		_, err := f.catalog.UpdateProduct(
+			f.actor(),
+			p,
+			&dto.UpdateProductRequest{ExpectedRevision: 1, IsActive: ptr(false)},
+		)
 		productResult <- err
 	}()
 	waitLock(t, f, "%FROM products%FOR UPDATE%")
@@ -193,7 +234,8 @@ func TestRecipeSaveHoldsActorAndProductGuardsUntilCommit(t *testing.T) {
 	if err := <-securityResult; err != nil {
 		t.Fatal(err)
 	}
-	if f.count(t, "dishes") != 1 || f.count(t, "recipe_versions") != 1 || f.count(t, "audit_log") != 1 || f.count(t, "outbox_events") != 1 {
+	if f.count(t, "dishes") != 1 || f.count(t, "recipe_versions") != 1 || f.count(t, "audit_log") != 1 ||
+		f.count(t, "outbox_events") != 1 {
 		t.Fatal("atomic save or guards")
 	}
 }

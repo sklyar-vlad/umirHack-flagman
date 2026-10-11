@@ -2,8 +2,9 @@ package model
 
 import (
 	"encoding/json"
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type AuditLogFilter struct {

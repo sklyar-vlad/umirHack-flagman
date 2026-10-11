@@ -26,14 +26,31 @@ import (
 	"go.uber.org/zap"
 )
 
-func (f *fixture) stream(t *testing.T, role string) (*httptest.Server, *eventservice.Service, string, context.CancelFunc) {
+func (f *fixture) stream(
+	t *testing.T,
+	role string,
+) (*httptest.Server, *eventservice.Service, string, context.CancelFunc) {
 	t.Helper()
 	user := uuid.New()
 	token := base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("s", 32)))
-	f.exec(t, `INSERT INTO users(id,name,email,password_hash,role) VALUES($1,'User','user@example.test','unused',$2)`, user, role)
+	f.exec(
+		t,
+		`INSERT INTO users(id,name,email,password_hash,role) VALUES($1,'User','user@example.test','unused',$2)`,
+		user,
+		role,
+	)
 	f.exec(t, `INSERT INTO restaurant_settings(restaurant_name) VALUES('Test')`)
-	f.exec(t, `INSERT INTO sessions(user_id,token_hash,csrf_token,expires_at) VALUES($1,$2,'unused',clock_timestamp()+interval '1 hour')`, user, authservice.SessionTokenHash(token))
-	service := eventservice.NewService(eventrepo.NewRepository(), repository.NewRepository(f.pool, zap.NewNop()), zap.NewNop())
+	f.exec(
+		t,
+		`INSERT INTO sessions(user_id,token_hash,csrf_token,expires_at) VALUES($1,$2,'unused',clock_timestamp()+interval '1 hour')`,
+		user,
+		authservice.SessionTokenHash(token),
+	)
+	service := eventservice.NewService(
+		eventrepo.NewRepository(),
+		repository.NewRepository(f.pool, zap.NewNop()),
+		zap.NewNop(),
+	)
 	lifecycle, cancel := context.WithCancel(f.ctx)
 	server := f.serve(t, service, lifecycle)
 	t.Cleanup(cancel)
@@ -59,9 +76,15 @@ func (f *fixture) serve(t *testing.T, service *eventservice.Service, lifecycle c
 	t.Cleanup(server.Close)
 	return server
 }
+
 func open(t *testing.T, server *httptest.Server, token, cursor string) *http.Response {
 	t.Helper()
-	req, err := http.NewRequestWithContext(context.Background(), "GET", server.URL+"/api/v1/events", nil)
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		server.URL+"/api/v1/events",
+		http.NoBody,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,14 +136,21 @@ func next(t *testing.T, r *bufio.Reader) wireEvent {
 		}
 	}
 }
-func (f *fixture) append(t *testing.T, s *eventservice.Service, typ string, payload model.OutboxPayload) int64 {
+
+func (f *fixture) append(t *testing.T, s *eventservice.Service, typ string, payload *model.OutboxPayload) int64 {
 	t.Helper()
 	data, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatal(err)
 	}
 	id := uuid.New()
-	f.exec(t, `INSERT INTO outbox_events(id,event_type,payload,created_at) VALUES($1,$2,$3,clock_timestamp())`, id, typ, data)
+	f.exec(
+		t,
+		`INSERT INTO outbox_events(id,event_type,payload,created_at) VALUES($1,$2,$3,clock_timestamp())`,
+		id,
+		typ,
+		data,
+	)
 	if err := s.Dispatch(f.ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -130,28 +160,42 @@ func (f *fixture) append(t *testing.T, s *eventservice.Service, typ string, payl
 	}
 	return cursor
 }
+
 func TestLiveSSEOrderedFramesAllRolesAndCancellation(t *testing.T) {
 	for _, role := range []string{"admin", "manager", "storekeeper", "order_operator"} {
 		t.Run(role, func(t *testing.T) {
 			f := newFixture(t)
 			server, s, token, cancel := f.stream(t, role)
-			if resp := open(t, server, "", ""); resp.StatusCode != 401 {
+			if resp := open(t, server, "", ""); resp.StatusCode != http.StatusUnauthorized {
 				t.Fatal("public stream", resp.StatusCode)
 			}
 			resp := open(t, server, token, "")
-			if resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "text/event-stream" || resp.Header.Get("Cache-Control") != "no-cache" || resp.Header.Get("X-Accel-Buffering") != "no" {
+			if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "text/event-stream" ||
+				resp.Header.Get("Cache-Control") != "no-cache" ||
+				resp.Header.Get("X-Accel-Buffering") != "no" {
 				t.Fatal(resp.StatusCode, resp.Header)
 			}
 			r := bufio.NewReader(resp.Body)
 			id := uuid.New()
-			payload := model.OutboxPayload{OccurredAt: time.Now().UTC(), RequestID: "private", Topics: []model.EventTopic{model.TopicUsers}, UserIDs: []uuid.UUID{id}}
-			hidden := f.append(t, s, "users.changed", payload)
-			payload.Topics = []model.EventTopic{model.TopicInventory, model.TopicDishes, model.TopicOrders, model.TopicSupplies, model.TopicUsers}
+			payload := model.OutboxPayload{
+				OccurredAt: time.Now().UTC(),
+				RequestID:  "private",
+				Topics:     []model.EventTopic{model.TopicUsers},
+				UserIDs:    []uuid.UUID{id},
+			}
+			hidden := f.append(t, s, "users.changed", &payload)
+			payload.Topics = []model.EventTopic{
+				model.TopicInventory,
+				model.TopicDishes,
+				model.TopicOrders,
+				model.TopicSupplies,
+				model.TopicUsers,
+			}
 			payload.ProductIDs = []uuid.UUID{id}
 			payload.DishIDs = []uuid.UUID{id}
 			payload.OrderIDs = []uuid.UUID{id}
 			payload.SupplyIDs = []uuid.UUID{id}
-			visible := f.append(t, s, "inventory.changed", payload)
+			visible := f.append(t, s, "inventory.changed", &payload)
 			if role == "admin" {
 				got := next(t, r)
 				if got.ID != hidden {
@@ -162,7 +206,8 @@ func TestLiveSSEOrderedFramesAllRolesAndCancellation(t *testing.T) {
 			if got.ID != visible || got.Type != "inventory.changed" || got.Payload.RequestID != "" {
 				t.Fatal(got)
 			}
-			if role == "storekeeper" && (len(got.Payload.DishIDs) != 0 || len(got.Payload.OrderIDs) != 0 || len(got.Payload.UserIDs) != 0) {
+			if role == "storekeeper" &&
+				(len(got.Payload.DishIDs) != 0 || len(got.Payload.OrderIDs) != 0 || len(got.Payload.UserIDs) != 0) {
 				t.Fatal("menu or user IDs leaked", got)
 			}
 			if role == "order_operator" && (len(got.Payload.SupplyIDs) != 0 || len(got.Payload.UserIDs) != 0) {

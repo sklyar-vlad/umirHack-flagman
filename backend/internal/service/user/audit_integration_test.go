@@ -33,7 +33,11 @@ func TestSafeUserAuditSnapshotsAndFailedMutationAbsence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next, err = f.users.Password(ctx, u.ID, dto.UserPasswordRequest{Password: "reset password value", ExpectedRevision: next.Revision})
+	next, err = f.users.Password(
+		ctx,
+		u.ID,
+		dto.UserPasswordRequest{Password: "reset password value", ExpectedRevision: next.Revision},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +46,10 @@ func TestSafeUserAuditSnapshotsAndFailedMutationAbsence(t *testing.T) {
 	f.users.Update(ctx, u.ID, dto.UpdateUserRequest{Name: ptr("stale"), ExpectedRevision: 1})
 	f.users.Create(ctx, createInput())
 	f.users.Password(ctx, u.ID, dto.UserPasswordRequest{Password: "short", ExpectedRevision: 3})
-	rows, err := f.pool.Query(ctx, `SELECT actor_id,action,entity_type,entity_id,request_id,before_data,after_data FROM audit_log ORDER BY created_at,id`)
+	rows, err := f.pool.Query(
+		ctx,
+		`SELECT actor_id,action,entity_type,entity_id,request_id,before_data,after_data FROM audit_log ORDER BY created_at,id`,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +63,8 @@ func TestSafeUserAuditSnapshotsAndFailedMutationAbsence(t *testing.T) {
 		if err := rows.Scan(&actor, &action, &typ, &entity, &id, &before, &after); err != nil {
 			t.Fatal(err)
 		}
-		if i >= len(actions) || actions[i] != action || actor != f.user || entity != u.ID || typ != "user" || id != "user-audit-request" {
+		if i >= len(actions) || actions[i] != action || actor != f.user || entity != u.ID || typ != "user" ||
+			id != "user-audit-request" {
 			t.Fatal("incorrect audit metadata", action, typ, id)
 		}
 		if i == 0 && before != nil {
@@ -83,6 +91,7 @@ func TestSafeUserAuditSnapshotsAndFailedMutationAbsence(t *testing.T) {
 		t.Fatal("incorrect audit count", i, rows.Err())
 	}
 }
+
 func TestUserAuditFailureRollsBackAllMutationsAndLogsNoSecrets(t *testing.T) {
 	for _, kind := range []string{"create", "update", "password", "deferred"} {
 		t.Run(kind, func(t *testing.T) {
@@ -100,11 +109,20 @@ func TestUserAuditFailureRollsBackAllMutationsAndLogsNoSecrets(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.exec(t, `CREATE FUNCTION reject_user_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'audit test secret initial password 123 argon2id'; END $$`)
+			f.exec(
+				t,
+				`CREATE FUNCTION reject_user_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'audit test secret initial password 123 argon2id'; END $$`,
+			)
 			if kind == "deferred" {
-				f.exec(t, `CREATE CONSTRAINT TRIGGER reject_audit AFTER INSERT ON audit_log DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION reject_user_audit()`)
+				f.exec(
+					t,
+					`CREATE CONSTRAINT TRIGGER reject_audit AFTER INSERT ON audit_log DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION reject_user_audit()`,
+				)
 			} else {
-				f.exec(t, `CREATE TRIGGER reject_audit BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION reject_user_audit()`)
+				f.exec(
+					t,
+					`CREATE TRIGGER reject_audit BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION reject_user_audit()`,
+				)
 			}
 			core, logs := observer.New(zap.DebugLevel)
 			r := gin.New()
@@ -129,7 +147,8 @@ func TestUserAuditFailureRollsBackAllMutationsAndLogsNoSecrets(t *testing.T) {
 			}
 			var count, rev, unrevoked int
 			var role string
-			f.pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM users),revision,role::text,(SELECT count(*) FROM sessions WHERE user_id=$1 AND revoked_at IS NULL) FROM users WHERE id=$1`, u.ID).Scan(&count, &rev, &role, &unrevoked)
+			f.pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM users),revision,role::text,(SELECT count(*) FROM sessions WHERE user_id=$1 AND revoked_at IS NULL) FROM users WHERE id=$1`, u.ID).
+				Scan(&count, &rev, &role, &unrevoked)
 			if count != 2 || rev != 1 || role != "manager" || unrevoked != 1 {
 				t.Fatal("audit failure partial writes", count, rev, role, unrevoked)
 			}
@@ -156,13 +175,22 @@ func TestUserAuditFailureRollsBackAllMutationsAndLogsNoSecrets(t *testing.T) {
 		})
 	}
 }
+
 func TestAdminSelfPasswordResetRevokesCurrentSession(t *testing.T) {
 	f := newFixture(t)
 	session, token, err := f.service.Authenticate(f.ctx, "manager@example.test", f.password)
 	if err != nil {
 		t.Fatal(err)
 	}
-	w := request(f.router(), "POST", "/users/"+f.user.String()+"/password", `{"password":"self reset password","expected_revision":1}`, token, session.CSRFToken, "https://flagman.example")
+	w := request(
+		f.router(),
+		"POST",
+		"/users/"+f.user.String()+"/password",
+		`{"password":"self reset password","expected_revision":1}`,
+		token,
+		session.CSRFToken,
+		"https://flagman.example",
+	)
 	if w.Code != 200 {
 		t.Fatal("self reset", w.Code, w.Body)
 	}

@@ -58,8 +58,12 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 	request.Email = strings.ToLower(strings.TrimSpace(request.Email))
-	if request.Email == "" || len(request.Email) > 254 || request.Password == "" || utf8.RuneCountInString(request.Password) > 128 {
-		basehandler.WriteError(c, &validations.FieldError{Field: "body", Message: "Ожидаются email и пароль до 128 символов"})
+	if request.Email == "" || len(request.Email) > 254 || request.Password == "" ||
+		utf8.RuneCountInString(request.Password) > 128 {
+		basehandler.WriteError(
+			c,
+			&validations.FieldError{Field: "body", Message: "Ожидаются email и пароль до 128 символов"},
+		)
 		return
 	}
 	if !h.limiter.allow("email", request.Email, 5) {
@@ -72,7 +76,7 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 	h.setSessionCookie(c, token, session.ExpiresAt)
-	c.JSON(http.StatusOK, authResponse(session, false))
+	c.JSON(http.StatusOK, authResponse(&session, false))
 }
 
 func (h *Handler) loginLimited(c *gin.Context) {
@@ -87,7 +91,7 @@ func (h *Handler) Me(c *gin.Context) {
 		basehandler.WriteError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, authResponse(session, true))
+	c.JSON(http.StatusOK, authResponse(&session, true))
 }
 
 func (h *Handler) Logout(c *gin.Context) {
@@ -103,7 +107,7 @@ func (h *Handler) Logout(c *gin.Context) {
 		return
 	}
 	if len(c.Request.Header.Values("Origin")) != 1 || len(c.Request.Header.Values("X-CSRF-Token")) != 1 ||
-		!h.service.ValidMutation(session, c.GetHeader("Origin"), c.GetHeader("X-CSRF-Token")) {
+		!h.service.ValidMutation(&session, c.GetHeader("Origin"), c.GetHeader("X-CSRF-Token")) {
 		basehandler.WriteError(c, apperrors.ErrForbidden)
 		return
 	}
@@ -115,14 +119,28 @@ func (h *Handler) Logout(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func authResponse(session model.Session, settings bool) dto.AuthResponse {
+func authResponse(session *model.Session, settings bool) dto.AuthResponse {
 	user := session.User
 	response := dto.AuthResponse{
-		User:      dto.User{ID: user.ID, Name: user.Name, Email: user.Email, Role: user.Role, IsActive: user.IsActive, Revision: user.Revision, CreatedAt: user.CreatedAt, LastLoginAt: user.LastLoginAt},
-		CSRFToken: session.CSRFToken, SessionExpiresAt: session.ExpiresAt,
+		User: dto.User{
+			ID:          user.ID,
+			Name:        user.Name,
+			Email:       user.Email,
+			Role:        user.Role,
+			IsActive:    user.IsActive,
+			Revision:    user.Revision,
+			CreatedAt:   user.CreatedAt,
+			LastLoginAt: user.LastLoginAt,
+		},
+		CSRFToken:        session.CSRFToken,
+		SessionExpiresAt: session.ExpiresAt,
 	}
 	if settings {
-		response.Settings = &dto.DashboardSettings{RestaurantName: session.Settings.RestaurantName, Timezone: session.Settings.Timezone, ExpiringThresholdHours: session.Settings.ExpiringThresholdHours}
+		response.Settings = &dto.DashboardSettings{
+			RestaurantName:         session.Settings.RestaurantName,
+			Timezone:               session.Settings.Timezone,
+			ExpiringThresholdHours: session.Settings.ExpiringThresholdHours,
+		}
 	}
 	return response
 }

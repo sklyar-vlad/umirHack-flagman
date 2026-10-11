@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"slices"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,7 +33,7 @@ type Allocation struct {
 // no partial plan. Neither input slice is mutated; now is fixed by the caller.
 func Plan(demands []Demand, batches []model.OrderBatch, now time.Time) ([]Allocation, error) {
 	ordered := slices.Clone(batches)
-	slices.SortFunc(ordered, CompareBatches)
+	sort.Slice(ordered, func(i, j int) bool { return CompareBatches(&ordered[i], &ordered[j]) < 0 })
 	remaining := make(map[uuid.UUID]*big.Int, len(ordered))
 	byProduct := make(map[uuid.UUID][]model.OrderBatch)
 	for i := range ordered {
@@ -98,7 +99,7 @@ func Plan(demands []Demand, batches []model.OrderBatch, now time.Time) ([]Alloca
 
 // CompareBatches is the shared allocation order for orders and read-only
 // simulations: expiry, supply receipt time, then batch identity.
-func CompareBatches(a, b model.OrderBatch) int {
+func CompareBatches(a, b *model.OrderBatch) int {
 	if order := a.ExpiresAt.Compare(b.ExpiresAt); order != 0 {
 		return order
 	}

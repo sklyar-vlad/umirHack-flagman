@@ -12,7 +12,7 @@ import (
 )
 
 type Service interface {
-	List(context.Context, model.AuditLogFilter) ([]dto.AuditLogEntry, int64, error)
+	List(context.Context, *model.AuditLogFilter) ([]dto.AuditLogEntry, int64, error)
 }
 type Handler struct{ service Service }
 
@@ -24,20 +24,42 @@ func (h *Handler) List(c *gin.Context) {
 		basehandler.WriteError(c, err)
 		return
 	}
-	items, total, err := h.service.List(c.Request.Context(), f)
+	items, total, err := h.service.List(c.Request.Context(), &f)
 	if err != nil {
 		basehandler.WriteError(c, err)
 		return
 	}
-	c.JSON(200, dto.ListResponse[dto.AuditLogEntry]{Items: items, Total: total, Page: f.Page, PageSize: f.PageSize, Meta: map[string]any{}})
+	c.JSON(
+		200,
+		dto.ListResponse[dto.AuditLogEntry]{
+			Items:    items,
+			Total:    total,
+			Page:     f.Page,
+			PageSize: f.PageSize,
+			Meta:     map[string]any{},
+		},
+	)
 }
+
 func parseFilter(raw string) (model.AuditLogFilter, error) {
 	var f model.AuditLogFilter
 	q, err := url.ParseQuery(raw)
 	if err != nil {
 		return f, &validations.FieldError{Field: "query", Message: "Некорректные параметры"}
 	}
-	if err := validations.ValidateQuery(q, "page", "page_size", "search", "actor_id", "action", "entity_type", "entity_id", "from", "to", "sort"); err != nil {
+	if err := validations.ValidateQuery(
+		q,
+		"page",
+		"page_size",
+		"search",
+		"actor_id",
+		"action",
+		"entity_type",
+		"entity_id",
+		"from",
+		"to",
+		"sort",
+	); err != nil {
 		return f, err
 	}
 	page, err := validations.ParsePagination(q)
@@ -69,14 +91,35 @@ func parseFilter(raw string) (model.AuditLogFilter, error) {
 		f.EntityID = &id
 	}
 	if _, ok := q["action"]; ok {
-		v, err := validations.ParseEnum(q, "action", "", "create", "update", "password_change", "manual_writeoff", "expiration")
+		v, err := validations.ParseEnum(
+			q,
+			"action",
+			"",
+			"create",
+			"update",
+			"password_change",
+			"manual_writeoff",
+			"expiration",
+		)
 		if err != nil {
 			return f, err
 		}
 		f.Action = model.AuditAction(v)
 	}
 	if _, ok := q["entity_type"]; ok {
-		v, err := validations.ParseEnum(q, "entity_type", "", "product_category", "product", "dish", "supply", "order", "stock_movement", "user", "settings")
+		v, err := validations.ParseEnum(
+			q,
+			"entity_type",
+			"",
+			"product_category",
+			"product",
+			"dish",
+			"supply",
+			"order",
+			"stock_movement",
+			"user",
+			"settings",
+		)
 		if err != nil {
 			return f, err
 		}

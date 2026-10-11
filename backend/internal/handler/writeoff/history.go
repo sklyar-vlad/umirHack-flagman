@@ -20,6 +20,7 @@ type HistoryHandler struct{ service HistoryService }
 func NewHistoryHandler(service HistoryService) *HistoryHandler {
 	return &HistoryHandler{service: service}
 }
+
 func (h *HistoryHandler) List(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	f, err := parseFilter(c.Request.URL.RawQuery)
@@ -32,15 +33,36 @@ func (h *HistoryHandler) List(c *gin.Context) {
 		basehandler.WriteError(c, err)
 		return
 	}
-	c.JSON(200, dto.ListResponse[dto.StockMovement]{Items: items, Total: total, Page: f.Page, PageSize: f.PageSize, Meta: map[string]any{}})
+	c.JSON(
+		200,
+		dto.ListResponse[dto.StockMovement]{
+			Items:    items,
+			Total:    total,
+			Page:     f.Page,
+			PageSize: f.PageSize,
+			Meta:     map[string]any{},
+		},
+	)
 }
+
 func parseFilter(raw string) (model.StockMovementFilter, error) {
 	var f model.StockMovementFilter
 	q, err := url.ParseQuery(raw)
 	if err != nil {
 		return f, &validations.FieldError{Field: "query", Message: "Некорректные параметры"}
 	}
-	if err = validations.ValidateQuery(q, "page", "page_size", "sort", "product_id", "batch_id", "order_id", "type", "from", "to"); err != nil {
+	if err := validations.ValidateQuery(
+		q,
+		"page",
+		"page_size",
+		"sort",
+		"product_id",
+		"batch_id",
+		"order_id",
+		"type",
+		"from",
+		"to",
+	); err != nil {
 		return f, err
 	}
 	p, err := validations.ParsePagination(q)
@@ -61,7 +83,15 @@ func parseFilter(raw string) (model.StockMovementFilter, error) {
 		}
 	}
 	if _, ok := q["type"]; ok {
-		f.Type, err = validations.ParseEnum(q, "type", "", "receipt", "order_consumption", "expiration", "manual_writeoff")
+		f.Type, err = validations.ParseEnum(
+			q,
+			"type",
+			"",
+			"receipt",
+			"order_consumption",
+			"expiration",
+			"manual_writeoff",
+		)
 		if err != nil {
 			return f, err
 		}

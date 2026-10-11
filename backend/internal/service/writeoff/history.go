@@ -26,6 +26,7 @@ type HistoryService struct {
 func NewHistoryService(repo HistoryRepository, transactions Transactions) *HistoryService {
 	return &HistoryService{repo: repo, transactions: transactions}
 }
+
 func (s *HistoryService) List(ctx context.Context, f model.StockMovementFilter) ([]dto.StockMovement, int64, error) {
 	actor, ok := requestctx.Actor(ctx)
 	if !ok || actor.ID == uuid.Nil {
@@ -36,11 +37,15 @@ func (s *HistoryService) List(ctx context.Context, f model.StockMovementFilter) 
 	}
 	var items []dto.StockMovement
 	var total int64
-	err := s.transactions.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx repository.DBTX) error {
-		var err error
-		items, total, err = s.repo.List(ctx, tx, f)
-		return err
-	})
+	err := s.transactions.WithinTx(
+		ctx,
+		&pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
+		func(tx repository.DBTX) error {
+			var err error
+			items, total, err = s.repo.List(ctx, tx, f)
+			return err
+		},
+	)
 	if err != nil {
 		return nil, 0, safeError(err)
 	}

@@ -11,9 +11,17 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/menu"
 )
 
+const causeUnknown = "unknown"
+
 // BuildForecasts consumes one immutable snapshot. Product demand is warehouse
 // demand, not multiplied independently by the number of dishes being forecast.
-func BuildForecasts(dishes []model.Dish, batches []model.OrderBatch, totals []model.ConsumptionTotal, now time.Time, f model.ForecastFilter) ([]dto.StopListForecast, error) {
+func BuildForecasts(
+	dishes []model.Dish,
+	batches []model.OrderBatch,
+	totals []model.ConsumptionTotal,
+	now time.Time,
+	f model.ForecastFilter,
+) ([]dto.StopListForecast, error) {
 	if err := validateFilter(f); err != nil {
 		return nil, err
 	}
@@ -22,17 +30,28 @@ func BuildForecasts(dishes []model.Dish, batches []model.OrderBatch, totals []mo
 		return nil, err
 	}
 	byProduct := map[uuid.UUID][]model.OrderBatch{}
-	for _, b := range batches {
-		byProduct[b.ProductID] = append(byProduct[b.ProductID], b)
+	for i := range batches {
+		b := &batches[i]
+		byProduct[b.ProductID] = append(byProduct[b.ProductID], *b)
 	}
 	items := []dto.StopListForecast{}
 	for _, dish := range dishes {
 		if !dish.IsActive {
 			continue
 		}
-		item := dto.StopListForecast{DishID: dish.ID, DishName: dish.Name, Cause: "unknown", Confidence: "low", Assumptions: []string{
-			"estimate_only", "no_future_supplies", "current_recipe_unchanged", "constant_average_product_consumption_full_lookback", "continuous_expected_consumption",
-		}}
+		item := dto.StopListForecast{
+			DishID:     dish.ID,
+			DishName:   dish.Name,
+			Cause:      causeUnknown,
+			Confidence: "low",
+			Assumptions: []string{
+				"estimate_only",
+				"no_future_supplies",
+				"current_recipe_unchanged",
+				"constant_average_product_consumption_full_lookback",
+				"continuous_expected_consumption",
+			},
+		}
 		missing := []uuid.UUID{}
 		for _, ingredient := range dish.Recipe {
 			if rates[productUnit{ingredient.ProductID, ingredient.Unit}] == nil {
@@ -55,7 +74,8 @@ func BuildForecasts(dishes []model.Dish, batches []model.OrderBatch, totals []mo
 			at := now.UTC()
 			item.EstimatedStopAt = &at
 			item.Cause = "already_unavailable"
-			for _, v := range availability.Shortages {
+			for i := range availability.Shortages {
+				v := &availability.Shortages[i]
 				if item.LimitingProductID == nil || slices.Compare(v.ProductID[:], item.LimitingProductID[:]) < 0 {
 					id := v.ProductID
 					item.LimitingProductID = &id
@@ -70,11 +90,18 @@ func BuildForecasts(dishes []model.Dish, batches []model.OrderBatch, totals []mo
 				if err != nil {
 					return nil, err
 				}
-				at, cause, err := ingredientStop(byProduct[ingredient.ProductID], required, rates[productUnit{ingredient.ProductID, ingredient.Unit}], now, time.Duration(f.HorizonHours)*time.Hour)
+				at, cause, err := ingredientStop(
+					byProduct[ingredient.ProductID],
+					required,
+					rates[productUnit{ingredient.ProductID, ingredient.Unit}],
+					now,
+					time.Duration(f.HorizonHours)*time.Hour,
+				)
 				if err != nil {
 					return nil, err
 				}
-				if at != nil && (item.EstimatedStopAt == nil || at.Before(*item.EstimatedStopAt) || at.Equal(*item.EstimatedStopAt) && slices.Compare(ingredient.ProductID[:], item.LimitingProductID[:]) < 0) {
+				if at != nil &&
+					(item.EstimatedStopAt == nil || at.Before(*item.EstimatedStopAt) || at.Equal(*item.EstimatedStopAt) && slices.Compare(ingredient.ProductID[:], item.LimitingProductID[:]) < 0) {
 					id := ingredient.ProductID
 					item.EstimatedStopAt = at
 					item.Cause = cause

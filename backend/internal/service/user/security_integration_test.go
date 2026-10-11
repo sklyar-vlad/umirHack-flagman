@@ -36,11 +36,23 @@ func TestLastAdminSingleAndConcurrentChanges(t *testing.T) {
 				t.Fatal("last admin changed", err)
 			}
 			// An inactive admin does not count as a surviving administrator.
-			f.exec(t, `INSERT INTO users(name,email,password_hash,role,is_active) VALUES('Inactive','inactive@example.test',$1,'admin',false)`, f.hash)
+			f.exec(
+				t,
+				`INSERT INTO users(name,email,password_hash,role,is_active) VALUES('Inactive','inactive@example.test',$1,'admin',false)`,
+				f.hash,
+			)
 			if _, err := f.users.Update(f.actor(), f.user, input); !errors.Is(err, apperrors.ErrLastAdmin) {
 				t.Fatal("inactive admin counted")
 			}
-			second, err := f.users.Create(f.actor(), dto.CreateUserRequest{Name: "Second", Email: "second@example.test", Role: "admin", Password: f.password})
+			second, err := f.users.Create(
+				f.actor(),
+				dto.CreateUserRequest{
+					Name:     "Second",
+					Email:    "second@example.test",
+					Role:     "admin",
+					Password: f.password,
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -62,11 +74,12 @@ func TestLastAdminSingleAndConcurrentChanges(t *testing.T) {
 			close(results)
 			success, protected := 0, 0
 			for err := range results {
-				if err == nil {
+				switch {
+				case err == nil:
 					success++
-				} else if errors.Is(err, apperrors.ErrLastAdmin) {
+				case errors.Is(err, apperrors.ErrLastAdmin):
 					protected++
-				} else {
+				default:
 					t.Fatal(err)
 				}
 			}
@@ -103,28 +116,49 @@ func TestSessionRevocationAndProfileChanges(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			next, err := f.users.Update(ctx, u.ID, dto.UpdateUserRequest{Name: ptr("Renamed"), Email: ptr("renamed@example.test"), ExpectedRevision: 1})
+			next, err := f.users.Update(
+				ctx,
+				u.ID,
+				dto.UpdateUserRequest{Name: ptr("Renamed"), Email: ptr("renamed@example.test"), ExpectedRevision: 1},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
 			for _, token := range tokens {
-				if session, err := f.service.CurrentSession(f.ctx, token); err != nil || session.User.Name != "Renamed" {
+				if session, err := f.service.CurrentSession(
+					f.ctx,
+					token,
+				); err != nil ||
+					session.User.Name != "Renamed" {
 					t.Fatal("profile edit revoked session", err)
 				}
 			}
 			switch kind {
 			case "role":
-				_, err = f.users.Update(ctx, u.ID, dto.UpdateUserRequest{Role: ptr("storekeeper"), ExpectedRevision: next.Revision})
+				_, err = f.users.Update(
+					ctx,
+					u.ID,
+					dto.UpdateUserRequest{Role: ptr("storekeeper"), ExpectedRevision: next.Revision},
+				)
 			case "disable":
-				_, err = f.users.Update(ctx, u.ID, dto.UpdateUserRequest{IsActive: ptr(false), ExpectedRevision: next.Revision})
+				_, err = f.users.Update(
+					ctx,
+					u.ID,
+					dto.UpdateUserRequest{IsActive: ptr(false), ExpectedRevision: next.Revision},
+				)
 			case "password":
-				_, err = f.users.Password(ctx, u.ID, dto.UserPasswordRequest{Password: "new reset password", ExpectedRevision: next.Revision})
+				_, err = f.users.Password(
+					ctx,
+					u.ID,
+					dto.UserPasswordRequest{Password: "new reset password", ExpectedRevision: next.Revision},
+				)
 			}
 			if err != nil {
 				t.Fatal(err)
 			}
 			var unrevoked int
-			f.pool.QueryRow(ctx, `SELECT count(*) FROM sessions WHERE user_id=$1 AND revoked_at IS NULL`, u.ID).Scan(&unrevoked)
+			f.pool.QueryRow(ctx, `SELECT count(*) FROM sessions WHERE user_id=$1 AND revoked_at IS NULL`, u.ID).
+				Scan(&unrevoked)
 			if unrevoked != 0 {
 				t.Fatal("sessions not revoked")
 			}
@@ -204,7 +238,8 @@ func waitDatabaseLock(t *testing.T, f *fixture, pid int) {
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		var waiting bool
-		if err := f.pool.QueryRow(f.ctx, `SELECT COALESCE((SELECT wait_event_type='Lock' FROM pg_stat_activity WHERE pid=$1),false)`, pid).Scan(&waiting); err != nil {
+		if err := f.pool.QueryRow(f.ctx, `SELECT COALESCE((SELECT wait_event_type='Lock' FROM pg_stat_activity WHERE pid=$1),false)`, pid).
+			Scan(&waiting); err != nil {
 			t.Fatal(err)
 		}
 		if waiting {
@@ -226,7 +261,11 @@ func TestLoginWaitsForUserSecurityMutation(t *testing.T) {
 			}
 			var hash string
 			f.pool.QueryRow(ctx, `SELECT password_hash FROM users WHERE id=$1`, u.ID).Scan(&hash)
-			gate := gateTransactions{base: repository.NewRepository(f.pool, zap.NewNop()), held: make(chan struct{}), release: make(chan struct{})}
+			gate := gateTransactions{
+				base:    repository.NewRepository(f.pool, zap.NewNop()),
+				held:    make(chan struct{}),
+				release: make(chan struct{}),
+			}
 			defer func() {
 				select {
 				case <-gate.release:
@@ -234,7 +273,11 @@ func TestLoginWaitsForUserSecurityMutation(t *testing.T) {
 					close(gate.release)
 				}
 			}()
-			svc := userservice.NewService(userrepository.NewRepository(), gate, repository.NewRepository(f.pool, zap.NewNop()))
+			svc := userservice.NewService(
+				userrepository.NewRepository(),
+				gate,
+				repository.NewRepository(f.pool, zap.NewNop()),
+			)
 			changed := make(chan error, 1)
 			go func() {
 				var err error
@@ -244,7 +287,11 @@ func TestLoginWaitsForUserSecurityMutation(t *testing.T) {
 				case "role":
 					_, err = svc.Update(ctx, u.ID, dto.UpdateUserRequest{Role: ptr("storekeeper"), ExpectedRevision: 1})
 				case "password":
-					_, err = svc.Password(ctx, u.ID, dto.UserPasswordRequest{Password: "changed password", ExpectedRevision: 1})
+					_, err = svc.Password(
+						ctx,
+						u.ID,
+						dto.UserPasswordRequest{Password: "changed password", ExpectedRevision: 1},
+					)
 				}
 				changed <- err
 			}()
@@ -264,7 +311,8 @@ func TestLoginWaitsForUserSecurityMutation(t *testing.T) {
 			conn.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid)
 			issued := make(chan error, 1)
 			go func() {
-				s, err := authrepository.NewRepository(conn).CreateSession(ctx, u.ID, hash, authservice.SessionTokenHash(uuid.NewString()), "csrf")
+				s, err := authrepository.NewRepository(conn).
+					CreateSession(ctx, u.ID, hash, authservice.SessionTokenHash(uuid.NewString()), "csrf")
 				if err == nil && s.User.Role != "storekeeper" {
 					err = errors.New("stale role in new session")
 				}
@@ -289,7 +337,10 @@ func TestLoginWaitsForUserSecurityMutation(t *testing.T) {
 
 func TestStaleAdminAfterAdministrationWait(t *testing.T) {
 	f := newFixture(t)
-	other, err := f.users.Create(f.actor(), dto.CreateUserRequest{Name: "Other", Email: "other@example.test", Role: "admin", Password: f.password})
+	other, err := f.users.Create(
+		f.actor(),
+		dto.CreateUserRequest{Name: "Other", Email: "other@example.test", Role: "admin", Password: f.password},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,14 +357,19 @@ func TestStaleAdminAfterAdministrationWait(t *testing.T) {
 	}
 	result := make(chan error, 1)
 	go func() {
-		_, err := f.users.Update(f.actor(), other.ID, dto.UpdateUserRequest{Name: ptr("Unauthorized"), ExpectedRevision: 1})
+		_, err := f.users.Update(
+			f.actor(),
+			other.ID,
+			dto.UpdateUserRequest{Name: ptr("Unauthorized"), ExpectedRevision: 1},
+		)
 		result <- err
 	}()
 	// Find the waiting administration transaction, not an arbitrary sleep.
 	deadline := time.Now().Add(5 * time.Second)
 	waiting := false
 	for time.Now().Before(deadline) {
-		if err := f.pool.QueryRow(f.ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND wait_event='advisory' AND query LIKE '%160016%')`).Scan(&waiting); err != nil {
+		if err := f.pool.QueryRow(f.ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND wait_event='advisory' AND query LIKE '%160016%')`).
+			Scan(&waiting); err != nil {
 			t.Fatal(err)
 		}
 		if waiting {

@@ -52,7 +52,8 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal("invalid test database configuration")
 	}
-	if (cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "::1" && cfg.ConnConfig.Host != "localhost") || !strings.Contains(cfg.ConnConfig.Database, "test") {
+	if (cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "::1" && cfg.ConnConfig.Host != "localhost") ||
+		!strings.Contains(cfg.ConnConfig.Database, "test") {
 		t.Fatal("auth tests require a dedicated local test database")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
@@ -100,7 +101,12 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.exec(t, `INSERT INTO users(id,name,email,password_hash,role) VALUES($1,'Test Manager','manager@example.test',$2,'admin')`, f.user, f.hash)
+	f.exec(
+		t,
+		`INSERT INTO users(id,name,email,password_hash,role) VALUES($1,'Test Manager','manager@example.test',$2,'admin')`,
+		f.user,
+		f.hash,
+	)
 	f.exec(t, `INSERT INTO restaurant_settings(restaurant_name) VALUES('Test Restaurant')`)
 	f.repo = authrepository.NewRepository(pool)
 	f.service, err = authservice.NewService(f.repo, "https://flagman.example")
@@ -112,10 +118,31 @@ func newFixture(t *testing.T) *fixture {
 	f.writeoff = writeoffservice.NewService(writeoffrepository.NewRepository(), base, idempotency.NewService(base))
 	f.category, f.product, f.supply, f.batch = uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	f.exec(t, `INSERT INTO product_categories(id,name) VALUES($1,'Test category')`, f.category)
-	f.exec(t, `INSERT INTO products(id,category_id,name,unit,display_unit) VALUES($1,$2,'Молоко','ml','l')`, f.product, f.category)
-	f.exec(t, `INSERT INTO supplies(id,number,created_by,received_at) VALUES($1,1,$2,clock_timestamp()-interval '1 hour')`, f.supply, f.user)
-	f.exec(t, `INSERT INTO batches(id,product_id,supply_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,$3,1,10,10,'explicit',clock_timestamp()+interval '1 day')`, f.batch, f.product, f.supply)
-	f.exec(t, `INSERT INTO stock_movements(batch_id,type,delta_quantity,remaining_quantity_after,product_name_snapshot,unit_snapshot,actor_id,occurred_at) VALUES($1,'receipt',10,10,'Молоко','ml',$2,clock_timestamp()-interval '1 hour')`, f.batch, f.user)
+	f.exec(
+		t,
+		`INSERT INTO products(id,category_id,name,unit,display_unit) VALUES($1,$2,'Молоко','ml','l')`,
+		f.product,
+		f.category,
+	)
+	f.exec(
+		t,
+		`INSERT INTO supplies(id,number,created_by,received_at) VALUES($1,1,$2,clock_timestamp()-interval '1 hour')`,
+		f.supply,
+		f.user,
+	)
+	f.exec(
+		t,
+		`INSERT INTO batches(id,product_id,supply_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,$3,1,10,10,'explicit',clock_timestamp()+interval '1 day')`,
+		f.batch,
+		f.product,
+		f.supply,
+	)
+	f.exec(
+		t,
+		`INSERT INTO stock_movements(batch_id,type,delta_quantity,remaining_quantity_after,product_name_snapshot,unit_snapshot,actor_id,occurred_at) VALUES($1,'receipt',10,10,'Молоко','ml',$2,clock_timestamp()-interval '1 hour')`,
+		f.batch,
+		f.user,
+	)
 	return f
 }
 
@@ -162,6 +189,7 @@ func request(r http.Handler, method, path, body, token, csrf, origin string) *ht
 func (f *fixture) body(amount string) []byte {
 	return []byte(fmt.Sprintf(`{"batch_id":"%s","quantity":"%s","reason":"  Порча продукта  "}`, f.batch, amount))
 }
+
 func (f *fixture) create(t *testing.T, amount string, key uuid.UUID) model.IdempotencyResponse {
 	t.Helper()
 	r, err := f.writeoff.CreateIdempotent(f.actor(), f.user, key, f.body(amount))
@@ -170,18 +198,22 @@ func (f *fixture) create(t *testing.T, amount string, key uuid.UUID) model.Idemp
 	}
 	return r
 }
+
 func (f *fixture) balance(t *testing.T) string {
 	t.Helper()
 	var value string
-	if err := f.pool.QueryRow(f.ctx, `SELECT remaining_quantity::text FROM batches WHERE id=$1`, f.batch).Scan(&value); err != nil {
+	if err := f.pool.QueryRow(f.ctx, `SELECT remaining_quantity::text FROM batches WHERE id=$1`, f.batch).
+		Scan(&value); err != nil {
 		t.Fatal(err)
 	}
 	return value
 }
+
 func (f *fixture) counts(t *testing.T) [4]int {
 	t.Helper()
 	var v [4]int
-	if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM stock_movements WHERE type='manual_writeoff'),(SELECT count(*) FROM audit_log),(SELECT count(*) FROM outbox_events),(SELECT count(*) FROM idempotency_keys)`).Scan(&v[0], &v[1], &v[2], &v[3]); err != nil {
+	if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM stock_movements WHERE type='manual_writeoff'),(SELECT count(*) FROM audit_log),(SELECT count(*) FROM outbox_events),(SELECT count(*) FROM idempotency_keys)`).
+		Scan(&v[0], &v[1], &v[2], &v[3]); err != nil {
 		t.Fatal(err)
 	}
 	return v

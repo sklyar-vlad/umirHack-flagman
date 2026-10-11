@@ -63,7 +63,8 @@ func decode(body []byte) (dto.WriteOffRequest, uuid.UUID, int64, error) {
 		if err := decoder.Decode(&raw); err != nil {
 			return input, uuid.Nil, 0, apperrors.ErrInvalidJSON
 		}
-		if (name != "batch_id" && name != "quantity" && name != "reason") || seen[name] || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		if (name != "batch_id" && name != "quantity" && name != "reason") || seen[name] ||
+			bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 			return input, uuid.Nil, 0, field(name, "Неизвестное поле, повтор или null")
 		}
 		seen[name] = true
@@ -86,14 +87,24 @@ func decode(body []byte) (dto.WriteOffRequest, uuid.UUID, int64, error) {
 		return input, batch, 0, field("quantity", "Количество должно быть положительным")
 	}
 	input.Reason = strings.TrimSpace(input.Reason)
-	if !utf8.ValidString(input.Reason) || utf8.RuneCountInString(input.Reason) < 1 || utf8.RuneCountInString(input.Reason) > 500 || strings.ContainsFunc(input.Reason, unicode.IsControl) {
-		return input, batch, 0, field("reason", "Необходима причина длиной от 1 до 500 символов без управляющих символов")
+	if !utf8.ValidString(input.Reason) || utf8.RuneCountInString(input.Reason) < 1 ||
+		utf8.RuneCountInString(input.Reason) > 500 ||
+		strings.ContainsFunc(input.Reason, unicode.IsControl) {
+		return input, batch, 0, field(
+			"reason",
+			"Необходима причина длиной от 1 до 500 символов без управляющих символов",
+		)
 	}
 	return input, batch, amount, nil
 }
+
 func field(name, message string) error { return &validations.FieldError{Field: name, Message: message} }
 
-func (s *Service) CreateIdempotent(ctx context.Context, actor, key uuid.UUID, body []byte) (model.IdempotencyResponse, error) {
+func (s *Service) CreateIdempotent(
+	ctx context.Context,
+	actor, key uuid.UUID,
+	body []byte,
+) (model.IdempotencyResponse, error) {
 	if actor == uuid.Nil {
 		return model.IdempotencyResponse{}, apperrors.ErrUnauthorized
 	}
@@ -125,15 +136,54 @@ func (s *Service) CreateIdempotent(ctx context.Context, actor, key uuid.UUID, bo
 		if remaining.Cmp(delta) < 0 {
 			return refusal(ctx, apperrors.ErrInsufficientBatchStock)
 		}
-		m := dto.StockMovement{ID: uuid.New(), BatchID: batch, ProductID: b.ProductID, Type: "manual_writeoff", DeltaQuantity: "-" + quantity.FormatMilli(delta), RemainingQuantityAfter: quantity.FormatMilli(remaining.Sub(remaining, delta)), ProductNameSnapshot: b.ProductName, UnitSnapshot: b.Unit, Actor: &who, OccurredAt: s.now().UTC().Truncate(time.Microsecond), Note: &input.Reason}
-		if err = s.repo.WriteOff(ctx, tx, &m, quantity.FormatMilli(delta)); err != nil {
+		m := dto.StockMovement{
+			ID:                     uuid.New(),
+			BatchID:                batch,
+			ProductID:              b.ProductID,
+			Type:                   "manual_writeoff",
+			DeltaQuantity:          "-" + quantity.FormatMilli(delta),
+			RemainingQuantityAfter: quantity.FormatMilli(remaining.Sub(remaining, delta)),
+			ProductNameSnapshot:    b.ProductName,
+			UnitSnapshot:           b.Unit,
+			Actor:                  &who,
+			OccurredAt:             s.now().UTC().Truncate(time.Microsecond),
+			Note:                   &input.Reason,
+		}
+		if err := s.repo.WriteOff(ctx, tx, &m, quantity.FormatMilli(delta)); err != nil {
 			return idempotency.Outcome{}, err
 		}
-		snapshot := &model.StockMovementAuditSnapshot{BatchID: m.BatchID, Type: m.Type, DeltaQuantity: m.DeltaQuantity, RemainingQuantityAfter: m.RemainingQuantityAfter, ProductNameSnapshot: m.ProductNameSnapshot, UnitSnapshot: m.UnitSnapshot, Note: m.Note}
-		if err = s.events.AppendAudit(ctx, tx, &model.AuditEntry{ActorID: &actor, Action: model.AuditManualWriteOff, EntityType: model.AuditStockMovement, EntityID: &m.ID, After: snapshot}); err != nil {
+		snapshot := &model.StockMovementAuditSnapshot{
+			BatchID:                m.BatchID,
+			Type:                   m.Type,
+			DeltaQuantity:          m.DeltaQuantity,
+			RemainingQuantityAfter: m.RemainingQuantityAfter,
+			ProductNameSnapshot:    m.ProductNameSnapshot,
+			UnitSnapshot:           m.UnitSnapshot,
+			Note:                   m.Note,
+		}
+		if err := s.events.AppendAudit(
+			ctx,
+			tx,
+			&model.AuditEntry{
+				ActorID:    &actor,
+				Action:     model.AuditManualWriteOff,
+				EntityType: model.AuditStockMovement,
+				EntityID:   &m.ID,
+				After:      snapshot,
+			},
+		); err != nil {
 			return idempotency.Outcome{}, err
 		}
-		if err = s.events.AppendOutbox(ctx, tx, &model.OutboxEvent{Type: model.InventoryChanged, ActorID: &actor, ProductIDs: []uuid.UUID{b.ProductID}, BatchIDs: []uuid.UUID{batch}}); err != nil {
+		if err := s.events.AppendOutbox(
+			ctx,
+			tx,
+			&model.OutboxEvent{
+				Type:       model.InventoryChanged,
+				ActorID:    &actor,
+				ProductIDs: []uuid.UUID{b.ProductID},
+				BatchIDs:   []uuid.UUID{batch},
+			},
+		); err != nil {
 			return idempotency.Outcome{}, err
 		}
 		raw, err := json.Marshal(m)
@@ -144,11 +194,13 @@ func (s *Service) CreateIdempotent(ctx context.Context, actor, key uuid.UUID, bo
 	})
 	return response, safeError(err)
 }
+
 func refusal(ctx context.Context, err error) (idempotency.Outcome, error) {
 	status, response := apperrors.MakeResponse(err, requestctx.ID(ctx))
 	body, err := json.Marshal(response)
 	return idempotency.Outcome{Response: model.IdempotencyResponse{Status: status, Body: body}, Rollback: true}, err
 }
+
 func safeError(err error) error {
 	var pg *pgconn.PgError
 	if errors.As(err, &pg) {

@@ -32,7 +32,13 @@ type Handler struct {
 }
 
 func NewHandler(reader Reader, sessions Sessions, lifecycle context.Context) *Handler {
-	return &Handler{reader: reader, sessions: sessions, lifecycle: lifecycle, poll: time.Second, heartbeat: 20 * time.Second}
+	return &Handler{
+		reader:    reader,
+		sessions:  sessions,
+		lifecycle: lifecycle,
+		poll:      time.Second,
+		heartbeat: 20 * time.Second,
+	}
 }
 
 func (h *Handler) Stream(c *gin.Context) {
@@ -84,7 +90,7 @@ func (h *Handler) Stream(c *gin.Context) {
 		}
 		after = page.HighWater
 	}
-	lastHeartbeat, lastCheck := time.Now(), time.Now()
+	lastHeartbeat := time.Now()
 	heartbeat := func() error {
 		if time.Since(lastHeartbeat) < h.heartbeat {
 			return nil
@@ -107,7 +113,7 @@ func (h *Handler) Stream(c *gin.Context) {
 		if err != nil {
 			return
 		}
-		lastCheck = time.Now()
+		lastCheck := time.Now()
 		for {
 			if ctx.Err() != nil {
 				return
@@ -123,7 +129,8 @@ func (h *Handler) Stream(c *gin.Context) {
 				after = page.HighWater
 				break
 			}
-			for _, e := range page.Events {
+			for i := range page.Events {
+				e := &page.Events[i]
 				if time.Since(lastCheck) >= h.poll {
 					session, err = h.session(ctx, cookie.Value)
 					if err != nil {
@@ -143,7 +150,11 @@ func (h *Handler) Stream(c *gin.Context) {
 					if err != nil {
 						return
 					}
-					if err := write(controller, c.Writer, fmt.Sprintf("id: %d\nevent: %s\ndata: %s\n\n", e.Cursor, e.Type, data)); err != nil {
+					if err := write(
+						controller,
+						c.Writer,
+						fmt.Sprintf("id: %d\nevent: %s\ndata: %s\n\n", e.Cursor, e.Type, data),
+					); err != nil {
 						return
 					}
 				}
@@ -162,16 +173,19 @@ func (h *Handler) Stream(c *gin.Context) {
 		}
 	}
 }
+
 func (h *Handler) read(ctx context.Context, after int64) (model.EventPage, error) {
 	bounded, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	return h.reader.Read(bounded, after)
 }
+
 func (h *Handler) session(ctx context.Context, token string) (model.Session, error) {
 	bounded, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	return h.sessions.CurrentSession(bounded, token)
 }
+
 func write(controller *http.ResponseController, w http.ResponseWriter, data string) error {
 	if err := controller.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		return err
@@ -189,7 +203,7 @@ func cursor(headers http.Header) (int64, bool, error) {
 	if len(values) == 0 {
 		return 0, false, nil
 	}
-	if len(values) != 1 || len(values[0]) == 0 || len(values[0]) > 19 {
+	if len(values) != 1 || values[0] == "" || len(values[0]) > 19 {
 		return 0, true, cursorError()
 	}
 	for _, c := range values[0] {
@@ -203,12 +217,32 @@ func cursor(headers http.Header) (int64, bool, error) {
 	}
 	return n, true, nil
 }
+
 func cursorError() error {
 	return &validations.FieldError{Field: "Last-Event-ID", Message: "Ожидается сохранённый неотрицательный cursor"}
 }
+
 func resync(controller *http.ResponseController, w http.ResponseWriter, high int64, role string) error {
-	p, _ := eventservice.Filter(model.PublishedEvent{Type: model.InventoryTimeChanged, Payload: model.OutboxPayload{
-		OccurredAt: time.Now().UTC(), Topics: []model.EventTopic{model.TopicInventory, model.TopicBatches, model.TopicDashboard, model.TopicProducts, model.TopicProductCategories, model.TopicSettings, model.TopicDishes, model.TopicStopList, model.TopicHotOffers, model.TopicOrders, model.TopicSupplies, model.TopicStockMovements, model.TopicProcurementRecommendations, model.TopicUsers}}}, role)
+	p, _ := eventservice.Filter(&model.PublishedEvent{Type: model.InventoryTimeChanged, Payload: model.OutboxPayload{
+		OccurredAt: time.Now().
+			UTC(),
+		Topics: []model.EventTopic{
+			model.TopicInventory,
+			model.TopicBatches,
+			model.TopicDashboard,
+			model.TopicProducts,
+			model.TopicProductCategories,
+			model.TopicSettings,
+			model.TopicDishes,
+			model.TopicStopList,
+			model.TopicHotOffers,
+			model.TopicOrders,
+			model.TopicSupplies,
+			model.TopicStockMovements,
+			model.TopicProcurementRecommendations,
+			model.TopicUsers,
+		},
+	}}, role)
 	data, err := json.Marshal(p)
 	if err != nil {
 		return err

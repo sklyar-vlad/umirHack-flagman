@@ -2,6 +2,7 @@ package events
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"strconv"
@@ -32,10 +33,18 @@ func TestHTTPRestartPublishesCommittedPendingAfterReversedBusinessCommits(t *tes
 	defer second.Rollback(f.ctx)
 	writer := repository.NewRepository(f.pool, zap.NewNop())
 	earlyID, lateID := uuid.New(), uuid.New()
-	if err := writer.AppendOutbox(f.ctx, first, &model.OutboxEvent{Type: model.InventoryChanged, ProductIDs: []uuid.UUID{earlyID}}); err != nil {
+	if err := writer.AppendOutbox(
+		f.ctx,
+		first,
+		&model.OutboxEvent{Type: model.InventoryChanged, ProductIDs: []uuid.UUID{earlyID}},
+	); err != nil {
 		t.Fatal(err)
 	}
-	if err := writer.AppendOutbox(f.ctx, second, &model.OutboxEvent{Type: model.InventoryChanged, ProductIDs: []uuid.UUID{lateID}}); err != nil {
+	if err := writer.AppendOutbox(
+		f.ctx,
+		second,
+		&model.OutboxEvent{Type: model.InventoryChanged, ProductIDs: []uuid.UUID{lateID}},
+	); err != nil {
 		t.Fatal(err)
 	}
 	if err := second.Commit(f.ctx); err != nil {
@@ -56,10 +65,16 @@ func TestHTTPRestartPublishesCommittedPendingAfterReversedBusinessCommits(t *tes
 	response.Body.Close()
 	server.Close()
 	var pending int
-	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM outbox_events WHERE cursor IS NULL AND published_at IS NULL`).Scan(&pending); err != nil || pending != 1 {
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM outbox_events WHERE cursor IS NULL AND published_at IS NULL`).
+		Scan(&pending); err != nil ||
+		pending != 1 {
 		t.Fatal(pending, err)
 	}
-	fresh := eventservice.NewService(eventrepo.NewRepository(), repository.NewRepository(f.pool, zap.NewNop()), zap.NewNop())
+	fresh := eventservice.NewService(
+		eventrepo.NewRepository(),
+		repository.NewRepository(f.pool, zap.NewNop()),
+		zap.NewNop(),
+	)
 	ctx, stop := context.WithCancel(f.ctx)
 	defer stop()
 	restarted := f.serve(t, fresh, ctx)
@@ -77,7 +92,7 @@ func TestHTTPRestartPublishesCommittedPendingAfterReversedBusinessCommits(t *tes
 	duplicate := next(t, bufio.NewReader(response.Body))
 	left, _ := json.Marshal(after)
 	right, _ := json.Marshal(duplicate)
-	if string(left) != string(right) {
+	if !bytes.Equal(left, right) {
 		t.Fatal("reconnect changed durable delivery", after, duplicate)
 	}
 }

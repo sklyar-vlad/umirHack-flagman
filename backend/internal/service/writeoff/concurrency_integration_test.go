@@ -23,7 +23,13 @@ func (f *fixture) orderBody(t *testing.T, quantity string) []byte {
 	dish, recipe := uuid.New(), uuid.New()
 	f.exec(t, `INSERT INTO dishes(id,name,is_active) VALUES($1,'Test dish',true)`, dish)
 	f.exec(t, `INSERT INTO recipe_versions(id,dish_id,version,created_by) VALUES($1,$2,1,$3)`, recipe, dish, f.user)
-	f.exec(t, `INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) VALUES($1,$2,$3)`, recipe, f.product, quantity)
+	f.exec(
+		t,
+		`INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) VALUES($1,$2,$3)`,
+		recipe,
+		f.product,
+		quantity,
+	)
 	raw, err := json.Marshal(dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: dish.String(), Portions: 1}}})
 	if err != nil {
 		t.Fatal(err)
@@ -58,15 +64,18 @@ func (f *fixture) reconcile(t *testing.T, want string) {
 	t.Helper()
 	var remaining, delta string
 	var invalid int
-	err := f.pool.QueryRow(f.ctx, `SELECT b.remaining_quantity::text,COALESCE(sum(m.delta_quantity),0)::text FROM batches b LEFT JOIN stock_movements m ON m.batch_id=b.id WHERE b.id=$1 GROUP BY b.id`, f.batch).Scan(&remaining, &delta)
+	err := f.pool.QueryRow(f.ctx, `SELECT b.remaining_quantity::text,COALESCE(sum(m.delta_quantity),0)::text FROM batches b LEFT JOIN stock_movements m ON m.batch_id=b.id WHERE b.id=$1 GROUP BY b.id`, f.batch).
+		Scan(&remaining, &delta)
 	if err != nil || remaining != want || delta != want {
 		t.Fatalf("reconciliation %s %s want %s err %v", remaining, delta, want, err)
 	}
-	err = f.pool.QueryRow(f.ctx, `SELECT count(*) FROM (SELECT remaining_quantity_after,sum(delta_quantity) OVER(ORDER BY occurred_at,id) balance FROM stock_movements WHERE batch_id=$1) m WHERE m.remaining_quantity_after<>m.balance`, f.batch).Scan(&invalid)
+	err = f.pool.QueryRow(f.ctx, `SELECT count(*) FROM (SELECT remaining_quantity_after,sum(delta_quantity) OVER(ORDER BY occurred_at,id) balance FROM stock_movements WHERE batch_id=$1) m WHERE m.remaining_quantity_after<>m.balance`, f.batch).
+		Scan(&invalid)
 	if err != nil || invalid != 0 {
 		t.Fatalf("historical balances differ from movement sum %d %v", invalid, err)
 	}
 }
+
 func TestOrderAndWriteOffBothLockOrdersCannotOverspend(t *testing.T) {
 	for _, first := range []string{"order", "writeoff"} {
 		t.Run(first, func(t *testing.T) {
@@ -125,15 +134,18 @@ func TestOrderAndWriteOffBothLockOrdersCannotOverspend(t *testing.T) {
 				t.Fatal("writes", f.counts(t))
 			}
 			var orders, attempts int
-			if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM orders),(SELECT count(*) FROM order_attempts)`).Scan(&orders, &attempts); err != nil {
+			if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM orders),(SELECT count(*) FROM order_attempts)`).
+				Scan(&orders, &attempts); err != nil {
 				t.Fatal(err)
 			}
-			if (first == "order" && (orders != 1 || attempts != 0)) || (first == "writeoff" && (orders != 0 || attempts != 1)) {
+			if (first == "order" && (orders != 1 || attempts != 0)) ||
+				(first == "writeoff" && (orders != 0 || attempts != 1)) {
 				t.Fatal("domain histories", orders, attempts)
 			}
 		})
 	}
 }
+
 func TestConcurrentOrderWriteOffAndManualWritesReconcile(t *testing.T) {
 	for _, kind := range []string{"order_and_writeoff", "two_writeoffs"} {
 		t.Run(kind, func(t *testing.T) {
@@ -185,7 +197,15 @@ func TestConcurrentOrderWriteOffAndManualWritesReconcile(t *testing.T) {
 				if orderID == nil {
 					t.Fatal("order link absent")
 				}
-				orderItems, n := f.list(t, model.StockMovementFilter{OrderID: orderID, ProductID: &f.product, BatchID: &f.batch, Type: "order_consumption"})
+				orderItems, n := f.list(
+					t,
+					model.StockMovementFilter{
+						OrderID:   orderID,
+						ProductID: &f.product,
+						BatchID:   &f.batch,
+						Type:      "order_consumption",
+					},
+				)
 				if n != 1 || orderItems[0].OrderID == nil || *orderItems[0].OrderID != *orderID {
 					t.Fatal("order filter", orderItems, n)
 				}
@@ -197,6 +217,7 @@ func TestConcurrentOrderWriteOffAndManualWritesReconcile(t *testing.T) {
 		})
 	}
 }
+
 func TestWriteOffFreshBalanceAfterBatchWait(t *testing.T) {
 	f := newFixture(t)
 	tx, err := f.pool.Begin(f.ctx)
@@ -221,7 +242,8 @@ func TestWriteOffFreshBalanceAfterBatchWait(t *testing.T) {
 		t.Fatal(err)
 	}
 	result := <-results
-	if result.err != nil || result.response.Status != 409 || f.balance(t) != "1.000" || f.counts(t) != [4]int{0, 0, 0, 1} {
+	if result.err != nil || result.response.Status != 409 || f.balance(t) != "1.000" ||
+		f.counts(t) != [4]int{0, 0, 0, 1} {
 		t.Fatalf("fresh stock %+v %v", result, f.counts(t))
 	}
 	r := f.create(t, "1", uuid.New())

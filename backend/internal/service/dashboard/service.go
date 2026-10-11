@@ -115,7 +115,8 @@ func (s *Service) Get(ctx context.Context, role string) (dto.DashboardResponse, 
 		}
 	}
 	warningAt := now.Add(time.Duration(data.Settings.ExpiringThresholdHours) * time.Hour)
-	for _, b := range batches {
+	for i := range batches {
+		b := &batches[i]
 		if b.ExpiresAt.After(warningAt) || len(result.AttentionBatches) == 20 {
 			continue
 		}
@@ -123,7 +124,12 @@ func (s *Service) Get(ctx context.Context, role string) (dto.DashboardResponse, 
 		if !ok {
 			return dto.DashboardResponse{}, fmt.Errorf("dashboard stock missing for %s", b.ProductID)
 		}
-		status, seconds := batchservice.CalculateStatus(b.RemainingQuantity, b.ExpiresAt, now, data.Settings.ExpiringThresholdHours)
+		status, seconds := batchservice.CalculateStatus(
+			b.RemainingQuantity,
+			b.ExpiresAt,
+			now,
+			data.Settings.ExpiringThresholdHours,
+		)
 		result.AttentionBatches = append(result.AttentionBatches, dto.AttentionBatch{
 			BatchID: b.ID, ProductID: b.ProductID, ProductName: stock.Product.Name,
 			SupplyID: b.SupplyID, SupplyNumber: b.SupplyNumber, LineNumber: b.LineNumber,

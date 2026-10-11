@@ -24,7 +24,15 @@ func TestSettingsTypedBeforeAfterAndActorAreAtomic(t *testing.T) {
 	f := newFixture(t)
 	before, _ := f.settings.Get(f.actor())
 	ctx := requestctx.WithID(f.actor(), "settings-save")
-	after, err := f.settings.Update(ctx, dto.UpdateSettingsRequest{RestaurantName: ptr("After"), Timezone: ptr("UTC"), ExpiringThresholdHours: ptr(48), ExpectedRevision: 1})
+	after, err := f.settings.Update(
+		ctx,
+		dto.UpdateSettingsRequest{
+			RestaurantName:         ptr("After"),
+			Timezone:               ptr("UTC"),
+			ExpiringThresholdHours: ptr(48),
+			ExpectedRevision:       1,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +40,8 @@ func TestSettingsTypedBeforeAfterAndActorAreAtomic(t *testing.T) {
 	var entity *uuid.UUID
 	var action, typ, rid string
 	var old, next []byte
-	if err := f.pool.QueryRow(ctx, `SELECT actor_id,entity_id,action,entity_type,request_id,before_data,after_data FROM audit_log`).Scan(&actor, &entity, &action, &typ, &rid, &old, &next); err != nil {
+	if err := f.pool.QueryRow(ctx, `SELECT actor_id,entity_id,action,entity_type,request_id,before_data,after_data FROM audit_log`).
+		Scan(&actor, &entity, &action, &typ, &rid, &old, &next); err != nil {
 		t.Fatal(err)
 	}
 	if actor != f.user || entity != nil || action != "update" || typ != "settings" || rid != "settings-save" {
@@ -59,11 +68,20 @@ func TestSettingsEventFailureRollsBackAndLogsOnlySQLState(t *testing.T) {
 		for _, deferred := range []bool{false, true} {
 			t.Run(table+map[bool]string{true: " deferred", false: " immediate"}[deferred], func(t *testing.T) {
 				f := newFixture(t)
-				f.exec(t, `CREATE FUNCTION reject_settings_event() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'private test storage secret'; END $$`)
+				f.exec(
+					t,
+					`CREATE FUNCTION reject_settings_event() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'private test storage secret'; END $$`,
+				)
 				if deferred {
-					f.exec(t, `CREATE CONSTRAINT TRIGGER reject_settings_event AFTER INSERT ON `+table+` DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION reject_settings_event()`)
+					f.exec(
+						t,
+						`CREATE CONSTRAINT TRIGGER reject_settings_event AFTER INSERT ON `+table+` DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION reject_settings_event()`,
+					)
 				} else {
-					f.exec(t, `CREATE TRIGGER reject_settings_event BEFORE INSERT ON `+table+` FOR EACH ROW EXECUTE FUNCTION reject_settings_event()`)
+					f.exec(
+						t,
+						`CREATE TRIGGER reject_settings_event BEFORE INSERT ON `+table+` FOR EACH ROW EXECUTE FUNCTION reject_settings_event()`,
+					)
 				}
 				core, logs := observer.New(zap.DebugLevel)
 				r := gin.New()
@@ -75,16 +93,28 @@ func TestSettingsEventFailureRollsBackAndLogsOnlySQLState(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				w := request(r, "PATCH", "/settings", `{"restaurant_name":"Changed","timezone":"UTC","expiring_threshold_hours":48,"expected_revision":1}`, token, session.CSRFToken, "https://flagman.example")
+				w := request(
+					r,
+					"PATCH",
+					`{"restaurant_name":"Changed","timezone":"UTC","expiring_threshold_hours":48,"expected_revision":1}`,
+					token,
+					session.CSRFToken,
+					"https://flagman.example",
+				)
 				if w.Code != 500 || strings.Contains(w.Body.String(), "secret") {
 					t.Fatal(w.Code, w.Body)
 				}
 				got, err := f.settings.Get(f.actor())
-				if err != nil || got.Revision != 1 || got.RestaurantName != "Test Restaurant" || got.Timezone != "Europe/Moscow" || got.ExpiringThresholdHours != 24 {
+				if err != nil || got.Revision != 1 || got.RestaurantName != "Test Restaurant" ||
+					got.Timezone != "Europe/Moscow" ||
+					got.ExpiringThresholdHours != 24 {
 					t.Fatal("mutation persisted", got, err)
 				}
 				var audits, events int
-				if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM audit_log),(SELECT count(*) FROM outbox_events)`).Scan(&audits, &events); err != nil || audits != 0 || events != 0 {
+				if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM audit_log),(SELECT count(*) FROM outbox_events)`).
+					Scan(&audits, &events); err != nil ||
+					audits != 0 ||
+					events != 0 {
 					t.Fatal("events persisted", audits, events, err)
 				}
 				contexts := make([]map[string]any, 0, logs.Len())
@@ -92,7 +122,10 @@ func TestSettingsEventFailureRollsBackAndLogsOnlySQLState(t *testing.T) {
 					contexts = append(contexts, entry.ContextMap())
 				}
 				encoded, _ := json.Marshal(contexts)
-				if strings.Contains(string(encoded), "private test storage secret") || strings.Contains(string(encoded), token) || strings.Contains(string(encoded), f.hash) || !strings.Contains(string(encoded), "SQLSTATE P0001") {
+				if strings.Contains(string(encoded), "private test storage secret") ||
+					strings.Contains(string(encoded), token) ||
+					strings.Contains(string(encoded), f.hash) ||
+					!strings.Contains(string(encoded), "SQLSTATE P0001") {
 					t.Fatal("unsafe or missing error log")
 				}
 			})
@@ -105,7 +138,8 @@ func waitLock(t *testing.T, f *fixture, query string) {
 	deadline := time.Now().Add(4 * time.Second)
 	for time.Now().Before(deadline) {
 		var count int
-		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock' AND query LIKE $2`, f.schema, query).Scan(&count); err != nil {
+		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock' AND query LIKE $2`, f.schema, query).
+			Scan(&count); err != nil {
 			t.Fatal(err)
 		}
 		if count > 0 {
@@ -115,6 +149,7 @@ func waitLock(t *testing.T, f *fixture, query string) {
 	}
 	t.Fatal("expected lock wait")
 }
+
 func TestSettingsActorRecheckedAfterWait(t *testing.T) {
 	for _, change := range []string{"role='manager'", "is_active=false"} {
 		t.Run(change, func(t *testing.T) {
@@ -129,7 +164,10 @@ func TestSettingsActorRecheckedAfterWait(t *testing.T) {
 			}
 			result := make(chan error, 1)
 			go func() {
-				_, err := f.settings.Update(f.actor(), dto.UpdateSettingsRequest{RestaurantName: ptr("Denied"), ExpectedRevision: 1})
+				_, err := f.settings.Update(
+					f.actor(),
+					dto.UpdateSettingsRequest{RestaurantName: ptr("Denied"), ExpectedRevision: 1},
+				)
 				result <- err
 			}()
 			waitLock(t, f, "%FROM users%FOR SHARE%")
@@ -140,12 +178,16 @@ func TestSettingsActorRecheckedAfterWait(t *testing.T) {
 				t.Fatal("stale actor wrote", err)
 			}
 			var revision, audits int
-			if err := f.pool.QueryRow(f.ctx, `SELECT revision,(SELECT count(*) FROM audit_log) FROM restaurant_settings`).Scan(&revision, &audits); err != nil || revision != 1 || audits != 0 {
+			if err := f.pool.QueryRow(f.ctx, `SELECT revision,(SELECT count(*) FROM audit_log) FROM restaurant_settings`).
+				Scan(&revision, &audits); err != nil ||
+				revision != 1 ||
+				audits != 0 {
 				t.Fatal("forbidden mutation wrote", revision, audits, err)
 			}
 		})
 	}
 }
+
 func TestSettingsRevisionRecheckedAfterWait(t *testing.T) {
 	f := newFixture(t)
 	before, _ := f.settings.Get(f.actor())
@@ -154,12 +196,18 @@ func TestSettingsRevisionRecheckedAfterWait(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback(f.ctx)
-	if _, err := tx.Exec(f.ctx, `UPDATE restaurant_settings SET restaurant_name='Other writer',revision=revision+1 WHERE id=1`); err != nil {
+	if _, err := tx.Exec(
+		f.ctx,
+		`UPDATE restaurant_settings SET restaurant_name='Other writer',revision=revision+1 WHERE id=1`,
+	); err != nil {
 		t.Fatal(err)
 	}
 	result := make(chan error, 1)
 	go func() {
-		_, err := f.settings.Update(f.actor(), dto.UpdateSettingsRequest{RestaurantName: ptr("Stale"), ExpectedRevision: 1})
+		_, err := f.settings.Update(
+			f.actor(),
+			dto.UpdateSettingsRequest{RestaurantName: ptr("Stale"), ExpectedRevision: 1},
+		)
 		result <- err
 	}()
 	waitLock(t, f, "%FROM restaurant_settings%FOR UPDATE%")

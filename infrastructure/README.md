@@ -254,3 +254,45 @@ ENV=demo go -C backend run ./cmd/demo-events --confirm-demo \
   --demo-url http://localhost:8080 --origin http://localhost:5173 \
   --scenario depletion --count 5 --interval 1s
 ```
+
+## Мониторинг
+
+Миграция `00011_monitoring_views.sql` добавляет четыре read-only представления:
+остатки по продукту и единице, положительные проблемные партии, актуальный
+стоп-лист и списания по дням UTC, продуктам и историческим единицам. Списания
+включают только `expiration` и `manual_writeoff`; разные единицы не складываются.
+Представления не раскрывают пользователей, сессии, аудит или текст причин.
+
+Храните три секрета `metrics_token` (не менее 32 случайных байт),
+`grafana_admin_password` и `grafana_pg_password` вне репозитория. Укажите абсолютный
+`FLAGMAN_SECRETS_DIR` в окружении запуска. Файлы должны быть доступны соответствующим
+container UID (Grafana 472, Prometheus 65534), а каталог — только оператору.
+Не передавайте секреты аргументами команд и не включайте их в образы.
+
+После миграций настройте отдельного SQL-пользователя через административное
+подключение к нужной базе. Скрипт не выдаёт ему доступ к исходным таблицам и
+отказывает при уже существующих memberships. Запуск для локального окружения:
+
+```sh
+export FLAGMAN_GRAFANA_PASSWORD="$(cat "$FLAGMAN_SECRETS_DIR/grafana_pg_password")"
+# PGHOST/PGPORT/PGDATABASE/PGUSER и PGPASSFILE задайте для локальной базы.
+psql -X -v ON_ERROR_STOP=1 -f infrastructure/monitoring/grafana-role.sql
+unset FLAGMAN_GRAFANA_PASSWORD
+docker compose --env-file infrastructure/.env -f infrastructure/compose.yaml \
+  -f infrastructure/compose.monitoring.yaml up -d backend prometheus grafana
+```
+
+Grafana: http://127.0.0.1:3000 (логин обязателен). Prometheus не имеет публичного
+порта; scrape идёт по внутренней сети с bearer-файлом. Grafana автоматически
+получает datasource Prometheus и Warehouse, а также dashboard Flagman. SQL-role
+имеет только SELECT на четыре представления, default read-only и timeout 5 секунд.
+Применяйте скрипт повторно после миграций/восстановления; новые таблицы автоматически
+не открываются. Роль не должна использоваться приложением или мигратором.
+Секрет datasource не возвращается через API Grafana. Для удалённого оператора
+используйте SSH-туннель к loopback, например `ssh -L 3000:127.0.0.1:3000 host`.
+
+Технические панели: HTTP RPS/5xx/p95, предметные отказы, конфликты и реальные
+повторы фоновых транзакций, backlog/возраст outbox, overdue-expiry, время последнего
+успешного прохода, ошибки и p95 worker, состояние scrape/DB. SQL-панели: остатки,
+проблемные партии, стоп-лист, списания в выбранном UTC диапазоне. SQL losses
+агрегируются по полным UTC дням; используйте границы дней в time picker.

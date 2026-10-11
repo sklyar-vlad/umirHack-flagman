@@ -7,8 +7,10 @@ import (
 	authservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auth"
 )
 
-const loginWindow = 15 * time.Minute
-const maxLoginKeys = 4096
+const (
+	loginWindow  = 15 * time.Minute
+	maxLoginKeys = 4096
+)
 
 type loginAttempts struct {
 	count   int

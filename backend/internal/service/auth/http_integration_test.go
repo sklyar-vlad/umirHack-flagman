@@ -22,7 +22,13 @@ func authRouter(f *fixture) http.Handler {
 	basehandler.RegisterAuthRoutes(router.Group("/api/v1"), access)
 	return router
 }
-func authRequest(router http.Handler, method, path, body, origin string, cookie *http.Cookie, csrf string) *httptest.ResponseRecorder {
+
+func authRequest(
+	router http.Handler,
+	method, path, body, origin string,
+	cookie *http.Cookie,
+	csrf string,
+) *httptest.ResponseRecorder {
 	request := httptest.NewRequest(method, "https://api.example/api/v1"+path, strings.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	if origin != "" {
@@ -38,10 +44,12 @@ func authRequest(router http.Handler, method, path, body, origin string, cookie 
 	router.ServeHTTP(w, request)
 	return w
 }
+
 func loginBody(f *fixture) string {
 	data, _ := json.Marshal(dto.LoginRequest{Email: "manager@example.test", Password: f.password})
 	return string(data)
 }
+
 func decodeAuth(t *testing.T, w *httptest.ResponseRecorder) dto.AuthResponse {
 	t.Helper()
 	if w.Code != 200 {
@@ -66,7 +74,11 @@ func TestAuthHTTPLoginMeLogoutAndOrigin(t *testing.T) {
 	w := authRequest(router, "POST", "/auth/login", loginBody(f), "https://flagman.example", nil, "")
 	login := decodeAuth(t, w)
 	cookies := w.Result().Cookies()
-	if len(cookies) != 1 || !cookies[0].Secure || login.User.ID != f.user || login.User.LastLoginAt == nil || login.Settings != nil || w.Header().Get("Cache-Control") != "no-store" || w.Header().Get("Access-Control-Allow-Origin") != "https://flagman.example" || w.Header().Get("Access-Control-Allow-Credentials") != "true" {
+	if len(cookies) != 1 || !cookies[0].Secure || login.User.ID != f.user || login.User.LastLoginAt == nil ||
+		login.Settings != nil ||
+		w.Header().Get("Cache-Control") != "no-store" ||
+		w.Header().Get("Access-Control-Allow-Origin") != "https://flagman.example" ||
+		w.Header().Get("Access-Control-Allow-Credentials") != "true" {
 		t.Fatal("incorrect login response")
 	}
 	cookie := cookies[0]
@@ -74,7 +86,8 @@ func TestAuthHTTPLoginMeLogoutAndOrigin(t *testing.T) {
 		t.Fatal("secret exposed in response")
 	}
 	me := decodeAuth(t, authRequest(router, "GET", "/auth/me", "", "", cookie, ""))
-	if me.CSRFToken != login.CSRFToken || !me.SessionExpiresAt.Equal(login.SessionExpiresAt) || me.Settings == nil || me.Settings.RestaurantName != "Test Restaurant" {
+	if me.CSRFToken != login.CSRFToken || !me.SessionExpiresAt.Equal(login.SessionExpiresAt) || me.Settings == nil ||
+		me.Settings.RestaurantName != "Test Restaurant" {
 		t.Fatal("me response mismatch")
 	}
 	for _, scenario := range [][2]string{{"https://flagman.example", ""}, {"", ""}, {"https://evil.example", login.CSRFToken}, {"https://flagman.example", "wrong"}} {
@@ -100,11 +113,27 @@ func TestAuthHTTPLimitsAndInvalidBodies(t *testing.T) {
 			t.Fatalf("invalid login body status %d", w.Code)
 		}
 	}
-	if w := authRequest(router, "POST", "/auth/login", strings.Repeat("x", 4097), "https://flagman.example", nil, ""); w.Code != 413 {
+	if w := authRequest(
+		router,
+		"POST",
+		"/auth/login",
+		strings.Repeat("x", 4097),
+		"https://flagman.example",
+		nil,
+		"",
+	); w.Code != 413 {
 		t.Fatal("large login body accepted")
 	}
 	for i := 0; i < 5; i++ {
-		w := authRequest(router, "POST", "/auth/login", `{"email":"manager@example.test","password":"wrong"}`, "https://flagman.example", nil, "")
+		w := authRequest(
+			router,
+			"POST",
+			"/auth/login",
+			`{"email":"manager@example.test","password":"wrong"}`,
+			"https://flagman.example",
+			nil,
+			"",
+		)
 		if w.Code != 401 || w.Header().Get("Cache-Control") != "no-store" || len(w.Result().Cookies()) != 0 {
 			t.Fatalf("invalid password status %d", w.Code)
 		}
@@ -119,14 +148,15 @@ func TestAuthCORSPreflightAndDuplicateHeaders(t *testing.T) {
 	f := newFixture(t)
 	router := authRouter(f)
 	for _, origin := range []string{"https://flagman.example", "https://evil.example"} {
-		req := httptest.NewRequest("OPTIONS", "/api/v1/auth/login", nil)
+		req := httptest.NewRequest(http.MethodOptions, "/api/v1/auth/login", http.NoBody)
 		req.Header.Set("Origin", origin)
 		req.Header.Set("Access-Control-Request-Method", "POST")
 		req.Header.Set("Access-Control-Request-Headers", "Content-Type, X-CSRF-Token, Idempotency-Key")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		if origin == "https://flagman.example" {
-			if w.Code != 204 || w.Header().Get("Access-Control-Allow-Origin") != origin || w.Header().Get("Access-Control-Allow-Credentials") != "true" {
+			if w.Code != 204 || w.Header().Get("Access-Control-Allow-Origin") != origin ||
+				w.Header().Get("Access-Control-Allow-Credentials") != "true" {
 				t.Fatal("allowed preflight failed")
 			}
 		} else if w.Code != 403 || w.Header().Get("Access-Control-Allow-Origin") != "" {
@@ -138,7 +168,7 @@ func TestAuthCORSPreflightAndDuplicateHeaders(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, scenario := range []string{"origin", "cookie", "csrf", "preflight-header"} {
-		req := httptest.NewRequest("POST", "/api/v1/auth/logout", nil)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", http.NoBody)
 		req.Header.Set("Origin", "https://flagman.example")
 		req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: token})
 		session, err := f.service.CurrentSession(f.ctx, token)
@@ -190,7 +220,9 @@ func TestAuthCORSCoversEarlyRateAndBodyErrors(t *testing.T) {
 		if body == "" {
 			expected = 429
 		}
-		if w.Code != expected || w.Header().Get("Access-Control-Allow-Origin") != "https://flagman.example" || w.Header().Get("Access-Control-Allow-Credentials") != "true" || w.Header().Get("Cache-Control") != "no-store" {
+		if w.Code != expected || w.Header().Get("Access-Control-Allow-Origin") != "https://flagman.example" ||
+			w.Header().Get("Access-Control-Allow-Credentials") != "true" ||
+			w.Header().Get("Cache-Control") != "no-store" {
 			t.Fatal("early error lacks auth CORS/cache policy")
 		}
 	}

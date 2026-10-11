@@ -9,11 +9,14 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
+	"github.com/sklyar-vlad/umirHack-flagman/internal/telemetry"
 	"go.uber.org/zap"
 )
 
-const pollInterval = 15 * time.Second
-const passTimeout = 30 * time.Second
+const (
+	pollInterval = 15 * time.Second
+	passTimeout  = 30 * time.Second
+)
 
 type Settings interface {
 	Get(context.Context, repository.DBTX, bool) (model.RestaurantSettings, error)
@@ -43,13 +46,17 @@ func (w *Worker) Run(ctx context.Context) { w.run(ctx, pollInterval) }
 func (w *Worker) run(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+	failed := false
 	for {
 		if ctx.Err() != nil {
 			return
 		}
+		started := time.Now()
 		passCtx, cancel := context.WithTimeout(ctx, passTimeout)
 		err := w.pass(passCtx)
 		cancel()
+		telemetry.Default.Worker("expiration", started, err, ctx.Err() != nil, failed)
+		failed = err != nil && ctx.Err() == nil
 		if err != nil && ctx.Err() == nil {
 			logFailure(w.logger, "expiry pass failed", err)
 		}

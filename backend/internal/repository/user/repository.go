@@ -70,7 +70,10 @@ func (r *Repository) List(ctx context.Context, q repository.DBTX, f model.UserFi
 	if f.Search != nil && *f.Search != "" {
 		literal := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(*f.Search)
 		args = append(args, "%"+literal+"%")
-		conditions = append(conditions, fmt.Sprintf(`(name ILIKE $%d ESCAPE E'\\' OR email ILIKE $%d ESCAPE E'\\')`, len(args), len(args)))
+		conditions = append(
+			conditions,
+			fmt.Sprintf(`(name ILIKE $%d ESCAPE E'\\' OR email ILIKE $%d ESCAPE E'\\')`, len(args), len(args)),
+		)
 	}
 	if f.Role != nil {
 		args = append(args, *f.Role)
@@ -92,7 +95,14 @@ func (r *Repository) List(ctx context.Context, q repository.DBTX, f model.UserFi
 	if f.Descending {
 		direction = "DESC"
 	}
-	sql := fmt.Sprintf(`SELECT %s FROM users%s ORDER BY name %s,id ASC LIMIT $%d OFFSET $%d`, safeColumns, where, direction, len(args)+1, len(args)+2)
+	sql := fmt.Sprintf(
+		`SELECT %s FROM users%s ORDER BY name %s,id ASC LIMIT $%d OFFSET $%d`,
+		safeColumns,
+		where,
+		direction,
+		len(args)+1,
+		len(args)+2,
+	)
 	args = append(args, f.PageSize, offset)
 	rows, err := tx.Query(ctx, sql, args...)
 	if err != nil {
@@ -113,39 +123,47 @@ func (r *Repository) List(ctx context.Context, q repository.DBTX, f model.UserFi
 	return users, total, nil
 }
 
-func (r *Repository) Create(ctx context.Context, q repository.DBTX, u model.User, hash string) (model.User, error) {
+func (r *Repository) Create(ctx context.Context, q repository.DBTX, u *model.User, hash string) (model.User, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return model.User{}, err
 	}
 	var result model.User
-	err = tx.QueryRow(ctx, `INSERT INTO users(name,email,role,is_active,password_hash) VALUES($1,$2,$3,$4,$5) RETURNING `+safeColumns, u.Name, u.Email, u.Role, u.IsActive, hash).Scan(destinations(&result)...)
+	err = tx.QueryRow(ctx, `INSERT INTO users(name,email,role,is_active,password_hash) VALUES($1,$2,$3,$4,$5) RETURNING `+safeColumns, u.Name, u.Email, u.Role, u.IsActive, hash).
+		Scan(destinations(&result)...)
 	if err != nil {
 		return model.User{}, userError("create user", err)
 	}
 	return result, nil
 }
 
-func (r *Repository) Update(ctx context.Context, q repository.DBTX, u model.User) (model.User, error) {
+func (r *Repository) Update(ctx context.Context, q repository.DBTX, u *model.User) (model.User, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return model.User{}, err
 	}
 	var result model.User
-	err = tx.QueryRow(ctx, `UPDATE users SET name=$2,email=$3,role=$4,is_active=$5,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING `+safeColumns, u.ID, u.Name, u.Email, u.Role, u.IsActive).Scan(destinations(&result)...)
+	err = tx.QueryRow(ctx, `UPDATE users SET name=$2,email=$3,role=$4,is_active=$5,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING `+safeColumns, u.ID, u.Name, u.Email, u.Role, u.IsActive).
+		Scan(destinations(&result)...)
 	if err != nil {
 		return model.User{}, userError("update user", err)
 	}
 	return result, nil
 }
 
-func (r *Repository) SetPassword(ctx context.Context, q repository.DBTX, id uuid.UUID, hash string) (model.User, error) {
+func (r *Repository) SetPassword(
+	ctx context.Context,
+	q repository.DBTX,
+	id uuid.UUID,
+	hash string,
+) (model.User, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return model.User{}, err
 	}
 	var result model.User
-	err = tx.QueryRow(ctx, `UPDATE users SET password_hash=$2,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING `+safeColumns, id, hash).Scan(destinations(&result)...)
+	err = tx.QueryRow(ctx, `UPDATE users SET password_hash=$2,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING `+safeColumns, id, hash).
+		Scan(destinations(&result)...)
 	if err != nil {
 		return model.User{}, userError("reset password", err)
 	}
@@ -183,7 +201,11 @@ func (r *Repository) RevokeSessions(ctx context.Context, q repository.DBTX, id u
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `UPDATE sessions SET revoked_at=clock_timestamp() WHERE user_id=$1 AND revoked_at IS NULL`, id)
+	_, err = tx.Exec(
+		ctx,
+		`UPDATE sessions SET revoked_at=clock_timestamp() WHERE user_id=$1 AND revoked_at IS NULL`,
+		id,
+	)
 	if err != nil {
 		return userError("revoke user sessions", err)
 	}

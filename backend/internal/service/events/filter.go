@@ -2,26 +2,44 @@ package events
 
 import "github.com/sklyar-vlad/umirHack-flagman/internal/model"
 
+const (
+	roleAdmin         = "admin"
+	roleManager       = "manager"
+	roleStorekeeper   = "storekeeper"
+	roleOrderOperator = "order_operator"
+)
+
 // Reconstruct the wire payload from allowlisted fields. Never serialize stored
 // JSON or internal correlation data directly, even for administrators.
-func Filter(e model.PublishedEvent, role string) (model.OutboxPayload, bool) {
+func Filter(e *model.PublishedEvent, role string) (model.OutboxPayload, bool) {
 	p := model.OutboxPayload{OccurredAt: e.Payload.OccurredAt, Topics: []model.EventTopic{}}
 	switch e.Type {
-	case model.InventoryChanged, model.InventoryTimeChanged, model.ProductsChanged, model.CategoriesChanged, model.DishesChanged, model.SettingsChanged, model.UsersChanged:
+	case model.InventoryChanged,
+		model.InventoryTimeChanged,
+		model.ProductsChanged,
+		model.CategoriesChanged,
+		model.DishesChanged,
+		model.SettingsChanged,
+		model.UsersChanged:
 	default:
 		return p, false
 	}
 	allowed := func(t model.EventTopic) bool {
-		common := role == "admin" || role == "manager" || role == "storekeeper" || role == "order_operator"
+		common := role == roleAdmin || role == roleManager || role == roleStorekeeper || role == roleOrderOperator
 		switch t {
-		case model.TopicInventory, model.TopicBatches, model.TopicDashboard, model.TopicProducts, model.TopicProductCategories, model.TopicSettings:
+		case model.TopicInventory,
+			model.TopicBatches,
+			model.TopicDashboard,
+			model.TopicProducts,
+			model.TopicProductCategories,
+			model.TopicSettings:
 			return common
 		case model.TopicDishes, model.TopicStopList, model.TopicHotOffers, model.TopicOrders:
-			return role == "admin" || role == "manager" || role == "order_operator"
+			return role == roleAdmin || role == roleManager || role == roleOrderOperator
 		case model.TopicSupplies, model.TopicStockMovements, model.TopicProcurementRecommendations:
-			return role == "admin" || role == "manager" || role == "storekeeper"
+			return role == roleAdmin || role == roleManager || role == roleStorekeeper
 		case model.TopicUsers:
-			return role == "admin"
+			return role == roleAdmin
 		default:
 			return false
 		}

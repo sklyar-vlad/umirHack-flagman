@@ -39,22 +39,26 @@ func TestStreamRefreshesChangedRoleBeforeFurtherDelivery(t *testing.T) {
 	resp := open(t, server, token, "")
 	f.exec(t, `UPDATE users SET role='storekeeper'`)
 	p := model.OutboxPayload{Topics: []model.EventTopic{model.TopicUsers}}
-	f.append(t, s, "users.changed", p)
+	f.append(t, s, "users.changed", &p)
 	p.Topics = []model.EventTopic{model.TopicInventory}
-	visible := f.append(t, s, "inventory.changed", p)
+	visible := f.append(t, s, "inventory.changed", &p)
 	if got := next(t, bufio.NewReader(resp.Body)); got.ID != visible {
 		t.Fatal("stale role delivered forbidden event", got)
 	}
 	// Native EventSource is cookie-authenticated; neither CSRF nor custom headers.
 	resp.Body.Close()
-	f.exec(t, `UPDATE sessions SET revoked_at=clock_timestamp() WHERE token_hash=$1`, authservice.SessionTokenHash(token))
+	f.exec(
+		t,
+		`UPDATE sessions SET revoked_at=clock_timestamp() WHERE token_hash=$1`,
+		authservice.SessionTokenHash(token),
+	)
 }
 
 func TestDefaultHeartbeatAfterTwentySeconds(t *testing.T) {
 	f := newFixture(t)
 	server, _, token, cancel := f.stream(t, "manager")
 	defer cancel()
-	req, _ := http.NewRequest("GET", server.URL+"/api/v1/events", nil)
+	req, _ := http.NewRequest(http.MethodGet, server.URL+"/api/v1/events", http.NoBody)
 	req.AddCookie(&http.Cookie{Name: authservice.SessionCookieName, Value: token})
 	client := &http.Client{Timeout: 25 * time.Second}
 	start := time.Now()

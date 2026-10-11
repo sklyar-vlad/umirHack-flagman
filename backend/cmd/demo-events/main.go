@@ -40,29 +40,29 @@ func run(ctx context.Context, args []string, getenv func(string) string, out, er
 		return 2
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintln(errOut, "unexpected positional arguments")
+		_, _ = fmt.Fprintln(errOut, "unexpected positional arguments")
 		return 2
 	}
 	if !*confirm {
-		fmt.Fprintln(errOut, "--confirm-demo is required for the explicitly selected demo destination")
+		_, _ = fmt.Fprintln(errOut, "--confirm-demo is required for the explicitly selected demo destination")
 		return 2
 	}
 	if err := options.Validate(); err != nil {
-		fmt.Fprintln(errOut, err)
+		_, _ = fmt.Fprintln(errOut, err)
 		return 2
 	}
 	client, err := demoevents.NewClient(getenv("ENV"), *destination, *origin)
 	if err != nil {
-		fmt.Fprintln(errOut, err)
+		_, _ = fmt.Fprintln(errOut, err)
 		return 2
 	}
 	err = client.Run(ctx, getenv("DEMO_MANAGER_PASSWORD"), options, out)
 	if errors.Is(err, context.Canceled) {
-		fmt.Fprintln(errOut, "demo-events stopped")
+		_, _ = fmt.Fprintln(errOut, "demo-events stopped")
 		return 130
 	}
 	if err != nil {
-		fmt.Fprintln(errOut, err)
+		_, _ = fmt.Fprintln(errOut, err)
 		return 1
 	}
 	return 0

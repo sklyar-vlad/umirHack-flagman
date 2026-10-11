@@ -46,19 +46,25 @@ func (r *Repository) Get(ctx context.Context, q repository.DBTX, lock bool) (mod
 		query += " FOR UPDATE"
 	}
 	var s model.RestaurantSettings
-	err = tx.QueryRow(ctx, query).Scan(&s.RestaurantName, &s.Timezone, &s.ExpiringThresholdHours, &s.AutoWriteOffExpired, &s.Revision)
+	err = tx.QueryRow(ctx, query).
+		Scan(&s.RestaurantName, &s.Timezone, &s.ExpiringThresholdHours, &s.AutoWriteOffExpired, &s.Revision)
 	if err != nil {
 		return s, fmt.Errorf("get settings: %w", err)
 	}
 	return s, nil
 }
 
-func (r *Repository) Update(ctx context.Context, q repository.DBTX, s model.RestaurantSettings) (model.RestaurantSettings, error) {
+func (r *Repository) Update(
+	ctx context.Context,
+	q repository.DBTX,
+	s model.RestaurantSettings,
+) (model.RestaurantSettings, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return model.RestaurantSettings{}, err
 	}
-	err = tx.QueryRow(ctx, `UPDATE restaurant_settings SET restaurant_name=$1,timezone=$2,expiring_threshold_hours=$3,auto_writeoff_expired=$4,revision=revision+1,updated_at=clock_timestamp() WHERE id=1 RETURNING revision`, s.RestaurantName, s.Timezone, s.ExpiringThresholdHours, s.AutoWriteOffExpired).Scan(&s.Revision)
+	err = tx.QueryRow(ctx, `UPDATE restaurant_settings SET restaurant_name=$1,timezone=$2,expiring_threshold_hours=$3,auto_writeoff_expired=$4,revision=revision+1,updated_at=clock_timestamp() WHERE id=1 RETURNING revision`, s.RestaurantName, s.Timezone, s.ExpiringThresholdHours, s.AutoWriteOffExpired).
+		Scan(&s.Revision)
 	if err != nil {
 		return s, fmt.Errorf("update settings: %w", err)
 	}

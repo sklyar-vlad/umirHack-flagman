@@ -21,9 +21,17 @@ func TestConcurrentCatalogRevisionsAndHTTPConflict(t *testing.T) {
 				defer wg.Done()
 				var err error
 				if product {
-					_, err = f.catalog.UpdateProduct(f.actor(), p.ID, dto.UpdateProductRequest{Name: &name, ExpectedRevision: 1})
+					_, err = f.catalog.UpdateProduct(
+						f.actor(),
+						p.ID,
+						&dto.UpdateProductRequest{Name: &name, ExpectedRevision: 1},
+					)
 				} else {
-					_, err = f.catalog.UpdateCategory(f.actor(), p.Category.ID, dto.UpdateCategoryRequest{Name: name, ExpectedRevision: 1})
+					_, err = f.catalog.UpdateCategory(
+						f.actor(),
+						p.Category.ID,
+						dto.UpdateCategoryRequest{Name: name, ExpectedRevision: 1},
+					)
 				}
 				result <- err
 			}(name)
@@ -51,7 +59,15 @@ func TestConcurrentCatalogRevisionsAndHTTPConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, path := range []string{"/products/" + p.ID.String(), "/product-categories/" + p.Category.ID.String()} {
-		w := request(f.router(), "PATCH", path, `{"name":"Stale","expected_revision":1}`, token, session.CSRFToken, "https://flagman.example")
+		w := request(
+			f.router(),
+			"PATCH",
+			path,
+			`{"name":"Stale","expected_revision":1}`,
+			token,
+			session.CSRFToken,
+			"https://flagman.example",
+		)
 		if w.Code != 409 || !stringsContains(w.Body.String(), `REVISION_CONFLICT`, `"current_revision":2`) {
 			t.Fatal(w.Code, w.Body)
 		}
@@ -87,7 +103,9 @@ func TestActorRightsRecheckedAfterSecurityLockWait(t *testing.T) {
 				t.Fatal("stale admin wrote", err)
 			}
 			var count int
-			if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM product_categories)+(SELECT count(*) FROM audit_log)`).Scan(&count); err != nil || count != 0 {
+			if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM product_categories)+(SELECT count(*) FROM audit_log)`).
+				Scan(&count); err != nil ||
+				count != 0 {
 				t.Fatal("forbidden writes", err)
 			}
 		})

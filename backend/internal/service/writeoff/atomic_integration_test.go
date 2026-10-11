@@ -31,7 +31,9 @@ func TestWriteOffReplayConflictAndTypedEvents(t *testing.T) {
 	}
 	f.exec(t, `UPDATE products SET name='Renamed' WHERE id=$1`, f.product)
 	again, err := f.writeoff.CreateIdempotent(ctx, f.user, key, f.body("1.001"))
-	if err != nil || !bytes.Equal(r.Body, again.Body) || r.Status != again.Status || f.counts(t) != [4]int{1, 1, 1, 1} || f.balance(t) != "8.999" {
+	if err != nil || !bytes.Equal(r.Body, again.Body) || r.Status != again.Status ||
+		f.counts(t) != [4]int{1, 1, 1, 1} ||
+		f.balance(t) != "8.999" {
 		t.Fatalf("replay: %v %v", again, err)
 	}
 	_, err = f.writeoff.CreateIdempotent(ctx, f.user, key, f.body("2"))
@@ -41,7 +43,8 @@ func TestWriteOffReplayConflictAndTypedEvents(t *testing.T) {
 	var actor, entity uuid.UUID
 	var action, typ, rid string
 	var before, after []byte
-	if err = f.pool.QueryRow(ctx, `SELECT actor_id,entity_id,action,entity_type,request_id,before_data,after_data FROM audit_log`).Scan(&actor, &entity, &action, &typ, &rid, &before, &after); err != nil {
+	if err = f.pool.QueryRow(ctx, `SELECT actor_id,entity_id,action,entity_type,request_id,before_data,after_data FROM audit_log`).
+		Scan(&actor, &entity, &action, &typ, &rid, &before, &after); err != nil {
 		t.Fatal(err)
 	}
 	var m dto.StockMovement
@@ -50,12 +53,21 @@ func TestWriteOffReplayConflictAndTypedEvents(t *testing.T) {
 	if err = json.Unmarshal(after, &snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if actor != f.user || entity != m.ID || action != "manual_writeoff" || typ != "stock_movement" || rid != "writeoff-request" || before != nil || snapshot.BatchID != m.BatchID || snapshot.DeltaQuantity != m.DeltaQuantity || snapshot.RemainingQuantityAfter != m.RemainingQuantityAfter || snapshot.ProductNameSnapshot != "Молоко" || snapshot.UnitSnapshot != "ml" || *snapshot.Note != "Порча продукта" {
+	if actor != f.user || entity != m.ID || action != "manual_writeoff" || typ != "stock_movement" ||
+		rid != "writeoff-request" ||
+		before != nil ||
+		snapshot.BatchID != m.BatchID ||
+		snapshot.DeltaQuantity != m.DeltaQuantity ||
+		snapshot.RemainingQuantityAfter != m.RemainingQuantityAfter ||
+		snapshot.ProductNameSnapshot != "Молоко" ||
+		snapshot.UnitSnapshot != "ml" ||
+		*snapshot.Note != "Порча продукта" {
 		t.Fatalf("audit %s", after)
 	}
 	var payload []byte
 	var eventType string
-	if err = f.pool.QueryRow(ctx, `SELECT event_type,payload FROM outbox_events`).Scan(&eventType, &payload); err != nil {
+	if err = f.pool.QueryRow(ctx, `SELECT event_type,payload FROM outbox_events`).
+		Scan(&eventType, &payload); err != nil {
 		t.Fatal(err)
 	}
 	if eventType != "inventory.changed" {
@@ -70,28 +82,42 @@ func TestWriteOffReplayConflictAndTypedEvents(t *testing.T) {
 	refusal := f.create(t, "99", key)
 	f.exec(t, `UPDATE batches SET initial_quantity=100,remaining_quantity=100 WHERE id=$1`, f.batch)
 	replay := f.create(t, "99", key)
-	if refusal.Status != 409 || !bytes.Equal(refusal.Body, replay.Body) || f.balance(t) != "100.000" || f.counts(t) != [4]int{1, 1, 1, 2} {
+	if refusal.Status != 409 || !bytes.Equal(refusal.Body, replay.Body) || f.balance(t) != "100.000" ||
+		f.counts(t) != [4]int{1, 1, 1, 2} {
 		t.Fatal("refusal not retained")
 	}
 }
+
 func TestWriteOffImmediateAndDeferredFailuresRollbackAndRetry(t *testing.T) {
 	for _, table := range []string{"batches", "stock_movements", "audit_log", "outbox_events", "idempotency_keys"} {
 		for _, deferred := range []bool{false, true} {
 			t.Run(table+map[bool]string{false: " immediate", true: " deferred"}[deferred], func(t *testing.T) {
 				f := newFixture(t)
 				key := uuid.New()
-				f.exec(t, `CREATE FUNCTION reject_writeoff() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'private storage test secret'; END $$`)
+				f.exec(
+					t,
+					`CREATE FUNCTION reject_writeoff() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'private storage test secret'; END $$`,
+				)
 				event := "INSERT"
 				if table == "batches" {
 					event = "UPDATE"
 				}
 				if deferred {
-					f.exec(t, "CREATE CONSTRAINT TRIGGER reject_writeoff AFTER "+event+" ON "+table+" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION reject_writeoff()")
+					f.exec(
+						t,
+						"CREATE CONSTRAINT TRIGGER reject_writeoff AFTER "+event+" ON "+table+" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION reject_writeoff()",
+					)
 				} else {
-					f.exec(t, "CREATE TRIGGER reject_writeoff BEFORE "+event+" ON "+table+" FOR EACH ROW EXECUTE FUNCTION reject_writeoff()")
+					f.exec(
+						t,
+						"CREATE TRIGGER reject_writeoff BEFORE "+event+" ON "+table+" FOR EACH ROW EXECUTE FUNCTION reject_writeoff()",
+					)
 				}
 				r, err := f.writeoff.CreateIdempotent(f.actor(), f.user, key, f.body("1"))
-				if err == nil || r.Status != 0 || strings.Contains(err.Error(), "secret") || !strings.Contains(err.Error(), "SQLSTATE P0001") || f.balance(t) != "10.000" || f.counts(t) != [4]int{} {
+				if err == nil || r.Status != 0 || strings.Contains(err.Error(), "secret") ||
+					!strings.Contains(err.Error(), "SQLSTATE P0001") ||
+					f.balance(t) != "10.000" ||
+					f.counts(t) != [4]int{} {
 					t.Fatalf("rollback %s %v %v %v", f.balance(t), f.counts(t), r, err)
 				}
 				f.exec(t, "DROP TRIGGER reject_writeoff ON "+table)
@@ -102,12 +128,14 @@ func TestWriteOffImmediateAndDeferredFailuresRollbackAndRetry(t *testing.T) {
 		}
 	}
 }
+
 func waitLock(t *testing.T, f *fixture, query string) {
 	t.Helper()
 	deadline := time.Now().Add(4 * time.Second)
 	for time.Now().Before(deadline) {
 		var n int
-		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock' AND query LIKE $2`, f.schema, query).Scan(&n); err != nil {
+		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock' AND query LIKE $2`, f.schema, query).
+			Scan(&n); err != nil {
 			t.Fatal(err)
 		}
 		if n > 0 {
@@ -117,6 +145,7 @@ func waitLock(t *testing.T, f *fixture, query string) {
 	}
 	t.Fatal("expected lock wait")
 }
+
 func TestWriteOffIdempotencyInProgressAndFreshActor(t *testing.T) {
 	for _, test := range []string{"in_progress", "disabled", "role_changed"} {
 		t.Run(test, func(t *testing.T) {
@@ -171,10 +200,17 @@ func TestWriteOffIdempotencyInProgressAndFreshActor(t *testing.T) {
 		})
 	}
 }
+
 func TestWriteOffFailureHTTPLogsOnlySQLState(t *testing.T) {
 	f := newFixture(t)
-	f.exec(t, `CREATE FUNCTION reject_writeoff_log() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'private storage test secret'; END $$`)
-	f.exec(t, `CREATE TRIGGER reject_writeoff_log BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION reject_writeoff_log()`)
+	f.exec(
+		t,
+		`CREATE FUNCTION reject_writeoff_log() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'private storage test secret'; END $$`,
+	)
+	f.exec(
+		t,
+		`CREATE TRIGGER reject_writeoff_log BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION reject_writeoff_log()`,
+	)
 	core, logs := observer.New(zap.DebugLevel)
 	r := gin.New()
 	r.Use(basehandler.RequestID(), basehandler.RequestLogger(zap.New(core)))
@@ -191,7 +227,10 @@ func TestWriteOffFailureHTTPLogsOnlySQLState(t *testing.T) {
 		fields = append(fields, entry.ContextMap())
 	}
 	raw, _ := json.Marshal(fields)
-	if w.Code != 500 || bytes.Contains(raw, []byte("private storage test secret")) || bytes.Contains(raw, []byte(token)) || bytes.Contains(raw, []byte(f.hash)) || !bytes.Contains(raw, []byte("SQLSTATE P0001")) {
+	if w.Code != 500 || bytes.Contains(raw, []byte("private storage test secret")) ||
+		bytes.Contains(raw, []byte(token)) ||
+		bytes.Contains(raw, []byte(f.hash)) ||
+		!bytes.Contains(raw, []byte("SQLSTATE P0001")) {
 		t.Fatalf("unsafe logs: %d", w.Code)
 	}
 }

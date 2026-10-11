@@ -28,7 +28,8 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal("invalid test database configuration")
 	}
-	if (cfg.ConnConfig.Host != "localhost" && cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "::1") || !strings.Contains(cfg.ConnConfig.Database, "test") {
+	if (cfg.ConnConfig.Host != "localhost" && cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "::1") ||
+		!strings.Contains(cfg.ConnConfig.Database, "test") {
 		t.Fatal("events tests require a dedicated local test database")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)

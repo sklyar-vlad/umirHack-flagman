@@ -42,7 +42,12 @@ func conditions(f model.StockMovementFilter) (string, []any) {
 	}
 	return " WHERE " + strings.Join(clauses, " AND "), args
 }
-func (r *Repository) List(ctx context.Context, q repository.DBTX, f model.StockMovementFilter) ([]dto.StockMovement, int64, error) {
+
+func (r *Repository) List(
+	ctx context.Context,
+	q repository.DBTX,
+	f model.StockMovementFilter,
+) ([]dto.StockMovement, int64, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
 		return nil, 0, err
@@ -57,7 +62,14 @@ func (r *Repository) List(ctx context.Context, q repository.DBTX, f model.StockM
 	if err = tx.QueryRow(ctx, "SELECT count(*)"+from+where, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count stock movements: %w", err)
 	}
-	rows, err := tx.Query(ctx, fmt.Sprintf(`SELECT m.id,m.batch_id,b.product_id,oi.order_id,m.order_item_id,m.type::text,m.delta_quantity::text,m.remaining_quantity_after::text,m.product_name_snapshot,m.unit_snapshot::text,m.actor_id,u.name,m.occurred_at,m.note`+from+where+` ORDER BY m.occurred_at DESC,m.id DESC LIMIT $%d OFFSET $%d`, len(args)+1, len(args)+2), append(args, f.PageSize, offset)...)
+	rows, err := tx.Query(
+		ctx,
+		fmt.Sprintf(
+			`SELECT m.id,m.batch_id,b.product_id,oi.order_id,m.order_item_id,m.type::text,m.delta_quantity::text,m.remaining_quantity_after::text,m.product_name_snapshot,m.unit_snapshot::text,m.actor_id,u.name,m.occurred_at,m.note`+from+where+` ORDER BY m.occurred_at DESC,m.id DESC LIMIT $%d OFFSET $%d`,
+			len(args)+1,
+			len(args)+2,
+		),
+		append(args, f.PageSize, offset)...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list stock movements: %w", err)
 	}
@@ -67,7 +79,22 @@ func (r *Repository) List(ctx context.Context, q repository.DBTX, f model.StockM
 		var m dto.StockMovement
 		var actorID *uuid.UUID
 		var actorName *string
-		if err = rows.Scan(&m.ID, &m.BatchID, &m.ProductID, &m.OrderID, &m.OrderItemID, &m.Type, &m.DeltaQuantity, &m.RemainingQuantityAfter, &m.ProductNameSnapshot, &m.UnitSnapshot, &actorID, &actorName, &m.OccurredAt, &m.Note); err != nil {
+		if err = rows.Scan(
+			&m.ID,
+			&m.BatchID,
+			&m.ProductID,
+			&m.OrderID,
+			&m.OrderItemID,
+			&m.Type,
+			&m.DeltaQuantity,
+			&m.RemainingQuantityAfter,
+			&m.ProductNameSnapshot,
+			&m.UnitSnapshot,
+			&actorID,
+			&actorName,
+			&m.OccurredAt,
+			&m.Note,
+		); err != nil {
 			return nil, 0, fmt.Errorf("scan stock movement: %w", err)
 		}
 		m.OccurredAt = m.OccurredAt.UTC()

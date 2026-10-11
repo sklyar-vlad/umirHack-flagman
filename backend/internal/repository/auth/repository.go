@@ -34,7 +34,11 @@ func (r *Repository) FindCredentials(ctx context.Context, email string) (model.C
 
 // A single statement serializes with user security updates, rechecks the password
 // and active flag after lock waits, and commits last_login_at with the session.
-func (r *Repository) CreateSession(ctx context.Context, userID uuid.UUID, passwordHash, tokenHash, csrf string) (model.Session, error) {
+func (r *Repository) CreateSession(
+	ctx context.Context,
+	userID uuid.UUID,
+	passwordHash, tokenHash, csrf string,
+) (model.Session, error) {
 	var session model.Session
 	destinations := append(userDestinations(&session.User), &session.CSRFToken, &session.ExpiresAt)
 	err := r.db.QueryRow(ctx, `WITH employee AS (
@@ -62,7 +66,8 @@ func (r *Repository) FindActiveSession(ctx context.Context, tokenHash string) (m
 	err := r.db.QueryRow(ctx, `SELECT u.id,u.name,u.email,u.role::text,u.is_active,u.revision,u.created_at,u.last_login_at,
  s.csrf_token,s.expires_at,COALESCE(r.restaurant_name,''),COALESCE(r.timezone,'Europe/Moscow'),COALESCE(r.expiring_threshold_hours,24)
  FROM sessions s JOIN users u ON u.id=s.user_id LEFT JOIN restaurant_settings r ON r.id=1
- WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND u.is_active`, tokenHash).Scan(destinations...)
+ WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND u.is_active`, tokenHash).
+		Scan(destinations...)
 	if err != nil {
 		return model.Session{}, authError("read active session", err)
 	}
@@ -71,7 +76,11 @@ func (r *Repository) FindActiveSession(ctx context.Context, tokenHash string) (m
 }
 
 func (r *Repository) RevokeSession(ctx context.Context, tokenHash string) error {
-	_, err := r.db.Exec(ctx, `UPDATE sessions SET revoked_at=clock_timestamp() WHERE token_hash=$1 AND revoked_at IS NULL`, tokenHash)
+	_, err := r.db.Exec(
+		ctx,
+		`UPDATE sessions SET revoked_at=clock_timestamp() WHERE token_hash=$1 AND revoked_at IS NULL`,
+		tokenHash,
+	)
 	if err != nil {
 		return authError("revoke session", err)
 	}

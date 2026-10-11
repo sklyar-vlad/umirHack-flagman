@@ -1,16 +1,24 @@
 package forecast
 
 import (
-	"github.com/google/uuid"
-	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 	"math/big"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 )
 
 func TestRatesFullLookbackExactAndUnknown(t *testing.T) {
 	id := uuid.New()
-	rates, err := consumptionRates([]model.ConsumptionTotal{{ProductID: id, Unit: "g", Quantity: "0.001"}, {ProductID: id, Unit: "g", Quantity: "0.002"}, {ProductID: id, Unit: "pcs", Quantity: "7"}}, 7)
+	rates, err := consumptionRates(
+		[]model.ConsumptionTotal{
+			{ProductID: id, Unit: "g", Quantity: "0.001"},
+			{ProductID: id, Unit: "g", Quantity: "0.002"},
+			{ProductID: id, Unit: "pcs", Quantity: "7"},
+		},
+		7,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

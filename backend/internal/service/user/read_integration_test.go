@@ -50,7 +50,8 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal("invalid test database configuration")
 	}
-	if (cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "::1" && cfg.ConnConfig.Host != "localhost") || !strings.Contains(cfg.ConnConfig.Database, "test") {
+	if (cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "::1" && cfg.ConnConfig.Host != "localhost") ||
+		!strings.Contains(cfg.ConnConfig.Database, "test") {
 		t.Fatal("auth tests require a dedicated local test database")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
@@ -97,7 +98,12 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.exec(t, `INSERT INTO users(id,name,email,password_hash,role) VALUES($1,'Test Manager','manager@example.test',$2,'admin')`, f.user, f.hash)
+	f.exec(
+		t,
+		`INSERT INTO users(id,name,email,password_hash,role) VALUES($1,'Test Manager','manager@example.test',$2,'admin')`,
+		f.user,
+		f.hash,
+	)
 	f.exec(t, `INSERT INTO restaurant_settings(restaurant_name) VALUES('Test Restaurant')`)
 	f.repo = authrepository.NewRepository(pool)
 	f.service, err = authservice.NewService(f.repo, "https://flagman.example")
@@ -152,7 +158,13 @@ func TestUserReadsSearchFiltersPaginationAndSafeDetails(t *testing.T) {
 	f := newFixture(t)
 	ctx := f.actor()
 	a, b := uuid.New(), uuid.New()
-	f.exec(t, `INSERT INTO users(id,name,email,password_hash,role,is_active) VALUES($1,'Same_%','literal@example.test',$3,'manager',false),($2,'Same_%','other@example.test',$3,'storekeeper',true)`, a, b, f.hash)
+	f.exec(
+		t,
+		`INSERT INTO users(id,name,email,password_hash,role,is_active) VALUES($1,'Same_%','literal@example.test',$3,'manager',false),($2,'Same_%','other@example.test',$3,'storekeeper',true)`,
+		a,
+		b,
+		f.hash,
+	)
 	items, total, err := f.users.List(ctx, model.UserFilter{Page: 1, PageSize: 1})
 	if err != nil || total != 3 || len(items) != 1 {
 		t.Fatalf("list %v %d %v", items, total, err)
@@ -164,7 +176,10 @@ func TestUserReadsSearchFiltersPaginationAndSafeDetails(t *testing.T) {
 	search := "_%"
 	active := false
 	role := "manager"
-	items, total, err = f.users.List(ctx, model.UserFilter{Page: 1, PageSize: 50, Search: &search, IsActive: &active, Role: &role})
+	items, total, err = f.users.List(
+		ctx,
+		model.UserFilter{Page: 1, PageSize: 50, Search: &search, IsActive: &active, Role: &role},
+	)
 	if err != nil || total != 1 || len(items) != 1 || items[0].ID != a {
 		t.Fatal("literal/combined filters failed", err)
 	}
@@ -231,7 +246,8 @@ func TestAdminReadHTTPPolicyAndInput(t *testing.T) {
 			}
 			w := request(r, "GET", "/users", "", token, "", "")
 			var list dto.UserListResponse
-			if json.Unmarshal(w.Body.Bytes(), &list) != nil || list.Total != 1 || len(list.Items) != 1 || w.Header().Get("Cache-Control") != "no-store" {
+			if json.Unmarshal(w.Body.Bytes(), &list) != nil || list.Total != 1 || len(list.Items) != 1 ||
+				w.Header().Get("Cache-Control") != "no-store" {
 				t.Fatal("list contract")
 			}
 		}

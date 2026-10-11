@@ -3,6 +3,10 @@ package dashboard
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"testing"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/dto"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
@@ -14,9 +18,6 @@ import (
 	orderservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/order"
 	supplyservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/supply"
 	"go.uber.org/zap"
-	"net/http"
-	"testing"
-	"time"
 )
 
 func (f *dashboardFixture) receipt(t *testing.T, product uuid.UUID, amount string, expires time.Time) {
@@ -44,7 +45,9 @@ func (f *dashboardFixture) order(t *testing.T, dish uuid.UUID, portions int) {
 	t.Helper()
 	base := repository.NewRepository(f.pool, zap.NewNop())
 	s := orderservice.NewCreateService(orderrepository.NewRepository(), base, idempotency.NewService(base))
-	body, err := json.Marshal(dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: dish.String(), Portions: portions}}})
+	body, err := json.Marshal(
+		dto.OrderRequest{Items: []dto.OrderRequestItem{{DishID: dish.String(), Portions: portions}}},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,8 +147,10 @@ func TestDashboardOneSnapshotAndOneTimeIntegration(t *testing.T) {
 	f.service.repo = dashboardrepository.NewRepository()
 	f.service.now = func() time.Time { return f.now }
 	after := f.get(t, "manager")
-	if after.StopListDishesCount != 1 || after.Settings.RestaurantName != "After" || after.Settings.ExpiringThresholdHours != 1 ||
-		len(after.HotOffers) != 0 || after.AttentionBatches[0].BatchID == batch ||
+	if after.StopListDishesCount != 1 || after.Settings.RestaurantName != "After" ||
+		after.Settings.ExpiringThresholdHours != 1 ||
+		len(after.HotOffers) != 0 ||
+		after.AttentionBatches[0].BatchID == batch ||
 		after.AttentionBatches[0].RemainingQuantity != "1.000" ||
 		after.ProcurementRecommendations[0].RecommendedQuantity != "4.000" ||
 		len(after.ProcurementRecommendations[0].AffectedDishes) != 1 {

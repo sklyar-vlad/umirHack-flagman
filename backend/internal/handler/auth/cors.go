@@ -11,7 +11,9 @@ import (
 
 func (h *Handler) CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if path := c.Request.URL.Path; strings.HasPrefix(path, "/api/v1/auth/") || path == "/api/v1/roles" || path == "/api/v1/users" || strings.HasPrefix(path, "/api/v1/users/") {
+		if path := c.Request.URL.Path; strings.HasPrefix(path, "/api/v1/auth/") || path == "/api/v1/roles" ||
+			path == "/api/v1/users" ||
+			strings.HasPrefix(path, "/api/v1/users/") {
 			c.Header("Cache-Control", "no-store")
 		}
 		c.Writer.Header().Add("Vary", "Origin")
@@ -34,7 +36,8 @@ func (h *Handler) CORS() gin.HandlerFunc {
 		c.Writer.Header().Add("Vary", "Access-Control-Request-Method")
 		c.Writer.Header().Add("Vary", "Access-Control-Request-Headers")
 		method := c.GetHeader("Access-Control-Request-Method")
-		if len(c.Request.Header.Values("Access-Control-Request-Method")) != 1 || (method != "GET" && method != "POST" && method != "PATCH" && method != "PUT" && method != "DELETE") {
+		if len(c.Request.Header.Values("Access-Control-Request-Method")) != 1 ||
+			(method != "GET" && method != "POST" && method != "PATCH" && method != "PUT" && method != "DELETE") {
 			basehandler.WriteError(c, apperrors.ErrForbidden)
 			return
 		}
@@ -49,7 +52,10 @@ func (h *Handler) CORS() gin.HandlerFunc {
 			}
 		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token, X-Request-ID, Idempotency-Key, Last-Event-ID")
+		c.Header(
+			"Access-Control-Allow-Headers",
+			"Content-Type, X-CSRF-Token, X-Request-ID, Idempotency-Key, Last-Event-ID",
+		)
 		c.AbortWithStatus(http.StatusNoContent)
 	}
 }

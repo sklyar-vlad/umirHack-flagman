@@ -29,7 +29,10 @@ func TestAttentionPreviewsAndRoleBlocksIntegration(t *testing.T) {
 	for i := 1; i <= 4; i++ {
 		p := f.product(t, fmt.Sprintf("Offer %d", i))
 		f.batch(t, p, "10.000", f.now.Add(time.Hour))
-		dishIDs = append(dishIDs, f.dish(t, fmt.Sprintf("Dish %d", i), true, testIngredient{p, fmt.Sprintf("%d.000", i)}))
+		dishIDs = append(
+			dishIDs,
+			f.dish(t, fmt.Sprintf("Dish %d", i), true, testIngredient{p, fmt.Sprintf("%d.000", i)}),
+		)
 		purchase := f.product(t, fmt.Sprintf("Purchase %d", i))
 		f.exec(t, `UPDATE products SET target_stock='20.000' WHERE id=$1`, purchase)
 		procurementIDs = append(procurementIDs, purchase)
@@ -81,7 +84,8 @@ func TestAttentionPreviewsAndRoleBlocksIntegration(t *testing.T) {
 				t.Fatal("procurement limit")
 			}
 			for i, item := range result.ProcurementRecommendations {
-				if item.ProductID != procurementIDs[i] || item.RecommendedQuantity != "20.000" || item.AffectedDishes == nil {
+				if item.ProductID != procurementIDs[i] || item.RecommendedQuantity != "20.000" ||
+					item.AffectedDishes == nil {
 					t.Fatalf("shared procurement priority: %+v", item)
 				}
 			}

@@ -24,7 +24,12 @@ type serviceStub struct {
 func (s *serviceStub) Get(_ context.Context, role string) (dto.DashboardResponse, error) {
 	s.calls++
 	s.role = role
-	return dto.DashboardResponse{AttentionBatches: []dto.AttentionBatch{}, HotOffers: []dto.HotOffer{}, ProcurementRecommendations: []dto.ProcurementItem{}, Meta: map[string]any{}}, s.err
+	return dto.DashboardResponse{
+		AttentionBatches:           []dto.AttentionBatch{},
+		HotOffers:                  []dto.HotOffer{},
+		ProcurementRecommendations: []dto.ProcurementItem{},
+		Meta:                       map[string]any{},
+	}, s.err
 }
 
 func serve(role, query string, service *serviceStub) *httptest.ResponseRecorder {
@@ -57,7 +62,8 @@ func TestAuthorizationBeforeParsing(t *testing.T) {
 			case query != "":
 				want = http.StatusUnprocessableEntity
 			}
-			if response.Code != want || (want != http.StatusOK && service.calls != 0) || (want == http.StatusOK && service.role != role) {
+			if response.Code != want || (want != http.StatusOK && service.calls != 0) ||
+				(want == http.StatusOK && service.role != role) {
 				t.Fatalf("role %q query %q: %d calls %d", role, query, response.Code, service.calls)
 			}
 		}

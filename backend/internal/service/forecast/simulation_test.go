@@ -1,18 +1,25 @@
 package forecast
 
 import (
-	"github.com/google/uuid"
-	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 	"math/big"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 )
 
 func TestIngredientFEFOEventSimulation(t *testing.T) {
 	now := time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)
 	batch := func(q string, hours int) model.OrderBatch {
-		return model.OrderBatch{ID: uuid.New(), ProductID: uuid.New(), RemainingQuantity: q, ExpiresAt: now.Add(time.Duration(hours) * time.Hour), ReceivedAt: now.Add(-time.Hour)}
+		return model.OrderBatch{
+			ID:                uuid.New(),
+			ProductID:         uuid.New(),
+			RemainingQuantity: q,
+			ExpiresAt:         now.Add(time.Duration(hours) * time.Hour),
+			ReceivedAt:        now.Add(-time.Hour),
+		}
 	}
 	rate := new(big.Rat).SetFrac(big.NewInt(1000), big.NewInt(int64(time.Hour))) // 1 base unit / hour
 	for _, tc := range []struct {
@@ -42,7 +49,8 @@ func TestIngredientFEFOEventSimulation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			before := append([]model.OrderBatch{}, tc.batches...)
 			at, cause, err := ingredientStop(tc.batches, big.NewInt(tc.need), tc.rate, now, tc.horizon)
-			if err != nil || cause != tc.cause || tc.at < 0 && at != nil || tc.at >= 0 && (at == nil || !at.Equal(now.Add(tc.at))) {
+			if err != nil || cause != tc.cause || tc.at < 0 && at != nil ||
+				tc.at >= 0 && (at == nil || !at.Equal(now.Add(tc.at))) {
 				t.Fatal(at, cause, err, "want", tc.at, tc.cause)
 			}
 			if !reflect.DeepEqual(before, tc.batches) {

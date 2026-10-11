@@ -17,7 +17,15 @@ func (f *fixture) product(t *testing.T, name, unit string, active bool) uuid.UUI
 	t.Helper()
 	c, p := uuid.New(), uuid.New()
 	f.exec(t, `INSERT INTO product_categories(id,name) VALUES($1,$2)`, c, "Category "+p.String())
-	f.exec(t, `INSERT INTO products(id,name,category_id,unit,display_unit,is_active) VALUES($1,$2,$3,$4::text::product_unit,$4::text::display_unit,$5)`, p, name, c, unit, active)
+	f.exec(
+		t,
+		`INSERT INTO products(id,name,category_id,unit,display_unit,is_active) VALUES($1,$2,$3,$4::text::product_unit,$4::text::display_unit,$5)`,
+		p,
+		name,
+		c,
+		unit,
+		active,
+	)
 	return p
 }
 
@@ -43,24 +51,44 @@ func TestCreateDishFirstRecipeAndValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d.Name != "Суп" || !d.IsActive || d.Revision != 1 || d.RecipeVersion == nil || *d.RecipeVersion != 1 || d.Recipe[0].QuantityPerPortion != "0.001" || d.Recipe[0].ProductName != "Flour" || d.IsAvailable || len(d.Shortages) != 1 || d.Meta["server_time"] == nil {
+	if d.Name != "Суп" || !d.IsActive || d.Revision != 1 || d.RecipeVersion == nil || *d.RecipeVersion != 1 ||
+		d.Recipe[0].QuantityPerPortion != "0.001" ||
+		d.Recipe[0].ProductName != "Flour" ||
+		d.IsAvailable ||
+		len(d.Shortages) != 1 ||
+		d.Meta["server_time"] == nil {
 		t.Fatalf("dish: %+v", d)
 	}
 	if f.count(t, "dishes") != 1 || f.count(t, "recipe_versions") != 1 || f.count(t, "recipe_items") != 1 {
 		t.Fatal("missing creation rows")
 	}
 	var owner uuid.UUID
-	if err := f.pool.QueryRow(f.ctx, `SELECT created_by FROM recipe_versions WHERE dish_id=$1`, d.ID).Scan(&owner); err != nil || owner != f.user {
+	if err := f.pool.QueryRow(f.ctx, `SELECT created_by FROM recipe_versions WHERE dish_id=$1`, d.ID).
+		Scan(&owner); err != nil ||
+		owner != f.user {
 		t.Fatal("recipe actor")
 	}
-	if _, err := f.dishes.Create(f.actor(), dto.CreateDishRequest{Name: "сУП", Recipe: recipe(p, "1")}); !errors.Is(err, apperrors.ErrConflict) {
+	if _, err := f.dishes.Create(
+		f.actor(),
+		dto.CreateDishRequest{Name: "сУП", Recipe: recipe(p, "1")},
+	); !errors.Is(
+		err,
+		apperrors.ErrConflict,
+	) {
 		t.Fatalf("normalized name conflict: %v", err)
 	}
 	for i, in := range []dto.CreateDishRequest{
-		{Name: "", Recipe: recipe(p, "1")}, {Name: strings.Repeat("я", 201), Recipe: recipe(p, "1")},
-		{Name: "empty"}, {Name: "unknown", Recipe: recipe(uuid.New(), "1")}, {Name: "inactive", Recipe: recipe(inactive, "1")},
-		{Name: "zero", Recipe: recipe(p, "0.000")}, {Name: "negative", Recipe: recipe(p, "-1")}, {Name: "precision", Recipe: recipe(p, "0.0001")}, {Name: "range", Recipe: recipe(p, "100000000000")},
-		{Name: "pcs", Recipe: recipe(pcs, "0.001")}, {Name: "description", Description: ptr(strings.Repeat("я", 2001)), Recipe: recipe(p, "1")},
+		{Name: "", Recipe: recipe(p, "1")},
+		{Name: strings.Repeat("я", 201), Recipe: recipe(p, "1")},
+		{Name: "empty"},
+		{Name: "unknown", Recipe: recipe(uuid.New(), "1")},
+		{Name: "inactive", Recipe: recipe(inactive, "1")},
+		{Name: "zero", Recipe: recipe(p, "0.000")},
+		{Name: "negative", Recipe: recipe(p, "-1")},
+		{Name: "precision", Recipe: recipe(p, "0.0001")},
+		{Name: "range", Recipe: recipe(p, "100000000000")},
+		{Name: "pcs", Recipe: recipe(pcs, "0.001")},
+		{Name: "description", Description: ptr(strings.Repeat("я", 2001)), Recipe: recipe(p, "1")},
 	} {
 		if _, err := f.dishes.Create(f.actor(), in); err == nil {
 			t.Fatalf("invalid %d accepted", i)
@@ -69,13 +97,33 @@ func TestCreateDishFirstRecipeAndValidation(t *testing.T) {
 			t.Fatal("validation wrote data")
 		}
 	}
-	if _, err := f.dishes.Create(f.actor(), dto.CreateDishRequest{Name: "duplicate", Recipe: append(recipe(p, "1"), recipe(p, "2")...)}); !errors.Is(err, apperrors.ErrDuplicateIngredient) {
+	if _, err := f.dishes.Create(
+		f.actor(),
+		dto.CreateDishRequest{Name: "duplicate", Recipe: append(recipe(p, "1"), recipe(p, "2")...)},
+	); !errors.Is(
+		err,
+		apperrors.ErrDuplicateIngredient,
+	) {
 		t.Fatalf("duplicate: %v", err)
 	}
-	if _, err := f.dishes.Create(f.ctx, dto.CreateDishRequest{Name: "unauthorized", Recipe: recipe(p, "1")}); !errors.Is(err, apperrors.ErrUnauthorized) {
+	if _, err := f.dishes.Create(
+		f.ctx,
+		dto.CreateDishRequest{Name: "unauthorized", Recipe: recipe(p, "1")},
+	); !errors.Is(
+		err,
+		apperrors.ErrUnauthorized,
+	) {
 		t.Fatal("service without actor allowed")
 	}
-	if _, err := f.dishes.Create(f.actor(), dto.CreateDishRequest{Name: strings.Repeat("я", 200), Description: ptr(strings.Repeat("я", 2000)), IsActive: ptr(false), Recipe: recipe(pcs, "99999999999")}); err != nil {
+	if _, err := f.dishes.Create(
+		f.actor(),
+		dto.CreateDishRequest{
+			Name:        strings.Repeat("я", 200),
+			Description: ptr(strings.Repeat("я", 2000)),
+			IsActive:    ptr(false),
+			Recipe:      recipe(pcs, "99999999999"),
+		},
+	); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -85,9 +133,18 @@ func ptr[T any](v T) *T { return &v }
 func TestCreateDishAtomicRecipeAndConcurrentNames(t *testing.T) {
 	f := newFixture(t)
 	p := f.product(t, "Ingredient", "g", true)
-	f.exec(t, `CREATE FUNCTION reject_recipe() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'recipe failure'; END $$`)
-	f.exec(t, `CREATE TRIGGER reject_recipe BEFORE INSERT ON recipe_items FOR EACH ROW EXECUTE FUNCTION reject_recipe()`)
-	if _, err := f.dishes.Create(f.actor(), dto.CreateDishRequest{Name: "Roll back", Recipe: recipe(p, "1")}); err == nil {
+	f.exec(
+		t,
+		`CREATE FUNCTION reject_recipe() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'recipe failure'; END $$`,
+	)
+	f.exec(
+		t,
+		`CREATE TRIGGER reject_recipe BEFORE INSERT ON recipe_items FOR EACH ROW EXECUTE FUNCTION reject_recipe()`,
+	)
+	if _, err := f.dishes.Create(
+		f.actor(),
+		dto.CreateDishRequest{Name: "Roll back", Recipe: recipe(p, "1")},
+	); err == nil {
 		t.Fatal("failure not returned")
 	}
 	if f.count(t, "dishes") != 0 || f.count(t, "recipe_versions") != 0 || f.count(t, "recipe_items") != 0 {
@@ -108,11 +165,12 @@ func TestCreateDishAtomicRecipeAndConcurrentNames(t *testing.T) {
 	close(errs)
 	success, conflict := 0, 0
 	for err := range errs {
-		if err == nil {
+		switch {
+		case err == nil:
 			success++
-		} else if errors.Is(err, apperrors.ErrConflict) {
+		case errors.Is(err, apperrors.ErrConflict):
 			conflict++
-		} else {
+		default:
 			t.Fatal(err)
 		}
 	}
@@ -155,11 +213,27 @@ func TestCreateDishHTTPRolesShapeAndCSRF(t *testing.T) {
 		t.Fatal("anonymous allowed")
 	}
 	for _, body := range []string{`[]`, `null`, `{"name":null}`, `{"Name":"X"}`, `{"name":"X","name":"Y"}`, `{"name":"X","unknown":1}`, `{"recipe":null}`, `{"recipe":[null]}`, `{"recipe":[{"Product_id":"x"}]}`, `{"recipe":[{"product_id":null}]}`, `{"recipe":[{"quantity_per_portion":1}]}`, `{"recipe":[{"quantity_per_portion":"1","quantity_per_portion":"2"}]}`} {
-		if w := request(router, "POST", "/dishes", body, token, session.CSRFToken, "https://flagman.example"); w.Code != 422 {
+		if w := request(
+			router,
+			"POST",
+			"/dishes",
+			body,
+			token,
+			session.CSRFToken,
+			"https://flagman.example",
+		); w.Code != 422 {
 			t.Fatalf("shape %s: %d", body, w.Code)
 		}
 	}
-	if w := request(router, "POST", "/dishes", `{`, token, session.CSRFToken, "https://flagman.example"); w.Code != 400 {
+	if w := request(
+		router,
+		"POST",
+		"/dishes",
+		`{`,
+		token,
+		session.CSRFToken,
+		"https://flagman.example",
+	); w.Code != 400 {
 		t.Fatal("invalid JSON")
 	}
 	in := dto.CreateDishRequest{Name: "Duplicate", Recipe: append(recipe(p, "1"), recipe(p, "2")...)}
@@ -179,7 +253,11 @@ func TestDishRecipeEntryLimit(t *testing.T) {
 	f := newFixture(t)
 	c := uuid.New()
 	f.exec(t, `INSERT INTO product_categories(id,name) VALUES($1,'Limit category')`, c)
-	f.exec(t, `INSERT INTO products(name,category_id,unit,display_unit) SELECT 'Ingredient '||n,$1,'g','g' FROM generate_series(1,100) n`, c)
+	f.exec(
+		t,
+		`INSERT INTO products(name,category_id,unit,display_unit) SELECT 'Ingredient '||n,$1,'g','g' FROM generate_series(1,100) n`,
+		c,
+	)
 	rows, err := f.pool.Query(f.ctx, `SELECT id FROM products ORDER BY name`)
 	if err != nil {
 		t.Fatal(err)
@@ -204,7 +282,11 @@ func TestDishRecipeEntryLimit(t *testing.T) {
 	if _, err := f.dishes.Create(f.actor(), dto.CreateDishRequest{Name: "Too many", Recipe: oversize}); err == nil {
 		t.Fatal("101 ingredients accepted")
 	}
-	if _, err := f.dishes.Update(f.actor(), d.ID, dto.UpdateDishRequest{ExpectedRevision: 1, Recipe: &oversize}); err == nil {
+	if _, err := f.dishes.Update(
+		f.actor(),
+		d.ID,
+		dto.UpdateDishRequest{ExpectedRevision: 1, Recipe: &oversize},
+	); err == nil {
 		t.Fatal("oversize patch accepted")
 	}
 	if _, err := f.dishes.Preview(f.actor(), dto.PreviewDishRequest{Recipe: oversize}); err == nil {

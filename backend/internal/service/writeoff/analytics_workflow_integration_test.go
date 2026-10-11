@@ -24,26 +24,49 @@ type analyticsWorkflowState struct {
 func (f *fixture) analyticsState(t *testing.T, pcsBatch uuid.UUID) analyticsWorkflowState {
 	t.Helper()
 	var s analyticsWorkflowState
-	err := f.pool.QueryRow(f.ctx, `SELECT (SELECT remaining_quantity::text FROM batches WHERE id=$1),(SELECT remaining_quantity::text FROM batches WHERE id=$2),(SELECT count(*) FROM stock_movements),(SELECT count(*) FROM order_attempts),(SELECT count(*) FROM orders),(SELECT count(*) FROM audit_log),(SELECT count(*) FROM outbox_events),(SELECT count(*) FROM idempotency_keys)`, f.batch, pcsBatch).Scan(&s.Grams, &s.Pieces, &s.Movements, &s.Attempts, &s.Orders, &s.Audit, &s.Outbox, &s.Keys)
+	err := f.pool.QueryRow(f.ctx, `SELECT (SELECT remaining_quantity::text FROM batches WHERE id=$1),(SELECT remaining_quantity::text FROM batches WHERE id=$2),(SELECT count(*) FROM stock_movements),(SELECT count(*) FROM order_attempts),(SELECT count(*) FROM orders),(SELECT count(*) FROM audit_log),(SELECT count(*) FROM outbox_events),(SELECT count(*) FROM idempotency_keys)`, f.batch, pcsBatch).
+		Scan(&s.Grams, &s.Pieces, &s.Movements, &s.Attempts, &s.Orders, &s.Audit, &s.Outbox, &s.Keys)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return s
 }
+
 func TestAnalyticsRealOrderRefusalReplayCheckAndBothWriteOffs(t *testing.T) {
 	f := newFixture(t)
 	f.exec(t, `UPDATE products SET name='Мука',unit='g',display_unit='g' WHERE id=$1`, f.product)
 	f.exec(t, `UPDATE stock_movements SET product_name_snapshot='Мука',unit_snapshot='g'`)
 	egg, eggBatch := uuid.New(), uuid.New()
-	f.exec(t, `INSERT INTO products(id,category_id,name,unit,display_unit) VALUES($1,$2,'Яйцо','pcs','pcs')`, egg, f.category)
-	f.exec(t, `INSERT INTO batches(id,product_id,supply_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,$3,2,8,8,'explicit',clock_timestamp()+interval '1 day')`, eggBatch, egg, f.supply)
-	f.exec(t, `INSERT INTO stock_movements(batch_id,type,delta_quantity,remaining_quantity_after,product_name_snapshot,unit_snapshot,actor_id,occurred_at) VALUES($1,'receipt',8,8,'Яйцо','pcs',$2,clock_timestamp()-interval '1 hour')`, eggBatch, f.user)
+	f.exec(
+		t,
+		`INSERT INTO products(id,category_id,name,unit,display_unit) VALUES($1,$2,'Яйцо','pcs','pcs')`,
+		egg,
+		f.category,
+	)
+	f.exec(
+		t,
+		`INSERT INTO batches(id,product_id,supply_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,$3,2,8,8,'explicit',clock_timestamp()+interval '1 day')`,
+		eggBatch,
+		egg,
+		f.supply,
+	)
+	f.exec(
+		t,
+		`INSERT INTO stock_movements(batch_id,type,delta_quantity,remaining_quantity_after,product_name_snapshot,unit_snapshot,actor_id,occurred_at) VALUES($1,'receipt',8,8,'Яйцо','pcs',$2,clock_timestamp()-interval '1 hour')`,
+		eggBatch,
+		f.user,
+	)
 	body := f.orderBody(t, "2.001")
 	var basket dto.OrderRequest
 	if err := json.Unmarshal(body, &basket); err != nil {
 		t.Fatal(err)
 	}
-	f.exec(t, `INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) SELECT id,$2,2 FROM recipe_versions WHERE dish_id=$1`, basket.Items[0].DishID, egg)
+	f.exec(
+		t,
+		`INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) SELECT id,$2,2 FROM recipe_versions WHERE dish_id=$1`,
+		basket.Items[0].DishID,
+		egg,
+	)
 	base := repository.NewRepository(f.pool, zap.NewNop())
 	order := orderservice.NewCreateService(orderrepository.NewRepository(), base, idempotency.NewService(base))
 	check := orderservice.NewService(menurepository.NewRepository(), base)
@@ -93,7 +116,8 @@ func TestAnalyticsRealOrderRefusalReplayCheckAndBothWriteOffs(t *testing.T) {
 			} else if item.ProductID != f.product {
 				t.Fatal(item)
 			}
-			if item.TotalMissingQuantity != want || item.Unit != unit || item.ProductName != name || item.RejectedAttemptsCount != count {
+			if item.TotalMissingQuantity != want || item.Unit != unit || item.ProductName != name ||
+				item.RejectedAttemptsCount != count {
 				t.Fatal(item)
 			}
 		}
@@ -141,24 +165,30 @@ func TestAnalyticsRealOrderRefusalReplayCheckAndBothWriteOffs(t *testing.T) {
 		if item.ProductID == egg {
 			want = "1.000"
 		}
-		if item.ExpiredWrittenOffQuantity != "0.000" || item.ManualWrittenOffQuantity != want || item.TotalWrittenOffQuantity != want || item.MovementsCount != 1 {
+		if item.ExpiredWrittenOffQuantity != "0.000" || item.ManualWrittenOffQuantity != want ||
+			item.TotalWrittenOffQuantity != want ||
+			item.MovementsCount != 1 {
 			t.Fatal(item)
 		}
 	}
 	f.exec(t, `UPDATE batches SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`, f.batch)
 	f.enable(t, true)
-	if err := f.expiry(nil).Expire(f.ctx); err != nil {
+	if err := f.expiry().Expire(f.ctx); err != nil {
 		t.Fatal(err)
 	}
 	expired := f.analyticsState(t, eggBatch)
-	if err := f.expiry(nil).Expire(f.ctx); err != nil {
+	if err := f.expiry().Expire(f.ctx); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.analyticsState(t, eggBatch); got != expired || got.Grams != "0.000" || got.Pieces != "0.000" {
 		t.Fatal("repeat expiry", got, expired)
 	}
 	// Catalog edits cannot alter report facts, and report reads cannot write facts.
-	f.exec(t, `UPDATE products SET name='Changed '||id::text,is_active=false WHERE id=ANY($1::uuid[])`, []uuid.UUID{f.product, egg})
+	f.exec(
+		t,
+		`UPDATE products SET name='Changed '||id::text,is_active=false WHERE id=ANY($1::uuid[])`,
+		[]uuid.UUID{f.product, egg},
+	)
 	for i := 0; i < 3; i++ {
 		losses, n = f.losses(t, model.AnalyticsFilter{})
 		if n != 2 || len(losses) != 2 {
@@ -169,13 +199,21 @@ func TestAnalyticsRealOrderRefusalReplayCheckAndBothWriteOffs(t *testing.T) {
 			if item.ProductID == egg {
 				manual, total, auto, unit, name = "1.000", "6.000", "5.000", "pcs", "Яйцо"
 			}
-			if item.ManualWrittenOffQuantity != manual || item.ExpiredWrittenOffQuantity != auto || item.TotalWrittenOffQuantity != total || item.Unit != unit || item.ProductName != name || item.MovementsCount != 2 {
+			if item.ManualWrittenOffQuantity != manual || item.ExpiredWrittenOffQuantity != auto ||
+				item.TotalWrittenOffQuantity != total ||
+				item.Unit != unit ||
+				item.ProductName != name ||
+				item.MovementsCount != 2 {
 				t.Fatal(item)
 			}
 		}
 		assertShortages(2, "4.012", "8.000")
 	}
-	if got := f.analyticsState(t, eggBatch); got != expired || got.Attempts != 2 || got.Orders != 1 || got.Movements != 8 {
+	if got := f.analyticsState(
+		t,
+		eggBatch,
+	); got != expired || got.Attempts != 2 || got.Orders != 1 ||
+		got.Movements != 8 {
 		t.Fatal("analytics wrote or inflated facts", got, expired)
 	}
 }

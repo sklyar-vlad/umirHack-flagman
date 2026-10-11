@@ -76,6 +76,7 @@ import (
 	supplyservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/supply"
 	userservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/user"
 	writeoffservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/writeoff"
+	"github.com/sklyar-vlad/umirHack-flagman/internal/telemetry"
 	customLogger "github.com/sklyar-vlad/umirHack-flagman/logger"
 	"go.uber.org/zap"
 )
@@ -174,6 +175,7 @@ func main() {
 	mux := gin.New()
 	mux.Use(
 		handler.RequestID(),
+		telemetry.Default.Middleware(),
 		handler.RequestLogger(logger),
 		handler.Recovery(logger),
 		access.CORS(),
@@ -183,6 +185,7 @@ func main() {
 	mux.NoRoute(handler.NotFound)
 
 	api := mux.Group("/api/v1", access.RequireRouteAccess)
+	api.GET("/ready", handler.Readiness(func(ctx context.Context) error { return database.CheckReady(ctx, pool) }))
 	handler.RegisterStopListForecastRoutes(api, forecasthandler.NewHandler(forecast))
 	handler.RegisterIngredientShortageAnalyticsRoutes(api, analyticshandler.NewHandler(analytics))
 	handler.RegisterWriteOffAnalyticsRoutes(api, analyticshandler.NewHandler(analytics))
@@ -210,9 +213,15 @@ func main() {
 	handler.RegisterHotOffersRoutes(api, offershandler.NewHandler(hotOffers), access)
 	handler.RegisterDashboardRoutes(api, dashboardhandler.NewHandler(dashboard), access)
 
+	telemetry.Default.RegisterSnapshot(func(ctx context.Context) (float64, float64, float64, error) {
+		return database.MetricsSnapshot(ctx, pool)
+	})
+	root := http.NewServeMux()
+	root.Handle("/metrics", telemetry.Default.Handler(cfg.MetricsToken))
+	root.Handle("/", mux)
 	server := &http.Server{
 		Addr:        net.JoinHostPort("", cfg.Server.Port),
-		Handler:     mux,
+		Handler:     root,
 		ReadTimeout: time.Duration(cfg.Server.ReadTimeout) * time.Second,
 		// SSE replaces the whole-response timeout with renewed per-write deadlines.
 		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,

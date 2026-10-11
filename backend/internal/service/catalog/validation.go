@@ -14,6 +14,8 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
+const unitPieces = "pcs"
+
 func field(name string) error {
 	return &validations.FieldError{Field: name, Message: "Некорректное значение"}
 }
@@ -44,7 +46,8 @@ func revision(value int) error {
 func mutationError(err error) error {
 	var pg *pgconn.PgError
 	if errors.As(err, &pg) {
-		if pg.Code == "23505" && (pg.ConstraintName == "products_name_ci_uidx" || pg.ConstraintName == "categories_name_ci_uidx") {
+		if pg.Code == "23505" &&
+			(pg.ConstraintName == "products_name_ci_uidx" || pg.ConstraintName == "categories_name_ci_uidx") {
 			return apperrors.ErrConflict
 		}
 		if pg.Code == "23503" && pg.ConstraintName == "products_category_fk" {
@@ -78,8 +81,8 @@ func validateProduct(p *model.Product) error {
 		compatible = p.DisplayUnit == "g" || p.DisplayUnit == "kg"
 	case "ml":
 		compatible = p.DisplayUnit == "ml" || p.DisplayUnit == "l"
-	case "pcs":
-		compatible = p.DisplayUnit == "pcs"
+	case unitPieces:
+		compatible = p.DisplayUnit == unitPieces
 	default:
 		return field("unit")
 	}
@@ -94,7 +97,7 @@ func validateProduct(p *model.Product) error {
 		if err != nil {
 			return err
 		}
-		if p.Unit == "pcs" && value%1000 != 0 {
+		if p.Unit == unitPieces && value%1000 != 0 {
 			return field("target_stock")
 		}
 	}

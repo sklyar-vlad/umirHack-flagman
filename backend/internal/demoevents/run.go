@@ -65,7 +65,14 @@ func (c *Client) Run(ctx context.Context, password string, options Options, out 
 	if err != nil {
 		return err
 	}
-	if _, err = fmt.Fprintf(out, "demo scenario=%s dish_id=%s count=%d interval=%s\n", options.Scenario, dish.ID, options.Count, options.Interval); err != nil {
+	if _, err = fmt.Fprintf(
+		out,
+		"demo scenario=%s dish_id=%s count=%d interval=%s\n",
+		options.Scenario,
+		dish.ID,
+		options.Count,
+		options.Interval,
+	); err != nil {
 		return err
 	}
 	for i := 0; i < options.Count; i++ {

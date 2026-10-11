@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -30,10 +32,11 @@ type ConfigAuth struct {
 }
 
 type config struct {
-	Server   ConfigServer
-	Logger   ConfigLogger
-	Database ConfigDatabase
-	Auth     ConfigAuth
+	Server       ConfigServer
+	Logger       ConfigLogger
+	Database     ConfigDatabase
+	Auth         ConfigAuth
+	MetricsToken string
 }
 
 func NewConfig() (config, error) {
@@ -41,11 +44,26 @@ func NewConfig() (config, error) {
 		return config{}, err
 	}
 
+	metricsToken := os.Getenv("METRICS_TOKEN")
+	if path := os.Getenv("METRICS_TOKEN_FILE"); path != "" {
+		if metricsToken != "" {
+			return config{}, fmt.Errorf("configure only one metrics token source")
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return config{}, fmt.Errorf("cannot read metrics token file")
+		}
+		metricsToken = strings.TrimSpace(string(data))
+		if len(metricsToken) < 32 {
+			return config{}, fmt.Errorf("metrics token requires at least 32 bytes")
+		}
+	}
 	readTimeout, _ := strconv.Atoi(getEnv("READ_TIMEOUT", "10"))
 	writeTimeout, _ := strconv.Atoi(getEnv("WRITE_TIMEOUT", "10"))
 	idleTimeout, _ := strconv.Atoi(getEnv("IDLE_TIMEOUT", "60"))
 
 	cfg := config{
+		MetricsToken: metricsToken,
 		Server: ConfigServer{
 			Host:         getEnv("HOST", ""),
 			Addr:         getEnv("ADDR", ""),

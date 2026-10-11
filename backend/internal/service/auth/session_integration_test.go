@@ -36,7 +36,8 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal("invalid test database configuration")
 	}
-	if (cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "::1" && cfg.ConnConfig.Host != "localhost") || !strings.Contains(cfg.ConnConfig.Database, "test") {
+	if (cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "::1" && cfg.ConnConfig.Host != "localhost") ||
+		!strings.Contains(cfg.ConnConfig.Database, "test") {
 		t.Fatal("auth tests require a dedicated local test database")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
@@ -83,7 +84,12 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.exec(t, `INSERT INTO users(id,name,email,password_hash,role) VALUES($1,'Test Manager','manager@example.test',$2,'manager')`, f.user, f.hash)
+	f.exec(
+		t,
+		`INSERT INTO users(id,name,email,password_hash,role) VALUES($1,'Test Manager','manager@example.test',$2,'manager')`,
+		f.user,
+		f.hash,
+	)
 	f.exec(t, `INSERT INTO restaurant_settings(restaurant_name) VALUES('Test Restaurant')`)
 	f.repo = authrepository.NewRepository(pool)
 	f.service, err = authservice.NewService(f.repo, "https://flagman.example")
@@ -92,6 +98,7 @@ func newFixture(t *testing.T) *fixture {
 	}
 	return f
 }
+
 func (f *fixture) exec(t *testing.T, sql string, args ...any) {
 	t.Helper()
 	if _, err := f.pool.Exec(f.ctx, sql, args...); err != nil {
@@ -105,18 +112,22 @@ func TestSessionIssuanceHashLifetimeAndRevocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(token) != 43 || len(session.CSRFToken) != 43 || token == session.CSRFToken || session.Actor.ID != f.user || session.User.LastLoginAt == nil || session.ExpiresAt.Sub(*session.User.LastLoginAt) != 12*time.Hour {
+	if len(token) != 43 || len(session.CSRFToken) != 43 || token == session.CSRFToken || session.Actor.ID != f.user ||
+		session.User.LastLoginAt == nil ||
+		session.ExpiresAt.Sub(*session.User.LastLoginAt) != 12*time.Hour {
 		t.Fatal("invalid issued session")
 	}
 	var stored, csrf string
-	if err := f.pool.QueryRow(f.ctx, `SELECT token_hash,csrf_token FROM sessions WHERE user_id=$1`, f.user).Scan(&stored, &csrf); err != nil {
+	if err := f.pool.QueryRow(f.ctx, `SELECT token_hash,csrf_token FROM sessions WHERE user_id=$1`, f.user).
+		Scan(&stored, &csrf); err != nil {
 		t.Fatal(err)
 	}
 	if stored == token || stored != authservice.SessionTokenHash(token) || csrf != session.CSRFToken {
 		t.Fatal("unsafe session storage")
 	}
 	current, err := f.service.CurrentSession(f.ctx, token)
-	if err != nil || current.User.ID != f.user || current.CSRFToken != session.CSRFToken || current.Settings.RestaurantName != "Test Restaurant" {
+	if err != nil || current.User.ID != f.user || current.CSRFToken != session.CSRFToken ||
+		current.Settings.RestaurantName != "Test Restaurant" {
 		t.Fatal("session lookup failed")
 	}
 	_, second, err := f.service.Authenticate(f.ctx, "manager@example.test", f.password)
@@ -132,7 +143,11 @@ func TestSessionIssuanceHashLifetimeAndRevocation(t *testing.T) {
 	if _, err := f.service.CurrentSession(f.ctx, second); err != nil {
 		t.Fatal("logout revoked another session")
 	}
-	f.exec(t, `UPDATE sessions SET created_at=clock_timestamp()-interval '13 hours',expires_at=clock_timestamp()-interval '1 second' WHERE token_hash=$1`, authservice.SessionTokenHash(second))
+	f.exec(
+		t,
+		`UPDATE sessions SET created_at=clock_timestamp()-interval '13 hours',expires_at=clock_timestamp()-interval '1 second' WHERE token_hash=$1`,
+		authservice.SessionTokenHash(second),
+	)
 	if _, err := f.service.CurrentSession(f.ctx, second); !errors.Is(err, apperrors.ErrUnauthorized) {
 		t.Fatal("expired session accepted")
 	}
@@ -146,20 +161,43 @@ func TestRejectedCredentialsAndAtomicIssuance(t *testing.T) {
 		}
 	}
 	f.exec(t, `UPDATE users SET is_active=false WHERE id=$1`, f.user)
-	if _, _, err := f.service.Authenticate(f.ctx, "manager@example.test", f.password); !errors.Is(err, apperrors.ErrUnauthorized) {
+	if _, _, err := f.service.Authenticate(
+		f.ctx,
+		"manager@example.test",
+		f.password,
+	); !errors.Is(
+		err,
+		apperrors.ErrUnauthorized,
+	) {
 		t.Fatal("disabled user accepted")
 	}
 	f.exec(t, `UPDATE users SET is_active=true WHERE id=$1`, f.user)
-	if _, err := f.repo.CreateSession(f.ctx, f.user, "stale-password", authservice.SessionTokenHash("token"), "csrf"); !errors.Is(err, apperrors.ErrUnauthorized) {
+	if _, err := f.repo.CreateSession(
+		f.ctx,
+		f.user,
+		"stale-password",
+		authservice.SessionTokenHash("token"),
+		"csrf",
+	); !errors.Is(
+		err,
+		apperrors.ErrUnauthorized,
+	) {
 		t.Fatal("stale password accepted")
 	}
 	f.exec(t, `ALTER TABLE sessions ADD CONSTRAINT reject_test_session CHECK(csrf_token <> 'rejected')`)
-	if _, err := f.repo.CreateSession(f.ctx, f.user, f.hash, authservice.SessionTokenHash("token"), "rejected"); err == nil {
+	if _, err := f.repo.CreateSession(
+		f.ctx,
+		f.user,
+		f.hash,
+		authservice.SessionTokenHash("token"),
+		"rejected",
+	); err == nil {
 		t.Fatal("expected session insert failure")
 	}
 	var count int
 	var last *time.Time
-	if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM sessions),last_login_at FROM users WHERE id=$1`, f.user).Scan(&count, &last); err != nil {
+	if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM sessions),last_login_at FROM users WHERE id=$1`, f.user).
+		Scan(&count, &last); err != nil {
 		t.Fatal(err)
 	}
 	if count != 0 || last != nil {

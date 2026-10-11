@@ -9,8 +9,10 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
+	"github.com/sklyar-vlad/umirHack-flagman/internal/telemetry"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -55,7 +57,12 @@ func TestWorkerReloadsSettingsAndStops(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	calls := make(chan struct{}, 20)
-	w := NewWorker(settings, fakeTransactions{}, processorFunc(func(ctx context.Context) error { calls <- struct{}{}; return nil }), zap.NewNop())
+	w := NewWorker(
+		settings,
+		fakeTransactions{},
+		processorFunc(func(ctx context.Context) error { calls <- struct{}{}; return nil }),
+		zap.NewNop(),
+	)
 	done := make(chan struct{})
 	go func() { defer close(done); w.run(ctx, 10*time.Millisecond) }()
 	for i := 1; i <= 4; i++ {
@@ -78,11 +85,17 @@ func TestWorkerReloadsSettingsAndStops(t *testing.T) {
 		t.Fatal("expiry cadence exceeds SLA")
 	}
 }
+
 func TestWorkerCancelsInFlightAndDoesNotStartWhenCancelled(t *testing.T) {
 	settings := &changingSettings{values: []bool{true}}
 	ctx, cancel := context.WithCancel(context.Background())
 	entered := make(chan struct{})
-	w := NewWorker(settings, fakeTransactions{}, processorFunc(func(ctx context.Context) error { close(entered); <-ctx.Done(); return ctx.Err() }), zap.NewNop())
+	w := NewWorker(
+		settings,
+		fakeTransactions{},
+		processorFunc(func(ctx context.Context) error { close(entered); <-ctx.Done(); return ctx.Err() }),
+		zap.NewNop(),
+	)
 	done := make(chan struct{})
 	go func() { defer close(done); w.Run(ctx) }()
 	<-entered
@@ -94,14 +107,21 @@ func TestWorkerCancelsInFlightAndDoesNotStartWhenCancelled(t *testing.T) {
 	}
 	w.Run(ctx)
 	if settings.reads != 1 {
-		t.Fatal("cancelled worker started another pass")
+		t.Fatal("canceled worker started another pass")
 	}
 }
+
 func TestWorkerRetriesErrorsWithoutLeakingDetails(t *testing.T) {
 	core, logs := observer.New(zap.ErrorLevel)
 	for _, err := range []error{&pgconn.PgError{Code: "P0001", Message: "secret-value"}, errors.New("secret-value")} {
+		before := testutil.ToFloat64(telemetry.Default.Retries.WithLabelValues("expiration"))
 		settings := &changingSettings{values: []bool{true}, err: err}
-		w := NewWorker(settings, fakeTransactions{}, processorFunc(func(context.Context) error { t.Fatal("settings failure processed stock"); return nil }), zap.New(core))
+		w := NewWorker(
+			settings,
+			fakeTransactions{},
+			processorFunc(func(context.Context) error { t.Fatal("settings failure processed stock"); return nil }),
+			zap.New(core),
+		)
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); w.run(ctx, 5*time.Millisecond) }()
@@ -111,6 +131,9 @@ func TestWorkerRetriesErrorsWithoutLeakingDetails(t *testing.T) {
 		}
 		cancel()
 		<-done
+		if testutil.ToFloat64(telemetry.Default.Retries.WithLabelValues("expiration")) <= before {
+			t.Fatal("actual retry not counted")
+		}
 		if logs.Len() < 2 {
 			t.Fatal("error was not retried")
 		}

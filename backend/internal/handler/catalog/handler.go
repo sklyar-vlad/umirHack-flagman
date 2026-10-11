@@ -25,8 +25,8 @@ type Service interface {
 	CreateCategory(context.Context, dto.CreateCategoryRequest) (dto.CatalogCategory, error)
 	UpdateCategory(context.Context, uuid.UUID, dto.UpdateCategoryRequest) (dto.CatalogCategory, error)
 	GetProduct(context.Context, uuid.UUID) (dto.Product, error)
-	CreateProduct(context.Context, dto.CreateProductRequest) (dto.Product, error)
-	UpdateProduct(context.Context, uuid.UUID, dto.UpdateProductRequest) (dto.Product, error)
+	CreateProduct(context.Context, *dto.CreateProductRequest) (dto.Product, error)
+	UpdateProduct(context.Context, uuid.UUID, *dto.UpdateProductRequest) (dto.Product, error)
 }
 
 type Handler struct{ service Service }
@@ -56,7 +56,8 @@ func decode(c *gin.Context, dst any, product bool) error {
 			return apperrors.ErrInvalidJSON
 		}
 		nullable := product && (name == "target_stock" || name == "standard_shelf_life_hours")
-		if name != strings.ToLower(name) || seen[name] || (!nullable && bytes.Equal(bytes.TrimSpace(raw), []byte("null"))) {
+		if name != strings.ToLower(name) || seen[name] ||
+			(!nullable && bytes.Equal(bytes.TrimSpace(raw), []byte("null"))) {
 			return &validations.FieldError{Field: name, Message: "Повтор или null недопустим"}
 		}
 		seen[name] = true
@@ -101,7 +102,18 @@ func (h *Handler) ListCategories(c *gin.Context) {
 		f.Search = &values[0]
 	}
 	items, total, err := h.service.ListCategories(c.Request.Context(), f)
-	respond(c, 200, dto.CategoryListResponse{Items: items, Total: total, Page: f.Page, PageSize: f.PageSize, Meta: map[string]any{}}, err)
+	respond(
+		c,
+		200,
+		dto.CategoryListResponse{
+			Items:    items,
+			Total:    total,
+			Page:     f.Page,
+			PageSize: f.PageSize,
+			Meta:     map[string]any{},
+		},
+		err,
+	)
 }
 
 func (h *Handler) GetCategory(c *gin.Context) {
@@ -155,7 +167,7 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 		basehandler.WriteError(c, err)
 		return
 	}
-	value, err := h.service.CreateProduct(c.Request.Context(), input)
+	value, err := h.service.CreateProduct(c.Request.Context(), &input)
 	respond(c, http.StatusCreated, value, err)
 }
 
@@ -170,6 +182,6 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 		basehandler.WriteError(c, err)
 		return
 	}
-	value, err := h.service.UpdateProduct(c.Request.Context(), id, input)
+	value, err := h.service.UpdateProduct(c.Request.Context(), id, &input)
 	respond(c, 200, value, err)
 }

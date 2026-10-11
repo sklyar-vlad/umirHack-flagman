@@ -18,7 +18,7 @@ import (
 )
 
 type Repository interface {
-	List(context.Context, repository.DBTX, model.AuditLogFilter) ([]model.AuditLogRecord, int64, error)
+	List(context.Context, repository.DBTX, *model.AuditLogFilter) ([]model.AuditLogRecord, int64, error)
 }
 type Transactions interface {
 	WithinTx(context.Context, *pgx.TxOptions, func(repository.DBTX) error) error
@@ -31,7 +31,8 @@ type Service struct {
 func NewService(repo Repository, transactions Transactions) *Service {
 	return &Service{repo: repo, transactions: transactions}
 }
-func (s *Service) List(ctx context.Context, f model.AuditLogFilter) ([]dto.AuditLogEntry, int64, error) {
+
+func (s *Service) List(ctx context.Context, f *model.AuditLogFilter) ([]dto.AuditLogEntry, int64, error) {
 	actor, ok := requestctx.Actor(ctx)
 	if !ok || actor.ID == uuid.Nil {
 		return nil, 0, apperrors.ErrUnauthorized
@@ -41,29 +42,43 @@ func (s *Service) List(ctx context.Context, f model.AuditLogFilter) ([]dto.Audit
 	}
 	result := make([]dto.AuditLogEntry, 0)
 	var total int64
-	err := s.transactions.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx repository.DBTX) error {
-		records, count, err := s.repo.List(ctx, tx, f)
-		if err != nil {
-			return err
-		}
-		total = count
-		for _, r := range records {
-			before, err := safeSnapshot(r.EntityType, r.Before)
+	err := s.transactions.WithinTx(
+		ctx,
+		&pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
+		func(tx repository.DBTX) error {
+			records, count, err := s.repo.List(ctx, tx, f)
 			if err != nil {
 				return err
 			}
-			after, err := safeSnapshot(r.EntityType, r.After)
-			if err != nil {
-				return err
+			total = count
+			for i := range records {
+				r := &records[i]
+				before, err := safeSnapshot(r.EntityType, r.Before)
+				if err != nil {
+					return err
+				}
+				after, err := safeSnapshot(r.EntityType, r.After)
+				if err != nil {
+					return err
+				}
+				v := dto.AuditLogEntry{
+					ID:         r.ID,
+					CreatedAt:  r.CreatedAt.UTC().Format(time.RFC3339Nano),
+					Action:     string(r.Action),
+					EntityType: string(r.EntityType),
+					EntityID:   r.EntityID,
+					RequestID:  r.RequestID,
+					Before:     before,
+					After:      after,
+				}
+				if r.ActorID != nil && r.ActorName != nil {
+					v.Actor = &dto.AuditActor{ID: *r.ActorID, Name: *r.ActorName}
+				}
+				result = append(result, v)
 			}
-			v := dto.AuditLogEntry{ID: r.ID, CreatedAt: r.CreatedAt.UTC().Format(time.RFC3339Nano), Action: string(r.Action), EntityType: string(r.EntityType), EntityID: r.EntityID, RequestID: r.RequestID, Before: before, After: after}
-			if r.ActorID != nil && r.ActorName != nil {
-				v.Actor = &dto.AuditActor{ID: *r.ActorID, Name: *r.ActorName}
-			}
-			result = append(result, v)
-		}
-		return nil
-	})
+			return nil
+		},
+	)
 	if err != nil {
 		var pg *pgconn.PgError
 		if errors.As(err, &pg) {

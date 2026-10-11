@@ -42,7 +42,8 @@ func demoIntegrationFixture(t *testing.T) (context.Context, *pgxpool.Pool, *Clie
 	if err != nil {
 		t.Fatal("invalid dedicated test database configuration")
 	}
-	if (cfg.ConnConfig.Host != "localhost" && cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "::1") || !strings.Contains(cfg.ConnConfig.Database, "test") {
+	if (cfg.ConnConfig.Host != "localhost" && cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "::1") ||
+		!strings.Contains(cfg.ConnConfig.Database, "test") {
 		t.Fatal("requires dedicated local test database")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
@@ -95,7 +96,12 @@ func demoIntegrationFixture(t *testing.T) (context.Context, *pgxpool.Pool, *Clie
 	if err != nil {
 		t.Fatal(err)
 	}
-	exec(`INSERT INTO users(id,name,email,password_hash,role) VALUES($1,'Demo Manager',$2,$3,'manager')`, user, demoEmail, hash)
+	exec(
+		`INSERT INTO users(id,name,email,password_hash,role) VALUES($1,'Demo Manager',$2,$3,'manager')`,
+		user,
+		demoEmail,
+		hash,
+	)
 	exec(`INSERT INTO restaurant_settings(restaurant_name) VALUES('Demo test')`)
 	category := uuid.New()
 	exec(`INSERT INTO product_categories(id,name) VALUES($1,'Test')`, category)
@@ -104,8 +110,20 @@ func demoIntegrationFixture(t *testing.T) (context.Context, *pgxpool.Pool, *Clie
 	exec(`INSERT INTO recipe_versions(id,dish_id,version,created_by) VALUES($1,$2,1,$3)`, recipe, testDish.ID, user)
 	for _, item := range []struct{ unit, display, quantity string }{{"g", "kg", "0.125"}, {"ml", "l", "0.375"}, {"pcs", "pcs", "1.000"}} {
 		product := uuid.New()
-		exec(`INSERT INTO products(id,category_id,name,unit,display_unit) VALUES($1,$2,$3,$4,$5)`, product, category, "Test "+item.unit, item.unit, item.display)
-		exec(`INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) VALUES($1,$2,$3)`, recipe, product, item.quantity)
+		exec(
+			`INSERT INTO products(id,category_id,name,unit,display_unit) VALUES($1,$2,$3,$4,$5)`,
+			product,
+			category,
+			"Test "+item.unit,
+			item.unit,
+			item.display,
+		)
+		exec(
+			`INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) VALUES($1,$2,$3)`,
+			recipe,
+			product,
+			item.quantity,
+		)
 	}
 	shared := repository.NewRepository(pool, zap.NewNop())
 	idem := idempotency.NewService(shared)
@@ -150,14 +168,25 @@ func TestDemoScenariosThroughAuthenticatedAPIsOnPostgreSQL(t *testing.T) {
 		}
 	}
 	var orders, receipts, attempts, keys, audits, outbox int
-	if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM orders),(SELECT count(*) FROM supplies),(SELECT count(*) FROM order_attempts),(SELECT count(*) FROM idempotency_keys),(SELECT count(*) FROM audit_log),(SELECT count(*) FROM outbox_events)`).Scan(&orders, &receipts, &attempts, &keys, &audits, &outbox); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM orders),(SELECT count(*) FROM supplies),(SELECT count(*) FROM order_attempts),(SELECT count(*) FROM idempotency_keys),(SELECT count(*) FROM audit_log),(SELECT count(*) FROM outbox_events)`).
+		Scan(&orders, &receipts, &attempts, &keys, &audits, &outbox); err != nil {
 		t.Fatal(err)
 	}
 	if orders != 2 || receipts != 3 || attempts != 1 || keys != 6 || audits != 5 || outbox != 5 {
-		t.Fatalf("incorrect API facts: orders=%d receipts=%d attempts=%d keys=%d audits=%d outbox=%d", orders, receipts, attempts, keys, audits, outbox)
+		t.Fatalf(
+			"incorrect API facts: orders=%d receipts=%d attempts=%d keys=%d audits=%d outbox=%d",
+			orders,
+			receipts,
+			attempts,
+			keys,
+			audits,
+			outbox,
+		)
 	}
 	var stock string
-	if err := pool.QueryRow(ctx, `SELECT sum(remaining_quantity)::text FROM batches WHERE product_id=(SELECT id FROM products WHERE unit='pcs')`).Scan(&stock); err != nil || stock != "1.000" {
+	if err := pool.QueryRow(ctx, `SELECT sum(remaining_quantity)::text FROM batches WHERE product_id=(SELECT id FROM products WHERE unit='pcs')`).
+		Scan(&stock); err != nil ||
+		stock != "1.000" {
 		t.Fatalf("exact stock: %s %v", stock, err)
 	}
 	timer := time.NewTimer(2200 * time.Millisecond)
@@ -181,10 +210,16 @@ func TestDemoScenariosThroughAuthenticatedAPIsOnPostgreSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 	var active int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM sessions WHERE revoked_at IS NULL`).Scan(&active); err != nil || active != 0 {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM sessions WHERE revoked_at IS NULL`).
+		Scan(&active); err != nil ||
+		active != 0 {
 		t.Fatal("demo session not revoked")
 	}
-	if strings.Count(out.String(), "order created id=") != 2 || strings.Count(out.String(), "supply created id=") != 3 || strings.Count(out.String(), "refused reason=INSUFFICIENT_STOCK") != 2 || strings.Count(out.String(), "batch id=") != 9 || strings.Contains(out.String(), "test-password") {
+	if strings.Count(out.String(), "order created id=") != 2 ||
+		strings.Count(out.String(), "supply created id=") != 3 ||
+		strings.Count(out.String(), "refused reason=INSUFFICIENT_STOCK") != 2 ||
+		strings.Count(out.String(), "batch id=") != 9 ||
+		strings.Contains(out.String(), "test-password") {
 		t.Fatalf("incorrect result output: %s", out.String())
 	}
 }
@@ -192,7 +227,12 @@ func TestDemoScenariosThroughAuthenticatedAPIsOnPostgreSQL(t *testing.T) {
 func TestBoundedDemoRunnerUsesOnlyBusinessAPIs(t *testing.T) {
 	ctx, pool, client := demoIntegrationFixture(t)
 	var out bytes.Buffer
-	if err := client.Run(ctx, "test-password", Options{Scenario: "normal", Count: 4, Interval: time.Millisecond, Expiry: 30 * time.Second}, &out); err != nil {
+	if err := client.Run(
+		ctx,
+		"test-password",
+		Options{Scenario: "normal", Count: 4, Interval: time.Millisecond, Expiry: 30 * time.Second},
+		&out,
+	); err != nil {
 		t.Fatal(err)
 	}
 	var valid bool

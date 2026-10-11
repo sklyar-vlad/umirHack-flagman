@@ -42,6 +42,7 @@ type Service struct {
 func NewService(repo Repository, transactions Transactions, events EventWriter) *Service {
 	return &Service{repo: repo, transactions: transactions, events: events}
 }
+
 func actor(ctx context.Context, write bool) (model.Actor, error) {
 	a, ok := requestctx.Actor(ctx)
 	if !ok || a.ID == uuid.Nil {
@@ -57,6 +58,7 @@ func actor(ctx context.Context, write bool) (model.Actor, error) {
 	}
 	return a, apperrors.ErrForbidden
 }
+
 func databaseError(err error) error {
 	var pg *pgconn.PgError
 	if errors.As(err, &pg) {
@@ -64,29 +66,37 @@ func databaseError(err error) error {
 	}
 	return err
 }
+
 func (s *Service) Get(ctx context.Context) (dto.Settings, error) {
 	if _, err := actor(ctx, false); err != nil {
 		return dto.Settings{}, err
 	}
 	var result model.RestaurantSettings
-	err := s.transactions.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx repository.DBTX) error {
-		var err error
-		result, err = s.repo.Get(ctx, tx, false)
-		return err
-	})
+	err := s.transactions.WithinTx(
+		ctx,
+		&pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
+		func(tx repository.DBTX) error {
+			var err error
+			result, err = s.repo.Get(ctx, tx, false)
+			return err
+		},
+	)
 	if err != nil {
 		return dto.Settings{}, databaseError(err)
 	}
 	return dto.Settings(result), nil
 }
+
 func field(name string) error {
 	return &validations.FieldError{Field: name, Message: "Некорректное значение"}
 }
+
 func validate(input *dto.UpdateSettingsRequest) error {
 	if input.ExpectedRevision < 1 || input.ExpectedRevision >= 2147483647 {
 		return field("expected_revision")
 	}
-	if input.RestaurantName == nil && input.Timezone == nil && input.ExpiringThresholdHours == nil && input.AutoWriteOffExpired == nil {
+	if input.RestaurantName == nil && input.Timezone == nil && input.ExpiringThresholdHours == nil &&
+		input.AutoWriteOffExpired == nil {
 		return field("body")
 	}
 	if input.RestaurantName != nil {
@@ -104,18 +114,22 @@ func validate(input *dto.UpdateSettingsRequest) error {
 	if input.Timezone != nil {
 		zone := *input.Timezone
 		// Local depends on the host. Absolute paths and path traversal are not IANA names.
-		if zone == "" || zone == "Local" || len(zone) > 100 || strings.Contains(zone, "..") || strings.HasPrefix(zone, "/") || strings.ContainsAny(zone, "\\\x00") {
+		if zone == "" || zone == "Local" || len(zone) > 100 || strings.Contains(zone, "..") ||
+			strings.HasPrefix(zone, "/") ||
+			strings.ContainsAny(zone, "\\\x00") {
 			return field("timezone")
 		}
 		if _, err := time.LoadLocation(zone); err != nil {
 			return field("timezone")
 		}
 	}
-	if input.ExpiringThresholdHours != nil && (*input.ExpiringThresholdHours < 1 || *input.ExpiringThresholdHours > 720) {
+	if input.ExpiringThresholdHours != nil &&
+		(*input.ExpiringThresholdHours < 1 || *input.ExpiringThresholdHours > 720) {
 		return field("expiring_threshold_hours")
 	}
 	return nil
 }
+
 func (s *Service) Update(ctx context.Context, input dto.UpdateSettingsRequest) (dto.Settings, error) {
 	a, err := actor(ctx, true)
 	if err != nil {
@@ -154,7 +168,17 @@ func (s *Service) Update(ctx context.Context, input dto.UpdateSettingsRequest) (
 			return err
 		}
 		oldSnapshot, newSnapshot := model.SettingsAuditSnapshot(before), model.SettingsAuditSnapshot(result)
-		if err := s.events.AppendAudit(ctx, tx, &model.AuditEntry{ActorID: &a.ID, Action: model.AuditUpdate, EntityType: model.AuditSettings, Before: &oldSnapshot, After: &newSnapshot}); err != nil {
+		if err := s.events.AppendAudit(
+			ctx,
+			tx,
+			&model.AuditEntry{
+				ActorID:    &a.ID,
+				Action:     model.AuditUpdate,
+				EntityType: model.AuditSettings,
+				Before:     &oldSnapshot,
+				After:      &newSnapshot,
+			},
+		); err != nil {
 			return err
 		}
 		return s.events.AppendOutbox(ctx, tx, &model.OutboxEvent{ActorID: &a.ID, Type: model.SettingsChanged})

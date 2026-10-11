@@ -58,17 +58,32 @@ func TestForecastPostgreSQLScenariosPreserveInventory(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t)
-			f.exec(t, `UPDATE batches SET remaining_quantity=$2,expires_at=$3 WHERE id=$1`, f.batch, tc.qty, f.now.Add(time.Duration(tc.expiry)*time.Hour))
+			f.exec(
+				t,
+				`UPDATE batches SET remaining_quantity=$2,expires_at=$3 WHERE id=$1`,
+				f.batch,
+				tc.qty,
+				f.now.Add(time.Duration(tc.expiry)*time.Hour),
+			)
 			if tc.history {
 				f.consumption(t, "168", "g", f.now.Add(-time.Hour))
 			}
 			if tc.later != "" {
-				f.exec(t, `INSERT INTO batches(id,product_id,supply_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,$3,2,$4,$4,'explicit',$5)`, uuid.New(), f.product, f.supply, tc.later, f.now.Add(1000*time.Hour))
+				f.exec(
+					t,
+					`INSERT INTO batches(id,product_id,supply_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,$3,2,$4,$4,'explicit',$5)`,
+					uuid.New(),
+					f.product,
+					f.supply,
+					tc.later,
+					f.now.Add(1000*time.Hour),
+				)
 			}
 			before := f.state(t)
 			for repeat := 0; repeat < 2; repeat++ {
 				i := f.forecast(t)
-				if i.Cause != tc.cause || i.Confidence != tc.confidence || tc.at < 0 && i.EstimatedStopAt != nil || tc.at >= 0 && (i.EstimatedStopAt == nil || !i.EstimatedStopAt.Equal(f.now.Add(tc.at))) {
+				if i.Cause != tc.cause || i.Confidence != tc.confidence || tc.at < 0 && i.EstimatedStopAt != nil ||
+					tc.at >= 0 && (i.EstimatedStopAt == nil || !i.EstimatedStopAt.Equal(f.now.Add(tc.at))) {
 					t.Fatal(i, "want", tc)
 				}
 				if i.EstimatedStopAt != nil && (i.LimitingProductID == nil || *i.LimitingProductID != f.product) {
@@ -88,9 +103,15 @@ type interleavingRepository struct {
 	t      *testing.T
 }
 
-func (r *interleavingRepository) Batches(ctx context.Context, q repository.DBTX, products []uuid.UUID, now time.Time) ([]model.OrderBatch, error) {
+func (r *interleavingRepository) Batches(
+	ctx context.Context,
+	q repository.DBTX,
+	products []uuid.UUID,
+	now time.Time,
+) ([]model.OrderBatch, error) {
 	var iso, mode string
-	if err := q.QueryRow(ctx, `SELECT current_setting('transaction_isolation'),current_setting('transaction_read_only')`).Scan(&iso, &mode); err != nil {
+	if err := q.QueryRow(ctx, `SELECT current_setting('transaction_isolation'),current_setting('transaction_read_only')`).
+		Scan(&iso, &mode); err != nil {
 		r.t.Fatal(err)
 	}
 	if iso != "repeatable read" || mode != "on" {
@@ -99,6 +120,7 @@ func (r *interleavingRepository) Batches(ctx context.Context, q repository.DBTX,
 	r.mutate()
 	return r.Repository.Batches(ctx, q, products, now)
 }
+
 func TestForecastRecipesStockAndHistoryShareReadOnlySnapshot(t *testing.T) {
 	f := newFixture(t)
 	f.consumption(t, "168", "g", f.now.Add(-time.Hour))
@@ -112,7 +134,12 @@ func TestForecastRecipesStockAndHistoryShareReadOnlySnapshot(t *testing.T) {
 		f.consumption(t, "336", "g", f.now.Add(-time.Hour))
 		rv := uuid.New()
 		f.exec(t, `INSERT INTO recipe_versions(id,dish_id,version,created_by) VALUES($1,$2,2,$3)`, rv, f.dish, f.user)
-		f.exec(t, `INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) VALUES($1,$2,2)`, rv, f.product)
+		f.exec(
+			t,
+			`INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) VALUES($1,$2,2)`,
+			rv,
+			f.product,
+		)
 		f.exec(t, `UPDATE dishes SET name='New name' WHERE id=$1`, f.dish)
 	}}
 	s := NewService(r, menurepo.NewRepository(), repository.NewRepository(f.pool, zap.NewNop()))
@@ -132,9 +159,26 @@ func TestForecastLimitingProductTieAndPartialHistory(t *testing.T) {
 	f.consumption(t, "168", "g", f.now.Add(-time.Hour))
 	f.exec(t, `UPDATE batches SET remaining_quantity=20 WHERE id=$1`, f.batch)
 	other := uuid.MustParse("00000000-0000-4000-8000-000000000001")
-	f.exec(t, `INSERT INTO products(id,category_id,name,unit,display_unit) VALUES($1,$2,'Other ingredient','pcs','pcs')`, other, f.category)
-	f.exec(t, `INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) VALUES($1,$2,1)`, f.recipe, other)
-	f.exec(t, `INSERT INTO batches(id,product_id,supply_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,$3,2,2,2,'explicit',$4)`, uuid.New(), other, f.supply, f.now.Add(1000*time.Hour))
+	f.exec(
+		t,
+		`INSERT INTO products(id,category_id,name,unit,display_unit) VALUES($1,$2,'Other ingredient','pcs','pcs')`,
+		other,
+		f.category,
+	)
+	f.exec(
+		t,
+		`INSERT INTO recipe_items(recipe_version_id,product_id,quantity_per_portion) VALUES($1,$2,1)`,
+		f.recipe,
+		other,
+	)
+	f.exec(
+		t,
+		`INSERT INTO batches(id,product_id,supply_id,line_number,initial_quantity,remaining_quantity,expiry_source,expires_at) VALUES($1,$2,$3,2,2,2,'explicit',$4)`,
+		uuid.New(),
+		other,
+		f.supply,
+		f.now.Add(1000*time.Hour),
+	)
 	i := f.forecast(t)
 	if i.Confidence != "insufficient_data" || i.Cause != "estimated_demand" || *i.LimitingProductID != f.product {
 		t.Fatal(i)

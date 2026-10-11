@@ -31,7 +31,7 @@ func TestProductValidationExactBoundsAndCompatibility(t *testing.T) {
 	} {
 		input := valid
 		test.change(&input)
-		_, err := f.catalog.CreateProduct(f.actor(), input)
+		_, err := f.catalog.CreateProduct(f.actor(), &input)
 		if err == nil || !strings.Contains(err.Error(), test.field) {
 			t.Fatal(test.field, err)
 		}
@@ -47,19 +47,19 @@ func TestProductValidationExactBoundsAndCompatibility(t *testing.T) {
 			target = "99999999999.000"
 		}
 		input.TargetStock = &target
-		p, err := f.catalog.CreateProduct(f.actor(), input)
+		p, err := f.catalog.CreateProduct(f.actor(), &input)
 		if err != nil || *p.TargetStock != target || *p.StandardShelfLifeHours != 2147483647 {
 			t.Fatal(i, p, err)
 		}
 	}
 	input := valid
 	input.TargetStock = ptr("0")
-	p, err := f.catalog.CreateProduct(f.actor(), input)
+	p, err := f.catalog.CreateProduct(f.actor(), &input)
 	if err != nil || *p.TargetStock != "0.000" {
 		t.Fatal("zero target", p, err)
 	}
 	// Validation applies to the merged PATCH state, not only supplied fields.
-	_, err = f.catalog.UpdateProduct(f.actor(), p.ID, dto.UpdateProductRequest{Unit: ptr("ml"), ExpectedRevision: 1})
+	_, err = f.catalog.UpdateProduct(f.actor(), p.ID, &dto.UpdateProductRequest{Unit: ptr("ml"), ExpectedRevision: 1})
 	if err == nil {
 		t.Fatal("incompatible partial update")
 	}
@@ -90,26 +90,62 @@ func TestProductHTTPNullablePatchAndStrictTypes(t *testing.T) {
 			t.Fatal("JSON", w.Code)
 		}
 	}
-	w := request(r, "PATCH", path, `{"target_stock":"0.001","standard_shelf_life_hours":72,"expected_revision":1}`, token, session.CSRFToken, "https://flagman.example")
+	w := request(
+		r,
+		"PATCH",
+		path,
+		`{"target_stock":"0.001","standard_shelf_life_hours":72,"expected_revision":1}`,
+		token,
+		session.CSRFToken,
+		"https://flagman.example",
+	)
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body)
 	}
 	var result dto.Product
-	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil || *result.TargetStock != "0.001" || *result.StandardShelfLifeHours != 72 {
+	if err := json.Unmarshal(
+		w.Body.Bytes(),
+		&result,
+	); err != nil || *result.TargetStock != "0.001" ||
+		*result.StandardShelfLifeHours != 72 {
 		t.Fatal(result, err)
 	}
-	w = request(r, "PATCH", path, `{"display_unit":"ml","expected_revision":2}`, token, session.CSRFToken, "https://flagman.example")
+	w = request(
+		r,
+		"PATCH",
+		path,
+		`{"display_unit":"ml","expected_revision":2}`,
+		token,
+		session.CSRFToken,
+		"https://flagman.example",
+	)
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body)
 	}
-	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil || *result.TargetStock != "0.001" || *result.StandardShelfLifeHours != 72 {
+	if err := json.Unmarshal(
+		w.Body.Bytes(),
+		&result,
+	); err != nil || *result.TargetStock != "0.001" ||
+		*result.StandardShelfLifeHours != 72 {
 		t.Fatal("absent fields erased", err)
 	}
-	w = request(r, "PATCH", path, `{"target_stock":null,"standard_shelf_life_hours":null,"expected_revision":3}`, token, session.CSRFToken, "https://flagman.example")
+	w = request(
+		r,
+		"PATCH",
+		path,
+		`{"target_stock":null,"standard_shelf_life_hours":null,"expected_revision":3}`,
+		token,
+		session.CSRFToken,
+		"https://flagman.example",
+	)
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body)
 	}
-	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil || result.TargetStock != nil || result.StandardShelfLifeHours != nil || result.DisplayUnit != "ml" {
+	if err := json.Unmarshal(
+		w.Body.Bytes(),
+		&result,
+	); err != nil || result.TargetStock != nil || result.StandardShelfLifeHours != nil ||
+		result.DisplayUnit != "ml" {
 		t.Fatal("explicit null ignored", result, err)
 	}
 }
