@@ -207,3 +207,15 @@ type StockMovementHandler interface{ List(*gin.Context) }
 func RegisterStockMovementRoutes(group *gin.RouterGroup, h StockMovementHandler) {
 	group.GET("/stock-movements", h.List)
 }
+
+type WriteOffAnalyticsHandler interface{ WriteOffs(*gin.Context) }
+
+func RegisterWriteOffAnalyticsRoutes(group *gin.RouterGroup, h WriteOffAnalyticsHandler) {
+	group.GET("/analytics/write-offs", h.WriteOffs)
+}
+
+type IngredientShortageAnalyticsHandler interface{ IngredientShortages(*gin.Context) }
+
+func RegisterIngredientShortageAnalyticsRoutes(group *gin.RouterGroup, h IngredientShortageAnalyticsHandler) {
+	group.GET("/analytics/ingredient-shortages", h.IngredientShortages)
+}

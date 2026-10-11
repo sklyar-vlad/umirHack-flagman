@@ -15,59 +15,62 @@ const (
 	supplies
 	menuAndOrders
 	administration
+	analytics
 )
 
 // Each implemented business operation is listed explicitly. A future route
 // must declare its policy before it can be used, including by an administrator.
 var routePermissions = map[string]permission{
-	"GET /stock-movements":             supplies,
-	"POST /write-offs":                 supplies,
-	"GET /audit-log":                   administration,
-	"GET /settings":                    warehouse,
-	"PATCH /settings":                  administration,
-	"POST /dishes":                     administration,
-	"PATCH /dishes/:id":                administration,
-	"POST /dishes/preview":             administration,
-	"GET /product-categories":          warehouse,
-	"GET /product-categories/:id":      warehouse,
-	"GET /products/:id":                warehouse,
-	"POST /product-categories":         administration,
-	"PATCH /product-categories/:id":    administration,
-	"POST /products":                   administration,
-	"PATCH /products/:id":              administration,
-	"POST /users":                      administration,
-	"PATCH /users/:id":                 administration,
-	"POST /users/:id/password":         administration,
-	"GET /roles":                       administration,
-	"GET /users":                       administration,
-	"GET /users/:id":                   administration,
-	"GET /auth/me":                     warehouse,
-	"POST /auth/logout":                warehouse,
-	"GET /products":                    warehouse,
-	"GET /inventory":                   warehouse,
-	"GET /products/:id/batches":        warehouse,
-	"GET /dashboard":                   warehouse,
-	"GET /supplies":                    supplies,
-	"GET /supplies/:id":                supplies,
-	"POST /supplies":                   supplies,
-	"GET /procurement-recommendations": supplies,
-	"GET /dishes":                      menuAndOrders,
-	"GET /dishes/:id":                  menuAndOrders,
-	"GET /stop-list":                   menuAndOrders,
-	"GET /hot-offers":                  menuAndOrders,
-	"POST /orders/check":               menuAndOrders,
-	"POST /orders":                     menuAndOrders,
-	"GET /orders":                      menuAndOrders,
-	"GET /orders/:id":                  menuAndOrders,
-	"GET /order-attempts":              menuAndOrders,
+	"GET /analytics/ingredient-shortages": analytics,
+	"GET /analytics/write-offs":           analytics,
+	"GET /stock-movements":                supplies,
+	"POST /write-offs":                    supplies,
+	"GET /audit-log":                      administration,
+	"GET /settings":                       warehouse,
+	"PATCH /settings":                     administration,
+	"POST /dishes":                        administration,
+	"PATCH /dishes/:id":                   administration,
+	"POST /dishes/preview":                administration,
+	"GET /product-categories":             warehouse,
+	"GET /product-categories/:id":         warehouse,
+	"GET /products/:id":                   warehouse,
+	"POST /product-categories":            administration,
+	"PATCH /product-categories/:id":       administration,
+	"POST /products":                      administration,
+	"PATCH /products/:id":                 administration,
+	"POST /users":                         administration,
+	"PATCH /users/:id":                    administration,
+	"POST /users/:id/password":            administration,
+	"GET /roles":                          administration,
+	"GET /users":                          administration,
+	"GET /users/:id":                      administration,
+	"GET /auth/me":                        warehouse,
+	"POST /auth/logout":                   warehouse,
+	"GET /products":                       warehouse,
+	"GET /inventory":                      warehouse,
+	"GET /products/:id/batches":           warehouse,
+	"GET /dashboard":                      warehouse,
+	"GET /supplies":                       supplies,
+	"GET /supplies/:id":                   supplies,
+	"POST /supplies":                      supplies,
+	"GET /procurement-recommendations":    supplies,
+	"GET /dishes":                         menuAndOrders,
+	"GET /dishes/:id":                     menuAndOrders,
+	"GET /stop-list":                      menuAndOrders,
+	"GET /hot-offers":                     menuAndOrders,
+	"POST /orders/check":                  menuAndOrders,
+	"POST /orders":                        menuAndOrders,
+	"GET /orders":                         menuAndOrders,
+	"GET /orders/:id":                     menuAndOrders,
+	"GET /order-attempts":                 menuAndOrders,
 }
 
 func roleAllowed(role string, permission permission) bool {
 	switch role {
 	case roleAdmin:
-		return permission == warehouse || permission == supplies || permission == menuAndOrders || permission == administration
+		return permission == warehouse || permission == supplies || permission == menuAndOrders || permission == administration || permission == analytics
 	case roleManager:
-		return permission == warehouse || permission == supplies || permission == menuAndOrders
+		return permission == warehouse || permission == supplies || permission == menuAndOrders || permission == analytics
 	case roleStorekeeper:
 		return permission == warehouse || permission == supplies
 	case roleOrderOperator:
