@@ -21,6 +21,7 @@ import (
 	cataloghandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/catalog"
 	dashboardhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/dashboard"
 	dishhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/dish"
+	eventhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/events"
 	forecasthandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/forecast"
 	offershandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/hotoffers"
 	inventoryhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/inventory"
@@ -40,6 +41,7 @@ import (
 	catalogrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/catalog"
 	dashboardrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/dashboard"
 	dishrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/dish"
+	eventrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/events"
 	expirationrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/expiration"
 	forecastrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/forecast"
 	offersrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/hotoffers"
@@ -60,6 +62,7 @@ import (
 	catalogservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/catalog"
 	dashboardservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/dashboard"
 	dishservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/dish"
+	eventservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/events"
 	expirationservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/expiration"
 	forecastservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/forecast"
 	offersservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/hotoffers"
@@ -162,6 +165,12 @@ func main() {
 		burstRequests           = 20
 	)
 
+	eventStream := eventservice.NewService(eventrepository.NewRepository(), repo, logger)
+	eventsCtx, cancelEvents := context.WithCancel(context.Background())
+	eventsDone := make(chan struct{})
+	go func() { defer close(eventsDone); eventStream.Run(eventsCtx) }()
+	defer func() { cancelEvents(); <-eventsDone }()
+
 	mux := gin.New()
 	mux.Use(
 		handler.RequestID(),
@@ -182,6 +191,7 @@ func main() {
 	handler.RegisterAuditLogRoutes(api, auditloghandler.NewHandler(auditLog))
 	handler.RegisterSettingsRoutes(api, settingshandler.NewHandler(settings))
 	handler.RegisterAuthRoutes(api, access)
+	handler.RegisterEventRoutes(api, eventhandler.NewHandler(eventStream, sessionAuth, eventsCtx))
 	handler.RegisterUserReadRoutes(api, userhandler.NewHandler(users))
 	handler.RegisterUserWriteRoutes(api, userhandler.NewHandler(users))
 	handler.RegisterRoutes(api, hand)
@@ -201,9 +211,10 @@ func main() {
 	handler.RegisterDashboardRoutes(api, dashboardhandler.NewHandler(dashboard), access)
 
 	server := &http.Server{
-		Addr:         net.JoinHostPort("", cfg.Server.Port),
-		Handler:      mux,
-		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
+		Addr:        net.JoinHostPort("", cfg.Server.Port),
+		Handler:     mux,
+		ReadTimeout: time.Duration(cfg.Server.ReadTimeout) * time.Second,
+		// SSE replaces the whole-response timeout with renewed per-write deadlines.
 		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
 		IdleTimeout:  time.Duration(cfg.Server.IdleTimeout) * time.Second,
 	}
@@ -221,10 +232,12 @@ func main() {
 	<-stop
 
 	logger.Info("shutdown signal received...")
+	cancelEvents()
 	ctxShutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := server.Shutdown(ctxShutdown); err != nil {
 		logger.Error("graceful shutdown failed", zap.Error(err))
+		_ = server.Close()
 	} else {
 		logger.Info("server stopped gracefully")
 	}

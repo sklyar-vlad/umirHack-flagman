@@ -150,3 +150,42 @@ Docker volume сохраняется. Остальные базы PostgreSQL н�
 
 Полную последовательность `demo-reset → seed → up` проверяйте только
 на `postgres_demo`, все данные которой разрешено удалить.
+
+
+## SSE
+
+`/api/v1/events` в nginx использует HTTP/1.1, `proxy_buffering off`, отключённые
+cache/gzip и часовые idle timeouts. Остальные API сохраняют обычную конфигурацию.
+Traefik перед обоими сервисами использует немедленный flush и `writeTimeout=0s`
+для полного ответа; buffering middleware к маршруту не подключается.
+Go сохраняет обычный WriteTimeout для REST, SSE обновляет отдельный пятисекундный
+дедлайн перед каждой записью/flush, включая heartbeat после длительного idle.
+Не добавляйте response buffering или compression middleware к SSE.
+
+Для проверки после входа сохраните cookie jar вне репозитория и выполните:
+
+```sh
+curl -N --cookie /tmp/flagman-cookies.txt http://flagman.localhost/api/v1/events
+curl -N --cookie /tmp/flagman-cookies.txt -H 'Last-Event-ID: 123' http://flagman.localhost/api/v1/events
+```
+
+`Content-Type: text/event-stream`, `Cache-Control: no-cache`; первый комментарий
+приходит сразу, heartbeat — раз в 20 секунд. Клиент обновляет доступные темы
+при `inventory.time_changed`, а при `resync.required` перечитывает все открытые
+разделы. Истёкшая или отозванная сессия закрывает соединение.
+
+Проверка через отдельные nginx/Traefik test-контейнеры и настоящий `curl -N`:
+
+```sh
+FLAGMAN_TEST_SSE_PROXIES=1 go -C backend test -count=1 -run TestCurlUnbufferedThroughNginxAndTraefik ./internal/handler/events
+```
+
+Нужны `FLAGMAN_TEST_DATABASE_URL` с выделенной локальной test-базой, curl,
+Docker и локальные образы `flagman-frontend:latest` (либо
+`FLAGMAN_TEST_NGINX_IMAGE`) и `traefik:v3.7`. Тест не запускает Compose и не
+обращается к БД приложения: использует временную test-схему, loopback-порты
+и отдельные read-only контейнеры, которые удаляются после проверки.
+
+Параметры прокси: [nginx proxy buffering](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering),
+[Traefik timeouts](https://doc.traefik.io/traefik/reference/install-configuration/entrypoints/) и
+[Traefik flushInterval](https://doc.traefik.io/traefik/reference/routing-configuration/http/load-balancing/service/).
