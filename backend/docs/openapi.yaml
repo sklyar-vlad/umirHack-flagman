@@ -5,7 +5,7 @@ info:
   contact:
     name: Команда проекта Кладовая
   description: |
-    Стартовый контракт S02-T04 на основе REST API из README.md.
+    Контракт реализованного backend, сверенный с зарегистрированными маршрутами в S28.
     Реализованы GET /healthcheck, GET /products, GET /products/{id}/batches, GET /inventory,
     POST /supplies, GET /supplies, GET /supplies/{id}, GET /dishes,
     GET /dishes/{id}, GET /stop-list, GET /hot-offers, GET /procurement-recommendations, POST /orders/check, POST /orders,
@@ -14,10 +14,11 @@ info:
     GET /roles, GET /users, GET /users/{id}, POST /users, PATCH /users/{id}, POST /users/{id}/password,
     GET/POST /product-categories, GET/PATCH /product-categories/{id}, GET/PATCH /products/{id}, POST /products.
     GET/PATCH /settings, GET /audit-log, POST /write-offs и GET /stock-movements,
-    GET /analytics/write-offs, GET /analytics/ingredient-shortages и GET /analytics/stop-list-forecast.
-    Операции с x-implementation-status: planned
-    описывают согласованное будущее поведение, а не доступные сейчас маршруты.
-    В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
+    GET /analytics/write-offs, GET /analytics/ingredient-shortages, GET /analytics/stop-list-forecast,
+    GET /events и GET /ready. Отдельный внутренний GET /metrics находится на корне
+    backend, вне /api/v1; требует технический bearer-токен, не cookie-сессию.
+    Все описанные операции реализованы. Воспроизводимая чистая демонстрация:
+    task backend:demo; сценарий и ограничения окружения — backend/DEMO.md.
 
     Даты: RFC 3339 с timezone; ответы сервера — UTC.
     Количества: точные десятичные JSON-строки в базовых единицах g/ml/pcs,
@@ -39,8 +40,7 @@ info:
 
     Общие проверки входных коллекций допускают 1–100 строк поставки/корзины
     или ингредиентов рецепта и 1–1000 порций каждого блюда после объединения.
-    Подключение этих проверок к бизнес-запросам и объединение корзины
-    выполняются при реализации соответствующих planned-операций.
+    Поставки, корзины и рецептуры проверяются до записи; дубли блюд объединяются.
 
     Фильтры объединяются через AND. Поиск без учёта регистра.
     Каждый query-параметр допускается один раз. Неизвестный параметр,
@@ -92,6 +92,37 @@ tags:
   - name: Orders
     description: Проверка корзины, создание и чтение заказа
 paths:
+  /metrics:
+    get:
+      tags: [System]
+      operationId: scrapeMetrics
+      summary: Внутренние технические метрики Prometheus
+      x-implementation-status: implemented
+      servers:
+        - url: /
+          description: Корень backend; исключён из публичных proxy routes
+      security:
+        - MetricsBearer: []
+      description: |
+        Отдельный внутренний маршрут вне /api/v1. Доступ только с одним
+        Authorization Bearer, равным METRICS_TOKEN (или внешнему файлу
+        METRICS_TOKEN_FILE); cookie и роли не дают доступ. Не публикуется через
+        публичный TLS proxy. Токен отсутствует — 404, неверен — 401.
+        Cache-Control no-store; максимум два параллельных scrape, timeout 4 секунды.
+        Метки используют только шаблоны маршрутов, фиксированные коды и имена
+        воркеров; бизнес-ID, имена, пароли и токены не входят в метрики.
+      responses:
+        '200':
+          description: Prometheus exposition
+          content:
+            text/plain:
+              schema: {type: string}
+        '401':
+          description: Bearer-токен отсутствует, неоднозначен или неверен; пустое тело
+        '404':
+          description: Технический токен не настроен; стандартный HTTP Not Found
+        '503':
+          description: Превышено число scrape или истёк timeout
   /events:
     get:
       tags: [System]
@@ -146,7 +177,8 @@ paths:
   /ready:
     get:
       operationId: readiness
-      tags: [Health]
+      tags: [System]
+      x-implementation-status: implemented
       security: []
       summary: Готовность БД и схемы
       description: Проверка полного списка миграций текущей сборки и обязательных таблиц в read-only snapshot; deadline 2 секунды. Не применяет миграции. Независима от liveness.
@@ -2314,6 +2346,10 @@ paths:
           $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
+    MetricsBearer:
+      type: http
+      scheme: bearer
+      description: Отдельный технический секрет Prometheus, вне пользовательских сессий
     SessionCookie:
       type: apiKey
       in: cookie
