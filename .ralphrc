@@ -41,6 +41,32 @@ init_task_engine() {
     _bd info >/dev/null
 }
 
+# Upstream emits Beads' pretty tree, although its validator requires checkboxes.
+# BSD awk also does not support upstream's \s pattern. Keep the actual Beads
+# statuses and use one portable renderer/validator instead of bypassing the gate.
+sync_plan_file() (
+    set -o pipefail
+    _bd list --all --limit 0 --json |
+        python3 "$PROJECT_DIR/scripts/beads_plan.py" sync "${PLAN_FILE:-ralph_plan.md}"
+)
+
+validate_execution_plan() {
+    local severity="${1:-warn}" plan_file="${PLAN_FILE:-ralph_plan.md}"
+    local result total checked unchecked completion
+    [[ -f "$plan_file" ]] || return 0
+    if ! result=$(python3 "$PROJECT_DIR/scripts/beads_plan.py" validate "$plan_file"); then
+        if [[ "$severity" == error ]]; then
+            log_error "Execution plan is invalid: $plan_file"
+        else
+            log_warning "Execution plan is invalid: $plan_file"
+        fi
+        return 1
+    fi
+    IFS=' ' read -r total checked unchecked <<< "$result"
+    completion=$((checked * 100 / total))
+    log_success "Execution plan validation passed: $plan_file (${completion}% complete)"
+}
+
 _ralph_pending_tasks() {
     local status count total=0
     for status in open in_progress blocked deferred; do
