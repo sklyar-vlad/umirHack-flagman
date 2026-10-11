@@ -1,0 +1,9 @@
+.form { display: grid; gap: var(--space-24); max-width: 1100px; }
+.fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: var(--space-16); }
+.header { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-16); }
+.line { min-width: 0; border: 1px solid var(--color-border); border-radius: var(--radius-8); padding: var(--space-16); background: var(--color-surface); }
+.line legend { font-weight: 600; padding: 0 var(--space-8); }
+.grid { display: grid; grid-template-columns: 2fr 1fr 140px 2fr; gap: var(--space-12); align-items: start; }
+.notice { padding: var(--space-16); border: 1px solid var(--color-border); border-radius: var(--radius-8); overflow-wrap: anywhere; }
+@media (max-width: 1100px) { .grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .grid, .header { grid-template-columns: minmax(0, 1fr); } .line { padding: var(--space-12); } }

@@ -1,0 +1,103 @@
+import { expect, test, type Page } from '@playwright/test'
+
+const supplyId = '00000000-0000-4000-8000-000000000100'
+const productId = '00000000-0000-4000-8000-000000000010'
+const target = `/supplies/${supplyId}?returnTo=${encodeURIComponent('/supplies?search=ТЕСТ&page_size=20')}`
+async function login(page: Page, path = target) {
+  await page.goto(path)
+  await expect(page.getByRole('heading', { name: 'Вход в Кладовую' })).toBeVisible()
+  await page.getByLabel('Email', { exact: false }).fill('employee@example.test')
+  await page.getByLabel(/^Пароль/).fill('local-test-only')
+  await page.getByRole('button', { name: 'Войти', exact: true }).click()
+}
+
+for (const width of [360, 390, 1024, 1440]) {
+  test(`immutable original lines, keyboard warehouse selection and history return at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 })
+    const errors: string[] = []
+    page.on('pageerror', (error) => errors.push(error.message))
+    await login(page)
+    await expect(page.getByRole('heading', { name: 'Поставка ТЕСТ-101' })).toBeVisible()
+    const lines = width <= 1100 ? page.getByRole('region', { name: 'Состав поставки' }).getByRole('listitem') : page.getByRole('table', { name: 'Состав поставки' }).getByRole('row').filter({ has: page.locator('td') })
+    await expect(lines).toHaveCount(27)
+    await expect(lines.nth(0)).toContainText('Молоко')
+    await expect(lines.nth(1)).toContainText('Молоко')
+    await expect(lines.nth(0)).toContainText('00000000-0000-4000-8000-000000000201')
+    await expect(lines.nth(1)).toContainText('00000000-0000-4000-8000-000000000202')
+    await expect(lines.nth(22)).toContainText('Израсходована')
+    await expect(lines.nth(22)).toContainText('0 л')
+    await expect(lines.nth(24)).toContainText('99999999,999999 кг')
+    await expect(page.getByText('10.10.2026, 12:05:00', { exact: true })).toBeVisible()
+    await expect(page.getByText('10.10.2026, 12:00:00', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Редактировать|Удалить|Сохранить|Изменить/ })).toHaveCount(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/supply-detail-${width}.png`, fullPage: true })
+    const stock = page.getByRole('link', { name: 'На склад: Молоко, строка 23' })
+    await stock.focus(); await page.keyboard.press('Enter')
+    const selection = page.getByRole('region', { name: 'Выбор из поставки' })
+    await expect(selection.getByLabel('Показать партии')).toHaveValue('all')
+    await expect(selection.getByText('Израсходована', { exact: true })).toBeVisible()
+    await expect(selection.getByText('Выбранная поставка').first()).toBeVisible()
+    expect(new URL(page.url()).searchParams.get('product_id')).toBe(productId)
+    expect(new URL(page.url()).searchParams.get('supply_id')).toBe(supplyId)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/supply-selection-${width}.png`, fullPage: true })
+    await page.reload()
+    await expect(selection.getByText('Израсходована', { exact: true })).toBeVisible()
+    await page.goBack()
+    await expect(page.getByRole('heading', { name: 'Поставка ТЕСТ-101' })).toBeVisible()
+    await page.getByRole('link', { name: 'К истории поставок' }).focus(); await page.keyboard.press('Enter')
+    await expect(page.getByLabel('Поиск по номеру')).toHaveValue('ТЕСТ')
+    await expect(page.getByText('Найдено поставок: 1. Страница 1.')).toBeVisible()
+    expect(errors).toEqual([])
+  })
+}
+
+test('loading, transient failure/retry, cached 404, recovery and 403', async ({ page }) => {
+  await login(page)
+  await expect(page.getByRole('heading', { name: 'Поставка ТЕСТ-101' })).toBeVisible()
+  await page.getByLabel('Сценарий API').selectOption('slow')
+  await expect(page.getByRole('status', { name: 'Загрузка поставки' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Обновить поставку' })).toBeDisabled()
+  await expect(page.getByRole('status', { name: 'Загрузка поставки' })).toHaveCount(0)
+  await page.getByLabel('Сценарий API').selectOption('network-error')
+  await expect(page.getByRole('heading', { name: 'Не удалось загрузить поставку' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Поставка ТЕСТ-101' })).toBeVisible()
+  await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible()
+  await page.getByLabel('Сценарий API').selectOption('success')
+  await page.getByRole('button', { name: 'Обновить поставку' }).focus(); await page.keyboard.press('Enter')
+  await expect(page.getByRole('heading', { name: 'Не удалось загрузить поставку' })).toHaveCount(0)
+  await page.getByLabel('Сценарий API').selectOption('supply-not-found')
+  await expect(page.getByRole('heading', { name: 'Поставка не найдена' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Поставка ТЕСТ-101' })).toHaveCount(0)
+  await expect(page.getByRole('table')).toHaveCount(0)
+  await page.getByLabel('Сценарий API').selectOption('success')
+  await expect(page.getByRole('heading', { name: 'Поставка ТЕСТ-101' })).toBeVisible()
+  await page.getByLabel('Сценарий API').selectOption('forbidden')
+  await expect(page.getByRole('heading', { name: 'Недостаточно прав' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Поставка ТЕСТ-101' })).toHaveCount(0)
+  await expect(page.getByRole('banner').getByText('Тестовый сотрудник')).toBeVisible()
+})
+
+test('first-load resource 404 and wrong identifier distinguish missing resources from empty lists', async ({ page }) => {
+  await login(page, '/supplies/00000000-0000-4000-8000-000000000999?returnTo=https://evil.test')
+  await expect(page.getByRole('heading', { name: 'Поставка не найдена' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'К истории поставок' })).toHaveAttribute('href', '/supplies')
+  await page.goto('/supplies/wrong')
+  await expect(page.getByRole('heading', { name: 'Некорректный адрес поставки' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Попробовать снова' })).toHaveCount(0)
+})
+
+test('operator inventory ignores a forged selection and never reads supplies', async ({ page }) => {
+  const requests: string[] = []
+  page.on('request', (request) => { if (request.url().includes('/api/v1/supplies')) requests.push(request.url()) })
+  await page.goto(`/inventory?product_id=${productId}&supply_id=${supplyId}`)
+  await expect(page.getByRole('heading', { name: 'Вход в Кладовую' })).toBeVisible()
+  await page.getByLabel('Сценарий API').selectOption('role-order-operator')
+  await page.getByLabel('Email', { exact: false }).fill('employee@example.test')
+  await page.getByLabel(/^Пароль/).fill('local-test-only')
+  await page.getByRole('button', { name: 'Войти', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Склад', exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Выбор из поставки' })).toHaveCount(0)
+  expect(requests).toEqual([])
+})

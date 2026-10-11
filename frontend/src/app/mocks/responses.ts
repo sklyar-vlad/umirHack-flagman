@@ -29,6 +29,29 @@ export function createMockError(
 /** Ошибки здесь намеренно форсируются для проверки транспорта, не прав healthcheck. */
 export function createHealthcheckResponse(scenario: MockScenario): Response {
   switch (scenario) {
+    case 'products-empty':
+    case 'products-error':
+    case 'products-slow':
+    case 'reception-slow':
+    case 'reception-network':
+    case 'reception-lost-response':
+    case 'reception-validation':
+    case 'reception-conflict':
+    case 'reception-in-progress':
+    case 'supply-not-found':
+    case 'supplies-empty':
+    case 'supplies-received':
+    case 'inventory-empty':
+    case 'batches-empty':
+    case 'batches-error':
+    case 'batches-slow':
+    case 'categories-error':
+    case 'role-admin':
+    case 'role-storekeeper':
+    case 'role-order-operator':
+    case 'invalid-password':
+    case 'disabled-user':
+    case 'session-expired':
     case 'success':
     case 'slow': {
       const body: HealthcheckResponse = { status: 'ok', service: 'umirHack-flagman' }

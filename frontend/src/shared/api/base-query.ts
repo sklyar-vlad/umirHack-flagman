@@ -31,7 +31,22 @@ export const baseQuery: BaseQueryFn<string | FetchArgs, unknown, ApiError, objec
   api,
   extraOptions,
 ) => {
+  const transport = api.extra as ApiTransport | undefined
+  const path = typeof args === 'string' ? args : args.url
+  const protectedRequest = path !== '/healthcheck'
+  if (protectedRequest && transport?.waitForSession && !await transport.waitForSession()) {
+    return { error: { status: 401, code: 'SESSION_REQUIRED', message: 'Войдите перед продолжением работы.', details: {} } }
+  }
+  if (protectedRequest && transport?.hasSessionAccess && !transport.hasSessionAccess()) {
+    return { error: { status: 401, code: 'SESSION_CHANGED', message: 'Сессия изменилась.', details: {} } }
+  }
+  if (api.signal.aborted) return { error: { status: 'NETWORK_ERROR', code: 'ABORTED', message: 'Запрос отменён.', details: {} } }
+  const version = transport?.getSessionVersion?.()
   const result = await fetchQuery(args, api, extraOptions)
+  if (protectedRequest && version !== transport?.getSessionVersion?.()) {
+    return { error: { status: 401, code: 'SESSION_CHANGED', message: 'Сессия изменилась.', details: {} } }
+  }
+  if (protectedRequest && result.error && result.meta?.response?.status === 401) transport?.onUnauthorized?.()
   if (result.error) return { error: normalizeApiError(result.error, result.meta), meta: result.meta }
   return { data: result.data, meta: result.meta }
 }

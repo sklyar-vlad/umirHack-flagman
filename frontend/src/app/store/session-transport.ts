@@ -2,7 +2,7 @@ import type { ApiTransport } from '@/shared/api'
 
 let csrfToken: string | null = null
 
-/** Сессия будет обновлять токен при входе/me и очищать при выходе (C11–C12). */
+/** CSRF lives in memory, outside Redux and browser storage. */
 export function setCsrfToken(token: string | null) {
   csrfToken = token
 }
