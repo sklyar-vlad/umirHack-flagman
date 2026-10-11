@@ -16,7 +16,7 @@ type Session struct {
 	CSRFToken string
 	User      User
 	ExpiresAt time.Time
-	Settings  DashboardSettings
+	Settings  RestaurantSettings
 }
 
 type User struct {

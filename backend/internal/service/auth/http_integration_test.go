@@ -104,6 +104,38 @@ func TestAuthHTTPLoginMeLogoutAndOrigin(t *testing.T) {
 	}
 }
 
+func TestAuthMeIncludesCurrentSettingsMetadata(t *testing.T) {
+	f := newFixture(t)
+	router := authRouter(f)
+	login := authRequest(router, "POST", "/auth/login", loginBody(f), "https://flagman.example", nil, "")
+	decodeAuth(t, login)
+	cookie := login.Result().Cookies()[0]
+
+	check := func(autoWriteOff bool, revision int) {
+		t.Helper()
+		response := authRequest(router, "GET", "/auth/me", "", "", cookie, "")
+		decodeAuth(t, response)
+		var body struct {
+			Settings struct {
+				AutoWriteOffExpired *bool `json:"auto_writeoff_expired"`
+				Revision            *int  `json:"revision"`
+			} `json:"settings"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if body.Settings.AutoWriteOffExpired == nil || body.Settings.Revision == nil {
+			t.Fatal("session response omits settings required by the frontend")
+		}
+		if *body.Settings.AutoWriteOffExpired != autoWriteOff || *body.Settings.Revision != revision {
+			t.Fatal("session response contains stale settings metadata")
+		}
+	}
+	check(false, 1)
+	f.exec(t, `UPDATE restaurant_settings SET auto_writeoff_expired=true,revision=7 WHERE id=1`)
+	check(true, 7)
+}
+
 func TestAuthHTTPLimitsAndInvalidBodies(t *testing.T) {
 	f := newFixture(t)
 	router := authRouter(f)
