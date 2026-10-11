@@ -105,3 +105,15 @@ type DashboardHandler interface{ Get(*gin.Context) }
 func RegisterDashboardRoutes(group *gin.RouterGroup, h DashboardHandler, access ProductAccess) {
 	group.GET("/dashboard", access.RequireProductReadAccess, h.Get)
 }
+
+type AuthHandler interface {
+	Login(*gin.Context)
+	Me(*gin.Context)
+	Logout(*gin.Context)
+}
+
+func RegisterAuthRoutes(group *gin.RouterGroup, h AuthHandler) {
+	group.POST("/auth/login", h.Login)
+	group.GET("/auth/me", h.Me)
+	group.POST("/auth/logout", h.Logout)
+}

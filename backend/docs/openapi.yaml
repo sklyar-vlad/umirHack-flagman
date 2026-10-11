@@ -9,7 +9,8 @@ info:
     Реализованы GET /healthcheck, GET /products, GET /products/{id}/batches, GET /inventory,
     POST /supplies, GET /supplies, GET /supplies/{id}, GET /dishes,
     GET /dishes/{id}, GET /stop-list, GET /hot-offers, GET /procurement-recommendations, POST /orders/check, POST /orders,
-    GET /orders, GET /orders/{id}, GET /order-attempts и GET /dashboard.
+    GET /orders, GET /orders/{id}, GET /order-attempts, GET /dashboard,
+    POST /auth/login, GET /auth/me и POST /auth/logout.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
@@ -51,9 +52,16 @@ info:
 
     Поставки требуют действующую сессию flagman_session и проверку роли.
     Для POST обязательны X-CSRF-Token и Origin, совпадающий с FRONTEND_ORIGIN
-    (по умолчанию http://flagman.localhost). Выдача сессий через login пока
-    не реализована. Запланированные бизнес-операции также требуют авторизацию
-    согласно README после подключения их маршрутов.
+    (по умолчанию http://flagman.localhost). POST /auth/login выдаёт случайную
+    12-часовую сессию; в БД хранится SHA-256 cookie-токена. Cookie host-only,
+    HttpOnly, SameSite=Lax, Secure при HTTPS frontend или прямом TLS.
+    Все реализованные бизнес-маршруты защищены фиксированной матрицей ролей;
+    новые маршруты запрещены до явного добавления политики. POST /orders/check
+    только читает данные и не требует CSRF. login требует Origin; logout —
+    Origin и CSRF. CORS допускает только FRONTEND_ORIGIN с credentials.
+    Лимит login на процесс: 20 запросов на адрес соединения и 5 попыток на
+    нормализованный email за 15 минут; 429 с Retry-After: 900. Адрес берётся из
+    соединения, заголовки пересылки не доверяются. Пароли, cookie и CSRF не логируются.
 
     UUID и даты примеров иллюстративные: при реальном запросе используйте
     существующие ID и актуальные сроки годности.
@@ -63,6 +71,8 @@ servers:
   - url: http://api.flagman.localhost/api/v1
     description: Прямой доступ к backend через локальный Traefik
 tags:
+  - name: Auth
+    description: Вход, текущая сессия и выход
   - name: System
     description: Состояние процесса
   - name: Inventory
@@ -100,6 +110,105 @@ paths:
                 service: umirHack-flagman
         '413':
           $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Войти по email и паролю
+      x-implementation-status: implemented
+      security: []
+      description: |
+        Argon2id; неверные данные и отключённый пользователь дают 401.
+        Email нормализуется в lower(trim(email)). Пароль не обрезается.
+        Тело JSON не более 4 КиБ. Ответ и ошибки не кешируются.
+        Новая независимая сессия живёт 12 часов; Set-Cookie содержит непрозрачный
+        токен, JSON содержит только user, csrf_token и session_expires_at.
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Сессия создана
+          headers:
+            Set-Cookie:
+              description: flagman_session; Path=/api/v1; Max-Age=43200; HttpOnly; SameSite=Lax; Secure при HTTPS
+              schema: {type: string}
+            Cache-Control:
+              schema: {type: string, enum: [no-store]}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/me:
+    get:
+      tags: [Auth]
+      operationId: currentSession
+      summary: Получить пользователя, CSRF и настройки оболочки
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      description: Текущий активный пользователь; истёкшая или отозванная сессия даёт 401. Cache-Control — no-store.
+      responses:
+        '200':
+          description: Текущая сессия и настройки оболочки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentSessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Отозвать текущую сессию
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      description: Отзывает только текущую сессию и удаляет cookie с тем же Path. Cache-Control — no-store.
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CSRFToken'
+      responses:
+        '204':
+          description: Текущая сессия отозвана; cookie удалена
+          headers:
+            Set-Cookie:
+              description: Пустая flagman_session; Path=/api/v1; Max-Age=0; Expires в прошлом
+              schema: {type: string}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /products:
@@ -1195,6 +1304,43 @@ components:
         $ref: '#/components/schemas/UUID'
       example: 99999999-9999-4999-8999-999999999999
   schemas:
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: {type: string, minLength: 1, maxLength: 254}
+        password: {type: string, minLength: 1, maxLength: 128, writeOnly: true}
+    AuthUser:
+      type: object
+      additionalProperties: false
+      required: [id, name, email, role, is_active, revision, created_at, last_login_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name: {type: string}
+        email: {type: string}
+        role: {type: string, enum: [admin, manager, storekeeper, order_operator]}
+        is_active: {type: boolean}
+        revision: {type: integer, minimum: 1}
+        created_at: {type: string, format: date-time}
+        last_login_at: {type: string, format: date-time, nullable: true}
+    LoginResponse:
+      type: object
+      required: [user, csrf_token, session_expires_at]
+      properties:
+        user:
+          $ref: '#/components/schemas/AuthUser'
+        csrf_token: {type: string}
+        session_expires_at: {type: string, format: date-time}
+    CurrentSessionResponse:
+      allOf:
+        - $ref: '#/components/schemas/LoginResponse'
+        - type: object
+          required: [settings]
+          properties:
+            settings:
+              $ref: '#/components/schemas/DashboardSettings'
     UUID:
       type: string
       format: uuid

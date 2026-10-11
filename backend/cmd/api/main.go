@@ -119,12 +119,14 @@ func main() {
 		handler.RequestID(),
 		handler.RequestLogger(logger),
 		handler.Recovery(logger),
+		access.CORS(),
 		handler.RateLimit(requestsPerSecond, burstRequests),
 		handler.BodyLimit(maxBodyBytes),
 	)
 	mux.NoRoute(handler.NotFound)
 
-	api := mux.Group("/api/v1")
+	api := mux.Group("/api/v1", access.RequireRouteAccess)
+	handler.RegisterAuthRoutes(api, access)
 	handler.RegisterRoutes(api, hand)
 	handler.RegisterProductRoutes(api, producthandler.NewHandler(products), access)
 	handler.RegisterInventoryRoutes(api, inventoryhandler.NewHandler(inventory), access)
