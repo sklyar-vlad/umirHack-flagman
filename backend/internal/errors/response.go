@@ -27,6 +27,10 @@ func MakeResponse(
 	var maxBytesError *http.MaxBytesError
 
 	switch {
+	case errors.Is(err, ErrDuplicateIngredient):
+		status = http.StatusUnprocessableEntity
+		body.Code = "DUPLICATE_INGREDIENT"
+		body.Message = "Ингредиенты не должны повторяться"
 	case errors.Is(err, ErrBodyTooLarge) || errors.As(err, &maxBytesError):
 		status = http.StatusRequestEntityTooLarge
 		body.Code = "PAYLOAD_TOO_LARGE"

@@ -1171,6 +1171,51 @@ paths:
         '503':
           $ref: '#/components/responses/Unavailable'
   /dishes:
+    post:
+      tags:
+      - Dishes
+      operationId: createDish
+      summary: Создать блюдо и первую версию рецепта
+      description: 'Только admin с Origin и CSRF. Имя уникально без учёта регистра. Непустой
+        рецепт с активными продуктами и точными положительными расходами; pcs целые. Дубли:
+        422 DUPLICATE_INGREDIENT. Блюдо и рецепт атомарны.'
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDishRequest'
+      responses:
+        '201':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dish'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
     get:
       tags: [Dishes]
       operationId: listDishes
@@ -1225,6 +1270,56 @@ paths:
         '503':
           $ref: '#/components/responses/Unavailable'
   /dishes/{id}:
+    patch:
+      tags:
+      - Dishes
+      operationId: updateDish
+      summary: Атомарно изменить блюдо и рецептуру
+      description: 'Только admin с Origin и CSRF. expected_revision проверяется под блокировкой,
+        конфликт: 409 REVISION_CONFLICT с details.current_revision. Только переданные
+        поля меняются; null очищает description. Переданный recipe целиком заменяет состав
+        новой неизменяемой версией. Старые заказы и рецепты сохраняются. Metadata-only
+        PATCH не создаёт версию. Активируемый состав должен содержать активные продукты.'
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDishRequest'
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dish'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
     get:
       tags: [Dishes]
       operationId: getDish
@@ -1269,6 +1364,51 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /dishes/preview:
+    post:
+      tags:
+      - Dishes
+      operationId: previewDish
+      summary: Проверить введённый рецепт без сохранения
+      description: Только admin с Origin и CSRF. Те же правила непустого рецепта, активности
+        продуктов, точных расходов и отсутствия дублей. Одна read-only snapshot и UTC
+        server_time. Все требования на одну порцию; shortages только недостающие. Не создаёт
+        блюдо, рецепт, заказ, движения, аудит, outbox или резерв.
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreviewDishRequest'
+      responses:
+        '200':
+          description: Доступность введённого рецепта без сохранения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DishPreview'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
         '413':
@@ -2635,6 +2775,104 @@ components:
           $ref: '#/components/schemas/Unit'
         quantity_per_portion:
           $ref: '#/components/schemas/PositiveQuantity'
+    RecipeInput:
+      type: object
+      additionalProperties: false
+      required:
+      - product_id
+      - quantity_per_portion
+      properties:
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        quantity_per_portion:
+          $ref: '#/components/schemas/PositiveQuantity'
+    CreateDishRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - recipe
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+        is_active:
+          type: boolean
+          default: true
+        recipe:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RecipeInput'
+          maxItems: 100
+    UpdateDishRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - expected_revision
+      minProperties: 2
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+          maximum: 2147483646
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+        is_active:
+          type: boolean
+        recipe:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RecipeInput'
+          maxItems: 100
+    PreviewDishRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - recipe
+      properties:
+        recipe:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RecipeInput'
+          maxItems: 100
+    DishPreview:
+      type: object
+      required:
+      - is_available
+      - available_portions
+      - requirements
+      - shortages
+      - meta
+      properties:
+        is_available:
+          type: boolean
+        available_portions:
+          type: string
+          pattern: ^[0-9]+$
+        requirements:
+          type: array
+          items:
+            $ref: '#/components/schemas/Requirement'
+        shortages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Shortage'
+        meta:
+          $ref: '#/components/schemas/Meta'
     Dish:
       type: object
       required: [id, name, description, is_active, revision, recipe_version, recipe, is_available, available_portions, shortages, unavailability_reasons, meta]
