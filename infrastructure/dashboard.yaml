@@ -1,0 +1,8 @@
+# The admin entrypoint is published only on loopback in compose.vps.yaml.
+# api@internal does not need a Docker container address or a backend port.
+http:
+  routers:
+    dashboard:
+      rule: PathPrefix(`/dashboard/`) || PathPrefix(`/api/`)
+      entryPoints: [admin]
+      service: api@internal
