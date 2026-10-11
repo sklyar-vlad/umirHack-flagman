@@ -42,3 +42,7 @@ DEV-only /dev/access внутри оболочки использует healthch
 `inventory-handlers.ts` и `inventory-fixtures.ts` реализуют опубликованные схемы, буквальный поиск/категорию, пересекающиеся серверные counts, сортировку null-last, пагинацию списка и партий. Fixture содержит годные/истекающие/просроченные/израсходованные партии, продукт только с просрочкой, нулевой остаток, неактивный продукт, точный большой агрегат и несколько строк одной поставки. Режим без status исключает depleted; `all` включает историю.
 
 Сценарии `inventory-empty`, `batches-empty`, `batches-error`, `batches-slow`, `categories-error` независимы. Общие slow/network-error/forbidden/server-error/invalid-schema продолжают проверять транспорт. Сценарий фиксируется перед задержкой. Реальные API не используются в MSW-режиме; неизвестные маршруты сохраняют 501.
+
+## Приёмка (F08)
+
+reception-handlers.ts/reception-fixtures.ts добавляют GET /products и explicit POST /supplies. Панель содержит products-empty/error/slow и reception-slow/network/lost-response/validation/conflict/in-progress. Потеря ответа происходит после фиксации синтетического результата; повтор ключа/тела возвращает тот же SupplyDetail. Mock-only tab-local storage сохраняет результаты при reload. История, детали и склад читают синтетические принятые партии. Эти сценарии не доказывают настоящую серверную идемпотентность или CSRF/RBAC. Неизвестные endpoints остаются 501, production использует real API. Подробности — frontend/docs/supplies.md.

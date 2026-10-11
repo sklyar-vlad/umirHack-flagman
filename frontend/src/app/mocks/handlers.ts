@@ -1,3 +1,4 @@
+import { receptionHandlers } from './reception-handlers'
 import { authHandlers } from './auth-handlers'
 import { inventoryHandlers } from './inventory-handlers'
 import { supplyHandlers } from './supply-handlers'
@@ -14,6 +15,7 @@ export const handlers = [
   ...authHandlers,
   ...inventoryHandlers,
   ...supplyHandlers,
+  ...receptionHandlers,
   http.get('/api/v1/healthcheck', async () => {
     // Фиксируем сценарий для конкретной попытки до задержки.
     const scenario = getMockScenario()

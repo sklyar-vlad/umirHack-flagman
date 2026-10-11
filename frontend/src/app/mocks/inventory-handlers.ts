@@ -1,3 +1,5 @@
+import { receivedSupplies } from './reception-fixtures'
+import { parseQuantity } from '@/shared/lib/quantity'
 import { delay } from 'msw'
 import { http } from 'msw/http'
 import type { InventoryFilter, InventoryResponse } from '@/entities/inventory'
@@ -15,6 +17,22 @@ function pageEnvelope<T>(items: T[], url: URL, meta: object) {
   return { items: items.slice((page - 1) * page_size, page * page_size), total: items.length, page, page_size, meta }
 }
 function response(data: unknown) { return Response.json(data, { headers: { 'X-Mock-Mode': 'true' } }) }
+function thousandths(raw: string) { const [whole, fraction = ''] = raw.split('.'); return BigInt(whole) * 1000n + BigInt(fraction.padEnd(3, '0')) }
+function aggregate(value: bigint) { const digits = value.toString().padStart(4, '0'); return `${digits.slice(0, -3)}.${digits.slice(-3)}` }
+function receivedInventory() {
+  const batches = receivedSupplies().flatMap((supply) => supply.items.map((line) => line.batch))
+  return inventoryItems.map((item) => {
+    const lines = batches.filter((batch) => batch.product_id === item.product.id)
+    if (!lines.length) return item
+    const total = lines.reduce((sum, line) => sum + parseQuantity(line.remaining_quantity)!, 0n)
+    const available = thousandths(item.available_quantity) + total
+    const deficit = item.target_stock === null ? null : parseQuantity(item.target_stock)! - available
+    const nearest = [item.nearest_expires_at, ...lines.map((line) => line.expires_at)].filter((value): value is string => value !== null).sort()[0]
+    return { ...item, physical_quantity: aggregate(thousandths(item.physical_quantity) + total), available_quantity: aggregate(available),
+      deficit_quantity: deficit === null ? null : aggregate(deficit > 0n ? deficit : 0n), batches_count: item.batches_count + lines.length, is_out_of_stock: false,
+      status: item.status === 'out_of_stock' ? 'normal' as const : item.status, nearest_expires_at: nearest, remaining_seconds: item.remaining_seconds ?? lines[0].remaining_seconds }
+  })
+}
 const nonzero = (raw: string | null) => raw !== null && !/^0+(?:\.0+)?$/.test(raw)
 export const inventoryHandlers = [
   http.get('/api/v1/inventory', async ({ request }) => {
@@ -22,7 +40,7 @@ export const inventoryHandlers = [
     if (error) return error
     const url = new URL(request.url), search = (url.searchParams.get('search') ?? '').toLocaleLowerCase('ru')
     const category = url.searchParams.get('category_id'), filter = url.searchParams.get('filter') ?? 'all'
-    const area = scenario === 'inventory-empty' ? [] : inventoryItems.filter((item) => item.product.name.toLocaleLowerCase('ru').includes(search) && (!category || item.product.category.id === category))
+    const area = scenario === 'inventory-empty' ? [] : receivedInventory().filter((item) => item.product.name.toLocaleLowerCase('ru').includes(search) && (!category || item.product.category.id === category))
     const matches = (item: typeof inventoryItems[number], key: InventoryFilter) => key === 'all' || key === 'expiring' && item.has_expiring || key === 'expired' && item.has_expired || key === 'out_of_stock' && item.is_out_of_stock || key === 'deficit' && nonzero(item.deficit_quantity)
     const items = area.filter((item) => matches(item, filter as InventoryFilter)).sort((a, b) => {
       if (url.searchParams.get('sort') === 'nearest_expires_at') {
@@ -49,7 +67,7 @@ export const inventoryHandlers = [
     const scenario = getMockScenario(), error = await scenarioError(scenario, 'batches')
     if (error) return error
     const url = new URL(request.url), status = url.searchParams.get('status')
-    const items = scenario === 'batches-empty' ? [] : inventoryBatches.filter((batch) => batch.product_id === params.id && (status === 'all' || (!status ? batch.status !== 'depleted' : batch.status === status))).sort((a, b) => (url.searchParams.get('sort') === '-created_at' ? b.created_at.localeCompare(a.created_at) : a.expires_at.localeCompare(b.expires_at)) || a.id.localeCompare(b.id))
+    const items = scenario === 'batches-empty' ? [] : [...receivedSupplies().flatMap((supply) => supply.items.map((line) => line.batch)), ...inventoryBatches].filter((batch) => batch.product_id === params.id && (status === 'all' || (!status ? batch.status !== 'depleted' : batch.status === status))).sort((a, b) => (url.searchParams.get('sort') === '-created_at' ? b.created_at.localeCompare(a.created_at) : a.expires_at.localeCompare(b.expires_at)) || a.id.localeCompare(b.id))
     return response(pageEnvelope(items, url, { server_time: inventoryServerTime }))
   }),
 ]

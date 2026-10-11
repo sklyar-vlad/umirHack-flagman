@@ -8,7 +8,7 @@
 .page small { display: block; font: var(--text-caption); color: var(--color-muted); overflow-wrap: anywhere; margin-top: var(--space-8); }
 .page td, .page dd { overflow-wrap: anywhere; }
 .page th { overflow-wrap: normal; }
-.page a { color: var(--color-brand); }
+.page a:not(:global(.ui-button)) { color: var(--color-brand); }
 .header a { text-decoration: none; }
 .page a:focus-visible { outline: var(--focus-width) solid var(--color-focus); outline-offset: var(--space-4); border-radius: var(--radius-6); }
 @media (max-width: 1100px) {

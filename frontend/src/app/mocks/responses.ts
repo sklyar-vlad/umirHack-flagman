@@ -29,6 +29,15 @@ export function createMockError(
 /** Ошибки здесь намеренно форсируются для проверки транспорта, не прав healthcheck. */
 export function createHealthcheckResponse(scenario: MockScenario): Response {
   switch (scenario) {
+    case 'products-empty':
+    case 'products-error':
+    case 'products-slow':
+    case 'reception-slow':
+    case 'reception-network':
+    case 'reception-lost-response':
+    case 'reception-validation':
+    case 'reception-conflict':
+    case 'reception-in-progress':
     case 'supply-not-found':
     case 'supplies-empty':
     case 'supplies-received':

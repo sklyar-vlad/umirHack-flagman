@@ -1,13 +1,25 @@
 import { z } from 'zod'
-import { baseApi, type ApiError } from '@/shared/api'
+import { baseApi, createSupplyRequestSchema, type CreateSupplyRequest, type ApiError } from '@/shared/api'
+import { parseQuantity } from '@/shared/lib/quantity'
 import { supplyDetailSchema, supplyListSchema, type SupplyDetail, type SupplyList } from '../model/contracts'
-import { supplyPeriodError, type SupplySearch } from '../model/supply-search'
+import { compareSupplyInstants, supplyPeriodError, type SupplySearch } from '../model/supply-search'
 
 function invalidResponse(): ApiError {
   return { status: 'INVALID_RESPONSE', code: 'INVALID_RESPONSE', message: 'Ответ сервера не соответствует опубликованному контракту поставок.', details: {} }
 }
-export const supplyApi = baseApi.enhanceEndpoints({ addTagTypes: ['Supplies'] }).injectEndpoints({
+export const supplyApi = baseApi.enhanceEndpoints({ addTagTypes: ['Supplies', 'Inventory', 'Batches', 'Dashboard', 'Dishes', 'StopList', 'Recommendations'] }).injectEndpoints({
   endpoints: (build) => ({
+    receiveSupply: build.mutation<SupplyDetail, { key: string; body: CreateSupplyRequest }>({
+      invalidatesTags: (result) => result ? ['Supplies', 'Inventory', 'Batches', 'Dashboard', 'Dishes', 'StopList', 'Recommendations'] : [],
+      queryFn: async ({ key, body }, _api, _options, query) => {
+        if (!z.uuid().safeParse(key).success || !createSupplyRequestSchema.safeParse(body).success) return { error: { status: 422, code: 'VALIDATION_ERROR', message: 'Некорректная попытка приёмки.', details: {} } }
+        const result = await query({ url: '/supplies', method: 'POST', body, headers: { 'Idempotency-Key': key } })
+        if (result.error) return { error: result.error }
+        const parsed = supplyDetailSchema.safeParse(result.data)
+        if (result.meta?.response?.status !== 201 || !parsed.success || parsed.data.number !== body.number || compareSupplyInstants(parsed.data.received_at, body.received_at) !== 0 || parsed.data.items.length !== body.items.length || parsed.data.items.some((line, index) => line.product.id !== body.items[index].product_id || line.batch.line_number !== index + 1 || parseQuantity(line.batch.initial_quantity) !== parseQuantity(body.items[index].quantity) || compareSupplyInstants(line.batch.expires_at, body.items[index].expires_at) !== 0)) return { error: invalidResponse() }
+        return { data: parsed.data }
+      },
+    }),
     supply: build.query<SupplyDetail, string>({
       providesTags: ['Supplies'],
       queryFn: async (id, _api, _options, query) => {
@@ -32,6 +44,6 @@ export const supplyApi = baseApi.enhanceEndpoints({ addTagTypes: ['Supplies'] })
     }),
   }),
 })
-export const { useSuppliesQuery, useSupplyQuery } = supplyApi
+export const { useSuppliesQuery, useSupplyQuery, useReceiveSupplyMutation } = supplyApi
 /** Dispatch after a successful reception, including when its response is replayed. */
 export const invalidateSupplies = () => supplyApi.util.invalidateTags(['Supplies'])

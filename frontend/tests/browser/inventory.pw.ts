@@ -61,9 +61,18 @@ test('URL filters, category, sort and pages survive reload, history and navigati
   expect(new URL(page.url()).searchParams.has('page')).toBe(false)
   await expect(page.getByRole('article')).toHaveCount(2)
   await page.getByLabel('Поиск продукта').fill('Молоко')
+  const searchResponse = page.waitForResponse((response) => { const url = new URL(response.url()); return url.pathname === '/api/v1/inventory' && url.searchParams.get('search') === 'Молоко' })
   await page.getByLabel('Поиск продукта').press('Enter')
+  await searchResponse
+  await expect.poll(() => new URL(page.url()).searchParams.get('search')).toBe('Молоко')
+  const categoryResponse = page.waitForResponse((response) => { const url = new URL(response.url()); return url.pathname === '/api/v1/inventory' && url.searchParams.get('category_id') === '00000000-0000-4000-8000-000000000001' })
   await page.getByLabel('Категория', { exact: true }).selectOption('00000000-0000-4000-8000-000000000001')
+  await categoryResponse
+  await expect.poll(() => new URL(page.url()).searchParams.get('category_id')).toBe('00000000-0000-4000-8000-000000000001')
+  const sortResponse = page.waitForResponse((response) => { const url = new URL(response.url()); return url.pathname === '/api/v1/inventory' && url.searchParams.get('sort') === 'nearest_expires_at' })
   await page.getByLabel('Сортировка продуктов').selectOption('nearest_expires_at')
+  await sortResponse
+  await expect.poll(() => new URL(page.url()).searchParams.get('sort')).toBe('nearest_expires_at')
   const query = new URL(page.url()).search
   await page.reload()
   await expect(page.getByLabel('Поиск продукта')).toHaveValue('Молоко')

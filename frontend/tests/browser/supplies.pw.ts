@@ -70,6 +70,8 @@ test('server pagination, URL history, restaurant timezone boundaries and literal
   await page.getByRole('link', { name: 'К истории поставок' }).click()
   await expect(page).toHaveURL(`/supplies${query}`)
   await page.getByRole('button', { name: 'Сбросить фильтры' }).click()
+  await expect(page).toHaveURL('/supplies')
+  await expect(page.getByLabel('Поиск по номеру')).toHaveValue('')
   await page.getByLabel('Поиск по номеру').fill('%_\\')
   await page.getByRole('button', { name: 'Найти', exact: true }).click()
   await expect(page.getByRole('link', { name: 'Поставка Буквальный %_\\' })).toBeVisible()

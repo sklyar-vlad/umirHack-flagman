@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { productApi } from '@/entities/product'
 import { baseApi } from '@/shared/api'
 import { inventoryApi } from '@/entities/inventory'
 import { invalidateSupplies } from '@/entities/supply'
@@ -18,6 +19,7 @@ export function MockModeBanner() {
     dispatch(baseApi.util.invalidateTags(['Healthcheck']))
     dispatch(inventoryApi.util.invalidateTags(['Inventory', 'Batches', 'ProductCategories']))
     dispatch(invalidateSupplies())
+    dispatch(productApi.util.invalidateTags(['Products']))
   }
 
   return (

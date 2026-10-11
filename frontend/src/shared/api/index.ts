@@ -11,3 +11,5 @@ export type {
   Meta,
 } from './types'
 export { batchSchema, productBriefSchema } from './warehouse-contracts'
+export { createSupplyRequestSchema, receptionValuesSchema, receptionDraftSchema } from './supply-request'
+export type { CreateSupplyRequest, ReceptionValues, ReceptionDraft } from './supply-request'

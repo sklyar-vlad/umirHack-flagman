@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { configureStore } from '@reduxjs/toolkit'
 import { Provider } from 'react-redux'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { createMemoryRouter, RouterProvider } from 'react-router'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,13 +10,14 @@ import { http } from 'msw/http'
 import { initialSessionState, sessionReducer, type Role } from '@/entities/session'
 import { defaultSupplySearch, invalidateSupplies, supplyApi, supplyListSchema, supplySummarySchema } from '@/entities/supply'
 import { supplyHandlers } from '@/app/mocks/supply-handlers'
+import { receptionHandlers } from '@/app/mocks/reception-handlers'
 import { newlyReceivedSupply, supplyFixtures } from '@/app/mocks/supply-fixtures'
 import { setMockScenario } from '@/app/mocks/scenarios'
 import { SuppliesPage } from './SuppliesPage'
 import { SupplyDetailPage } from './SupplyDetailPage'
 import { SupplyEntryPage } from './SupplyEntryPage'
 
-const server = setupServer(...supplyHandlers)
+const server = setupServer(...supplyHandlers, ...receptionHandlers)
 const NativeRequest = globalThis.Request, requests: URL[] = []
 function makeStore(role: Role = 'manager') {
   return configureStore({
@@ -28,11 +29,12 @@ function makeStore(role: Role = 'manager') {
 const stores: ReturnType<typeof makeStore>[] = []
 function mount(path = '/supplies?search=ТЕСТ', role: Role = 'manager') {
   const store = makeStore(role); stores.push(store)
-  render(<Provider store={store}><MemoryRouter initialEntries={[path]}><Routes>
-    <Route path="/supplies" element={<SuppliesPage />} />
-    <Route path="/supplies/new" element={<SupplyEntryPage />} />
-    <Route path="/supplies/:id" element={<SupplyDetailPage />} />
-  </Routes></MemoryRouter></Provider>)
+  const router = createMemoryRouter([
+    { path: '/supplies', element: <SuppliesPage /> },
+    { path: '/supplies/new', element: <SupplyEntryPage /> },
+    { path: '/supplies/:id', element: <SupplyDetailPage /> },
+  ], { initialEntries: [path] })
+  render(<Provider store={store}><RouterProvider router={router} /></Provider>)
   return { store, user: userEvent.setup() }
 }
 beforeAll(() => {

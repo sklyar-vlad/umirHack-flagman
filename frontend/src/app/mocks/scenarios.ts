@@ -1,4 +1,13 @@
 export const mockScenarios = [
+  { value: 'products-empty', label: 'Продукты · Пустой каталог' },
+  { value: 'products-error', label: 'Продукты · Ошибка каталога' },
+  { value: 'products-slow', label: 'Продукты · Загрузка' },
+  { value: 'reception-slow', label: 'Приёмка · Отправка' },
+  { value: 'reception-network', label: 'Приёмка · Нет связи' },
+  { value: 'reception-lost-response', label: 'Приёмка · Ответ потерян после успеха' },
+  { value: 'reception-validation', label: 'Приёмка · Ошибка последней строки' },
+  { value: 'reception-conflict', label: 'Приёмка · Номер занят' },
+  { value: 'reception-in-progress', label: 'Приёмка · Запрос ещё выполняется' },
   { value: 'supply-not-found', label: 'Поставка · Не найдена' },
   { value: 'supplies-empty', label: 'Поставки · Пустая история' },
   { value: 'supplies-received', label: 'Поставки · После тестовой приёмки' },

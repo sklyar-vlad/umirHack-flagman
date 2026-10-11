@@ -2,6 +2,7 @@ import { replaceSession } from '@/entities/session'
 import { createSessionController, draftAuthAdapter } from '@/features/auth'
 import { baseApi } from '@/shared/api'
 import { store } from './store'
+import { persistReception } from './reception-persistence'
 import { apiTransport, setCsrfToken } from './session-transport'
 
 export const authController = createSessionController(draftAuthAdapter, {
@@ -18,3 +19,8 @@ apiTransport.waitForSession = authController.restore
 apiTransport.onUnauthorized = authController.expire
 apiTransport.getSessionVersion = authController.getVersion
 apiTransport.hasSessionAccess = authController.hasAccess
+
+// Only the reception allowlist is persisted; session tokens and CSRF stay in memory.
+if (typeof window !== 'undefined') {
+  try { persistReception(store, window.sessionStorage) } catch { /* Browser storage disabled. */ }
+}
