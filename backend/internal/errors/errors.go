@@ -18,3 +18,5 @@ var (
 	ErrBodyTooLarge        = errors.New("request body too large")
 	ErrTooManyRequests     = errors.New("too many requests")
 )
+
+var ErrInsufficientBatchStock = errors.New("insufficient batch stock")

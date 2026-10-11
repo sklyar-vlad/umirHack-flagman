@@ -20,6 +20,8 @@ const (
 // Each implemented business operation is listed explicitly. A future route
 // must declare its policy before it can be used, including by an administrator.
 var routePermissions = map[string]permission{
+	"GET /stock-movements":             supplies,
+	"POST /write-offs":                 supplies,
 	"GET /audit-log":                   administration,
 	"GET /settings":                    warehouse,
 	"PATCH /settings":                  administration,

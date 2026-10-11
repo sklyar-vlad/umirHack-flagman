@@ -27,6 +27,10 @@ func MakeResponse(
 	var maxBytesError *http.MaxBytesError
 
 	switch {
+	case errors.Is(err, ErrInsufficientBatchStock):
+		status = http.StatusConflict
+		body.Code = "INSUFFICIENT_BATCH_STOCK"
+		body.Message = "Количество превышает остаток партии"
 	case errors.Is(err, ErrFeatureUnavailable):
 		status = http.StatusUnprocessableEntity
 		body.Code = "FEATURE_UNAVAILABLE"

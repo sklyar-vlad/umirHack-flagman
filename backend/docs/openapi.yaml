@@ -13,7 +13,7 @@ info:
     POST /auth/login, GET /auth/me и POST /auth/logout,
     GET /roles, GET /users, GET /users/{id}, POST /users, PATCH /users/{id}, POST /users/{id}/password,
     GET/POST /product-categories, GET/PATCH /product-categories/{id}, GET/PATCH /products/{id}, POST /products.
-    GET/PATCH /settings и GET /audit-log.
+    GET/PATCH /settings, GET /audit-log, POST /write-offs и GET /stock-movements.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
@@ -2024,6 +2024,109 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '500':
           $ref: '#/components/responses/InternalError'
+  /write-offs:
+    post:
+      tags: [Inventory]
+      operationId: createWriteOff
+      summary: Списать количество одной партии с причиной
+      x-implementation-status: implemented
+      description: |
+        Роли admin/manager/storekeeper, Origin/CSRF и Idempotency-Key.
+        Можно списать годную или просроченную партию. Количество положительное,
+        для pcs целое; причина обрезается и содержит 1–500 символов без управляющих.
+        Текущие права, продукт и партия блокируются в порядке actor/product/batch.
+        Остаток, manual_writeoff, аудит, outbox и HTTP-результат атомарны.
+        Превышение остатка — 409 INSUFFICIENT_BATCH_STOCK.
+        Повтор возвращает сохранённый ответ; другое тело — IDEMPOTENCY_CONFLICT;
+        параллельный повтор — REQUEST_IN_PROGRESS. Технические ошибки откатывают всё.
+        Предметные отказы сохраняют только ответ. Cache-Control no-store.
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WriteOffRequest'
+      responses:
+        '201':
+          description: Исторический факт ручного списания
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovement'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /stock-movements:
+    get:
+      tags: [Inventory]
+      operationId: listStockMovements
+      summary: История складских движений
+      x-implementation-status: implemented
+      description: |
+        Admin/manager/storekeeper. Read-only repeatable-read для total и страницы.
+        Полуоткрытый интервал from <= occurred_at < to. Стабильная сортировка
+        occurred_at DESC, id DESC. product_name/unit и remaining_quantity_after
+        берутся из исторических снимков; actor=null для системных действий.
+        Order ID относится к связанному order_item, иначе null. Cache-Control no-store.
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - name: product_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - name: batch_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - name: order_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - name: type
+        in: query
+        schema: {type: string, enum: [receipt, order_consumption, expiration, manual_writeoff]}
+      - name: from
+        in: query
+        schema: {type: string, format: date-time}
+      - name: to
+        in: query
+        schema: {type: string, format: date-time}
+      - name: sort
+        in: query
+        schema: {type: string, enum: [-occurred_at], default: -occurred_at}
+      responses:
+        '200':
+          description: Исторические движения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovementListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     SessionCookie:
@@ -2127,6 +2230,58 @@ components:
         $ref: '#/components/schemas/UUID'
       example: 99999999-9999-4999-8999-999999999999
   schemas:
+    WriteOffRequest:
+      type: object
+      additionalProperties: false
+      required: [batch_id, quantity, reason]
+      properties:
+        batch_id:
+          $ref: '#/components/schemas/UUID'
+        quantity:
+          $ref: '#/components/schemas/Quantity'
+        reason: {type: string, minLength: 1, maxLength: 500}
+    StockMovement:
+      type: object
+      additionalProperties: false
+      required: [id, batch_id, product_id, product_name, unit, type, delta_quantity, remaining_quantity_after, order_item_id, order_id, actor, occurred_at, note]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        batch_id:
+          $ref: '#/components/schemas/UUID'
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        unit: {type: string, enum: [g, ml, pcs]}
+        type: {type: string, enum: [receipt, order_consumption, expiration, manual_writeoff]}
+        delta_quantity: {type: string, pattern: '^-?[0-9]+[.][0-9]{3}$', example: '-1.125'}
+        remaining_quantity_after:
+          $ref: '#/components/schemas/Quantity'
+        order_item_id: {type: string, format: uuid, nullable: true}
+        order_id: {type: string, format: uuid, nullable: true}
+        actor:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [id, name]
+          properties:
+            id: {type: string, format: uuid}
+            name: {type: string}
+        occurred_at: {type: string, format: date-time}
+        note: {type: string, nullable: true}
+    StockMovementListResponse:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, page_size, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StockMovement'
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        meta: {type: object}
     Settings:
       type: object
       additionalProperties: false
