@@ -7,10 +7,10 @@ import { compareSupplyInstants, supplyPeriodError, type SupplySearch } from '../
 function invalidResponse(): ApiError {
   return { status: 'INVALID_RESPONSE', code: 'INVALID_RESPONSE', message: 'Ответ сервера не соответствует опубликованному контракту поставок.', details: {} }
 }
-export const supplyApi = baseApi.enhanceEndpoints({ addTagTypes: ['Supplies', 'Inventory', 'Batches', 'Dashboard', 'Dishes', 'StopList', 'Recommendations'] }).injectEndpoints({
+export const supplyApi = baseApi.enhanceEndpoints({ addTagTypes: ['Supplies', 'Inventory', 'Batches', 'Dashboard', 'Dishes', 'StopList', 'Recommendations', 'Procurement'] }).injectEndpoints({
   endpoints: (build) => ({
     receiveSupply: build.mutation<SupplyDetail, { key: string; body: CreateSupplyRequest }>({
-      invalidatesTags: (result) => result ? ['Supplies', 'Inventory', 'Batches', 'Dashboard', 'Dishes', 'StopList', 'Recommendations'] : [],
+      invalidatesTags: (result) => result ? ['Supplies', 'Inventory', 'Batches', 'Dashboard', 'Dishes', 'StopList', 'Recommendations', 'Procurement'] : [],
       queryFn: async ({ key, body }, _api, _options, query) => {
         if (!z.uuid().safeParse(key).success || !createSupplyRequestSchema.safeParse(body).success) return { error: { status: 422, code: 'VALIDATION_ERROR', message: 'Некорректная попытка приёмки.', details: {} } }
         const result = await query({ url: '/supplies', method: 'POST', body, headers: { 'Idempotency-Key': key } })

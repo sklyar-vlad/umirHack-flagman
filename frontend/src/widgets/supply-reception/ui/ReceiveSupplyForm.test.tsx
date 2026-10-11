@@ -33,9 +33,9 @@ function makeStore(draft?: ReceptionDraft) {
   })
   return store
 }
-function mount(draft?: ReceptionDraft) {
+function mount(draft?: ReceptionDraft, path = '/supplies/new') {
   const store = makeStore(draft); stores.push(store)
-  const router = createMemoryRouter([{ path: '/supplies/new', element: <SupplyEntryPage /> }, { path: '/supplies', element: <h1>История</h1> }], { initialEntries: ['/supplies/new'] })
+  const router = createMemoryRouter([{ path: '/supplies/new', element: <SupplyEntryPage /> }, { path: '/supplies', element: <h1>История</h1> }], { initialEntries: [path] })
   render(<Provider store={store}><RouterProvider router={router} /></Provider>)
   return { store, user: userEvent.setup() }
 }
@@ -59,6 +59,31 @@ afterEach(() => { cleanup(); stores.splice(0).forEach((store) => store.dispatch(
 afterAll(() => { server.close(); vi.unstubAllGlobals() })
 
 describe('published reception UI in explicit MSW', () => {
+  it('preselects an active product from procurement without sending or filling quantities', async () => {
+    mount(undefined, `/supplies/new?product_id=${milk.id}`)
+    await waitFor(() => expect((screen.getByLabelText('Продукт, строка 1', { exact: false }) as HTMLSelectElement).value).toBe(milk.id))
+    expect((screen.getByLabelText('Единица, строка 1') as HTMLSelectElement).value).toBe('l')
+    expect((screen.getByLabelText('Количество, строка 1', { exact: false }) as HTMLInputElement).value).toBe('')
+    expect(requests).toHaveLength(0)
+  })
+  it('does not replace manual edits made before preselection data arrives', async () => {
+    setMockScenario('products-slow'); const { user } = mount(undefined, `/supplies/new?product_id=${milk.id}`)
+    await user.type(screen.getByLabelText(/^Номер поставки/), 'Ручной черновик')
+    await screen.findByRole('option', { name: 'Молоко' }, { timeout: 3000 })
+    expect((screen.getByLabelText('Продукт, строка 1', { exact: false }) as HTMLSelectElement).value).toBe('')
+    expect(requests).toHaveLength(0)
+  })
+  it('preserves a saved draft over procurement preselection', async () => {
+    const egg = receptionProducts.find((product) => product.unit === 'pcs')!
+    mount({ values: { ...emptyReception(), items: [{ productId: egg.id, quantity: '12', displayUnit: 'pcs', expiresAt: '' }] } }, `/supplies/new?product_id=${milk.id}`)
+    await screen.findByRole('option', { name: 'Молоко' })
+    expect((screen.getByLabelText('Продукт, строка 1', { exact: false }) as HTMLSelectElement).value).toBe(egg.id)
+    expect((screen.getByLabelText('Количество, строка 1', { exact: false }) as HTMLInputElement).value).toBe('12'); expect(requests).toHaveLength(0)
+  })
+  it.each(['invalid', '00000000-0000-4000-8000-000000000011'])('ignores unavailable procurement preselection %s', async (id) => {
+    mount(undefined, `/supplies/new?product_id=${id}`); await screen.findByRole('option', { name: 'Молоко' })
+    expect((screen.getByLabelText('Продукт, строка 1', { exact: false }) as HTMLSelectElement).value).toBe(''); expect(requests).toHaveLength(0)
+  })
   it('loads only active products, validates before transport and focuses the first invalid field', async () => {
     const { user } = mount()
     await screen.findByRole('option', { name: 'Молоко' })

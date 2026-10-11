@@ -15,6 +15,6 @@ export function SupplyEntryPage() {
   return <section className={styles.page}><header className={styles.header}><h1>Новая поставка</h1>
     <Link className="ui-button ui-button--secondary" to={returnTo}>К истории поставок</Link>
   </header>
-    {received ? <SupplyReceptionResult supply={received} timezone={timezone} returnTo={returnTo} /> : <ReceiveSupplyForm onReceived={setReceived} />}
+    {received ? <SupplyReceptionResult supply={received} timezone={timezone} returnTo={returnTo} /> : <ReceiveSupplyForm onReceived={setReceived} initialProductId={params.get('product_id') ?? undefined} />}
   </section>
 }

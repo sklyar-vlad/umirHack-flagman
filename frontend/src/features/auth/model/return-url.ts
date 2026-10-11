@@ -1,3 +1,5 @@
+import { z } from 'zod'
+import { procurementSearchParams, readProcurementSearch } from '@/entities/procurement'
 import { inventorySearchParams, readInventorySearch, inventorySelectionParams } from '@/entities/inventory'
 import { safeOrderListUrl } from '@/entities/order'
 import { safeSupplyListUrl } from '@/entities/supply'
@@ -14,6 +16,16 @@ export function safeReturnUrl(value: string | null | undefined): string {
     inventorySelectionParams(url.searchParams).forEach((value, key) => allowed.set(key, value))
     const params = allowed.toString()
     return url.pathname + (params ? `?${params}` : '')
+  }
+  if (url.pathname === '/recommendations/procurement' || url.pathname === '/recommendations' && url.searchParams.get('tab') === 'procurement') {
+    const params = procurementSearchParams(readProcurementSearch(url.searchParams))
+    if (url.pathname === '/recommendations') params.set('tab', 'procurement')
+    return url.pathname + (params.size ? `?${params}` : '')
+  }
+  if (url.pathname === '/supplies/new' && z.uuid().safeParse(url.searchParams.get('product_id')).success) {
+    const params = new URLSearchParams({ product_id: url.searchParams.get('product_id')! })
+    if (url.searchParams.has('returnTo')) params.set('returnTo', safeSupplyListUrl(url.searchParams.get('returnTo')))
+    return `${url.pathname}?${params}`
   }
   if (url.pathname === '/orders') return safeOrderListUrl(url.pathname + url.search)
   if (url.pathname === '/stop-list') {

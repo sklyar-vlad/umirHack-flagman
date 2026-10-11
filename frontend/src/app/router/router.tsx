@@ -8,6 +8,7 @@ import { RouteStatusPage } from '@/pages/route-status'
 import { InventoryPage } from '@/pages/inventory'
 import { SuppliesPage, SupplyEntryPage, SupplyDetailPage } from '@/pages/supplies'
 import { OrdersPage, OrderDetailPage, NewOrderPage } from '@/pages/orders'
+import { ProcurementPage, RecommendationsLanding } from '@/pages/procurement'
 import { StopListPage } from '@/pages/stop-list'
 import { RouteError } from './RouteError'
 import { RouteLoading } from './RouteLoading'
@@ -22,8 +23,8 @@ const orders = sections.find((section) => section.id === 'orders')!
 const protectedRoutes: RouteObject[] = [
   ...sections.map((section): RouteObject => ({
     path: section.path,
-    element: guarded(section, section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'recommendations'
-      ? <SectionLanding group="recommendations" />
+    element: guarded(section, section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'procurement' ? <ProcurementPage /> : section.id === 'recommendations'
+      ? <RecommendationsLanding />
       : <SectionPage section={section} />),
   })),
   { path: '/admin', element: guarded(administration, <SectionLanding group="admin" />) },

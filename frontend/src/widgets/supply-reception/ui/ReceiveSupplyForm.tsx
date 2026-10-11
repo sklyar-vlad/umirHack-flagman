@@ -13,7 +13,7 @@ import { canRetryReception, emptyReception, emptyReceptionLine, fieldViolationsS
 import styles from './ReceiveSupplyForm.module.css'
 
 const unitLabels = { g: 'г', kg: 'кг', ml: 'мл', l: 'л', pcs: 'шт.' }
-export function ReceiveSupplyForm({ onReceived }: { onReceived: (supply: SupplyDetail) => void }) {
+export function ReceiveSupplyForm({ onReceived, initialProductId }: { initialProductId?: string; onReceived: (supply: SupplyDetail) => void }) {
   const session = useSelector(selectSession), dispatch = useDispatch()
   const [initial] = useState(() => session.draftOwner === session.user?.id ? session.drafts.reception?.reception : undefined)
   const owner = useRef(session.user?.id)
@@ -27,6 +27,16 @@ export function ReceiveSupplyForm({ onReceived }: { onReceived: (supply: SupplyD
   const products = catalogue.currentData ?? []
   const timezone = session.settings?.timezone ?? 'Europe/Moscow'
   const form = useForm<ReceptionValues>({ defaultValues: initial?.values ?? emptyReception(), resolver: zodResolver(receptionSchema(products, timezone)) })
+  const preselected = useRef(false)
+  useEffect(() => {
+    if (preselected.current || initial || !initialProductId || !catalogue.currentData) return
+    preselected.current = true
+    const product = catalogue.currentData.find((item) => item.id.toLowerCase() === initialProductId.toLowerCase())
+    if (product && !form.getValues('items.0.productId') && !form.formState.isDirty) {
+      form.setValue('items.0.productId', product.id)
+      form.setValue('items.0.displayUnit', product.display_unit)
+    }
+  }, [catalogue.currentData, form, initial, initialProductId])
   const watchedItems = useWatch({ control: form.control, name: 'items' })
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'items' })
   const { errors, isDirty } = form.formState
@@ -105,7 +115,7 @@ export function ReceiveSupplyForm({ onReceived }: { onReceived: (supply: SupplyD
                 <FormField label={`Продукт, строка ${index + 1}`} required error={errors.items?.[index]?.productId?.message}>{(props) => <Select {...props} {...form.register(`items.${index}.productId`, { onChange: (event) => {
                   const selected = products.find((item) => item.id === event.target.value)
                   if (selected) form.setValue(`items.${index}.displayUnit`, selected.display_unit, { shouldDirty: true })
-                } })} disabled={catalogue.isFetching || !!catalogue.error}><option value="">Выберите продукт</option>{products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>}</FormField>
+                } })} value={watchedItems[index]?.productId ?? ''} disabled={catalogue.isFetching || !!catalogue.error}><option value="">Выберите продукт</option>{products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>}</FormField>
                 <FormField label={`Количество, строка ${index + 1}`} required error={errors.items?.[index]?.quantity?.message}>{(props) => <Input {...props} {...form.register(`items.${index}.quantity`)} inputMode="decimal" autoComplete="off" />}</FormField>
                 <FormField label={`Единица, строка ${index + 1}`}>{(props) => <Select {...props} {...form.register(`items.${index}.displayUnit`)} value={watchedItems[index]?.displayUnit ?? 'kg'}>{units.map((unit) => <option key={unit} value={unit}>{unitLabels[unit]}</option>)}</Select>}</FormField>
                 <FormField label={`Годен до, строка ${index + 1}`} required error={errors.items?.[index]?.expiresAt?.message}>{(props) => <Input {...props} {...form.register(`items.${index}.expiresAt`)} type="datetime-local" step="1" />}</FormField>

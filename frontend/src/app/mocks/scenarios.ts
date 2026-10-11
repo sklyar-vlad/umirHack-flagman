@@ -1,4 +1,6 @@
 export const mockScenarios = [
+  { value: 'procurement-empty', label: 'Закупки · Нет рекомендаций' },
+  { value: 'procurement-expired', label: 'Закупки · Остаток просрочен' },
   { value: 'stop-list-empty', label: 'Стоп-лист · Все блюда доступны' },
   { value: 'stop-list-expired', label: 'Стоп-лист · Остаток просрочен' },
   { value: 'stop-list-recipe', label: 'Стоп-лист · Рецептура изменена' },
