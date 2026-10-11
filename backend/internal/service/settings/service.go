@@ -114,10 +114,6 @@ func validate(input *dto.UpdateSettingsRequest) error {
 	if input.ExpiringThresholdHours != nil && (*input.ExpiringThresholdHours < 1 || *input.ExpiringThresholdHours > 720) {
 		return field("expiring_threshold_hours")
 	}
-	// The expiry worker is delivered in S21. Never accept a flag with no consumer.
-	if input.AutoWriteOffExpired != nil && *input.AutoWriteOffExpired {
-		return apperrors.ErrFeatureUnavailable
-	}
 	return nil
 }
 func (s *Service) Update(ctx context.Context, input dto.UpdateSettingsRequest) (dto.Settings, error) {

@@ -2,14 +2,12 @@ package settings_test
 
 import (
 	"encoding/json"
-	"errors"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/dto"
-	apperrors "github.com/sklyar-vlad/umirHack-flagman/internal/errors"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 	dashboardrepo "github.com/sklyar-vlad/umirHack-flagman/internal/repository/dashboard"
@@ -21,39 +19,26 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestUnimplementedAutoWriteOffCannotEnableOrPartiallySave(t *testing.T) {
+func TestAutoWriteOffCanBeEnabledAndDisabledThroughSettings(t *testing.T) {
 	f := newFixture(t)
-	before, err := f.settings.Get(f.actor())
-	if err != nil {
-		t.Fatal(err)
-	}
 	session, token, err := f.service.Authenticate(f.ctx, "manager@example.test", f.password)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, body := range []string{`{"auto_writeoff_expired":true,"expected_revision":1}`, `{"restaurant_name":"Changed","timezone":"UTC","expiring_threshold_hours":48,"auto_writeoff_expired":true,"expected_revision":1}`} {
-		w := request(f.router(), "PATCH", "/settings", body, token, session.CSRFToken, "https://flagman.example")
-		if w.Code != 422 {
+	for i, enabled := range []bool{true, false} {
+		raw, _ := json.Marshal(map[string]any{"auto_writeoff_expired": enabled, "expected_revision": i + 1})
+		w := request(f.router(), "PATCH", "/settings", string(raw), token, session.CSRFToken, "https://flagman.example")
+		if w.Code != 200 {
 			t.Fatal(w.Code, w.Body)
 		}
-		var response dto.ErrorResponse
-		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil || response.Error.Code != "FEATURE_UNAVAILABLE" {
-			t.Fatal("feature error", response, err)
+		after, err := f.settings.Get(f.actor())
+		if err != nil || after.AutoWriteOffExpired != enabled || after.Revision != i+2 {
+			t.Fatal(after, err)
 		}
 	}
-	if _, err := f.settings.Update(f.actor(), dto.UpdateSettingsRequest{AutoWriteOffExpired: ptr(true), ExpectedRevision: 1}); !errors.Is(err, apperrors.ErrFeatureUnavailable) {
-		t.Fatal(err)
-	}
-	after, _ := f.settings.Get(f.actor())
-	if after != before {
-		t.Fatal("partial settings save")
-	}
 	var audits, events int
-	if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM audit_log),(SELECT count(*) FROM outbox_events)`).Scan(&audits, &events); err != nil || audits != 0 || events != 0 {
-		t.Fatal("refusal wrote events", audits, events, err)
-	}
-	if _, err := f.settings.Update(f.actor(), dto.UpdateSettingsRequest{AutoWriteOffExpired: ptr(false), ExpectedRevision: 1}); err != nil {
-		t.Fatal("false flag rejected", err)
+	if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM audit_log),(SELECT count(*) FROM outbox_events)`).Scan(&audits, &events); err != nil || audits != 2 || events != 2 {
+		t.Fatal(audits, events, err)
 	}
 }
 func TestSettingsChangesAppendSafeInvalidationOutbox(t *testing.T) {

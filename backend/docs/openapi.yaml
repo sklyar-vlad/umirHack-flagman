@@ -1930,8 +1930,8 @@ paths:
         Отсутствующие поля сохраняются; null, повторы, неизвестные поля и неверные типы запрещены.
         Имя обрезается по краям; timezone — имя IANA, кроме host-dependent Local.
         Конкурирующие сохранения сериализуются; устаревшая ревизия возвращает 409 REVISION_CONFLICT
-        с details.current_revision. До реализации expiry worker включение auto_writeoff_expired
-        возвращает 422 FEATURE_UNAVAILABLE без частичного сохранения или событий.
+        с details.current_revision. Включение auto_writeoff_expired запускает автоматическое списание просроченного
+        положительного остатка в течение минуты; выключение сохраняет видимую просрочку.
         Успех атомарно увеличивает revision, пишет типизированный аудит до/после и settings.changed outbox.
         Cache-Control no-store.
       x-implementation-status: implemented
@@ -1962,7 +1962,7 @@ paths:
         '413':
           $ref: '#/components/responses/PayloadTooLarge'
         '422':
-          description: Ошибка валидации или FEATURE_UNAVAILABLE при включении неготового автосписания
+          description: Ошибка валидации настроек
           content:
             application/json:
               schema:
@@ -2301,7 +2301,7 @@ components:
         restaurant_name: {type: string, minLength: 1, maxLength: 200}
         timezone: {type: string, minLength: 1, maxLength: 100}
         expiring_threshold_hours: {type: integer, minimum: 1, maximum: 720}
-        auto_writeoff_expired: {type: boolean, description: Включение недоступно до реализации expiry worker}
+        auto_writeoff_expired: {type: boolean, description: Включает списание просроченного положительного остатка в течение минуты}
         expected_revision: {type: integer, minimum: 1, maximum: 2147483646}
     AuditLogEntry:
       type: object
