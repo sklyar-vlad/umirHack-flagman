@@ -23,7 +23,7 @@ export function MockModeBanner() {
     dispatch(inventoryApi.util.invalidateTags(['Inventory', 'Batches', 'ProductCategories']))
     dispatch(invalidateSupplies())
     dispatch(invalidateOrders())
-    dispatch(dishApi.util.invalidateTags(['Dishes', 'StopList']))
+    dispatch(dishApi.util.invalidateTags(['Dishes', 'StopList', 'HotOffers']))
     dispatch(productApi.util.invalidateTags(['Products']))
     dispatch(procurementApi.util.invalidateTags(['Procurement']))
   }

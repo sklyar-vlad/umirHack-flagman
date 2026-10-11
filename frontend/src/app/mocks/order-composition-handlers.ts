@@ -17,9 +17,12 @@ export const orderCompositionHandlers = [
     const items = scenario === 'dishes-empty' ? [] : compositionDishes(scenario === 'order-recipe-changed', scenario === 'order-inactive').filter((item) => item.name.toLocaleLowerCase('ru').includes(search))
     return Response.json({ items: items.slice((page - 1) * page_size, page * page_size), total: items.length, page, page_size, meta: {} })
   }),
-  http.get('/api/v1/dishes/:id', ({ params }) => {
+  http.get('/api/v1/dishes/:id', async ({ params }) => {
     const scenario = getMockScenario()
     if (generalErrors.includes(scenario)) return createHealthcheckResponse(scenario)
+    if (scenario === 'dish-detail-error') return createMockError(500, 'INTERNAL_ERROR', 'Состав недоступен')
+    if (scenario === 'dish-detail-missing') return createMockError(404, 'NOT_FOUND', 'Блюдо не найдено')
+    if (scenario === 'dish-detail-slow') await delay(1500)
     const dish = compositionDishes(scenario === 'order-recipe-changed' || scenario === 'order-final-recipe', scenario === 'order-inactive' || scenario === 'order-final-inactive').find((item) => item.id === params.id)
     return dish ? Response.json(dish) : createMockError(404, 'NOT_FOUND', 'Блюдо не найдено')
   }),

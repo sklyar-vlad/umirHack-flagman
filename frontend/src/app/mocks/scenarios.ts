@@ -1,4 +1,11 @@
 export const mockScenarios = [
+  { value: 'hot-offers-empty', label: 'Предложения · Нет рекомендаций' },
+  { value: 'hot-offers-expired', label: 'Предложения · Партия истекла' },
+  { value: 'hot-offers-expiring', label: 'Предложения · Срок через секунду' },
+  { value: 'hot-offers-high', label: 'Предложения · Высокий приоритет' },
+  { value: 'dish-detail-error', label: 'Состав · Ошибка загрузки' },
+  { value: 'dish-detail-slow', label: 'Состав · Загрузка' },
+  { value: 'dish-detail-missing', label: 'Состав · Не найден' },
   { value: 'procurement-empty', label: 'Закупки · Нет рекомендаций' },
   { value: 'procurement-expired', label: 'Закупки · Остаток просрочен' },
   { value: 'stop-list-empty', label: 'Стоп-лист · Все блюда доступны' },

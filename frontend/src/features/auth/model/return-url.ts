@@ -3,7 +3,7 @@ import { procurementSearchParams, readProcurementSearch } from '@/entities/procu
 import { inventorySearchParams, readInventorySearch, inventorySelectionParams } from '@/entities/inventory'
 import { safeOrderListUrl } from '@/entities/order'
 import { safeSupplyListUrl } from '@/entities/supply'
-import { readStopListSearch, stopListSearchParams } from '@/entities/dish'
+import { readStopListSearch, stopListSearchParams, readHotOfferSearch, hotOfferSearchParams } from '@/entities/dish'
 
 /** Reject external URLs, ambiguous encodings, login loops and credential-bearing query strings. */
 export function safeReturnUrl(value: string | null | undefined): string {
@@ -16,6 +16,11 @@ export function safeReturnUrl(value: string | null | undefined): string {
     inventorySelectionParams(url.searchParams).forEach((value, key) => allowed.set(key, value))
     const params = allowed.toString()
     return url.pathname + (params ? `?${params}` : '')
+  }
+  if (url.pathname === '/recommendations/offers' || url.pathname === '/recommendations' && url.searchParams.get('tab') === 'hot-offers') {
+    const params = hotOfferSearchParams(readHotOfferSearch(url.searchParams))
+    if (url.pathname === '/recommendations') params.set('tab', 'hot-offers')
+    return url.pathname + (params.size ? `?${params}` : '')
   }
   if (url.pathname === '/recommendations/procurement' || url.pathname === '/recommendations' && url.searchParams.get('tab') === 'procurement') {
     const params = procurementSearchParams(readProcurementSearch(url.searchParams))

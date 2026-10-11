@@ -29,6 +29,13 @@ export function createMockError(
 /** Ошибки здесь намеренно форсируются для проверки транспорта, не прав healthcheck. */
 export function createHealthcheckResponse(scenario: MockScenario): Response {
   switch (scenario) {
+    case 'hot-offers-empty':
+    case 'hot-offers-expired':
+    case 'hot-offers-expiring':
+    case 'hot-offers-high':
+    case 'dish-detail-error':
+    case 'dish-detail-slow':
+    case 'dish-detail-missing':
     case 'procurement-empty':
     case 'procurement-expired':
     case 'stop-list-empty':
