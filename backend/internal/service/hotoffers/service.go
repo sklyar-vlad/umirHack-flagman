@@ -62,27 +62,21 @@ func (s *Service) List(ctx context.Context, filter model.HotOffersFilter) (dto.H
 	if err != nil {
 		return dto.HotOffersListResponse{}, err
 	}
-	offers, err := simulate(dishes, batches, now, hours)
+	items, err := BuildOffers(dishes, batches, now, hours)
 	if err != nil {
 		return dto.HotOffersListResponse{}, err
 	}
-	scored, err := scoreOffers(offers, now, hours)
-	if err != nil {
-		return dto.HotOffersListResponse{}, err
-	}
-	total := int64(len(scored))
-	items := []dto.HotOffer{}
+	total := int64(len(items))
+	page := []dto.HotOffer{}
 	if offset < total {
 		end := offset + int64(filter.PageSize)
 		if end < offset || end > total {
 			end = total
 		}
-		for i := offset; i < end; i++ {
-			items = append(items, renderOffer(&scored[i], i+1, now))
-		}
+		page = items[offset:end]
 	}
 	return dto.HotOffersListResponse{
-		Items:    items,
+		Items:    page,
 		Total:    total,
 		Page:     filter.Page,
 		PageSize: filter.PageSize,
@@ -102,4 +96,22 @@ func ingredientProducts(dishes []model.Dish) []uuid.UUID {
 		}
 	}
 	return products
+}
+
+// BuildOffers independently simulates each dish and returns the full ranked list
+// from the caller's snapshot and timestamp, without reads or stock mutation.
+func BuildOffers(dishes []model.Dish, batches []model.OrderBatch, now time.Time, hours int) ([]dto.HotOffer, error) {
+	offers, err := simulate(dishes, batches, now, hours)
+	if err != nil {
+		return nil, err
+	}
+	scored, err := scoreOffers(offers, now, hours)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]dto.HotOffer, 0, len(scored))
+	for i := range scored {
+		items = append(items, renderOffer(&scored[i], int64(i+1), now))
+	}
+	return items, nil
 }

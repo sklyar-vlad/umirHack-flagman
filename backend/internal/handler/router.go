@@ -99,3 +99,9 @@ type HotOffersHandler interface{ List(*gin.Context) }
 func RegisterHotOffersRoutes(group *gin.RouterGroup, h HotOffersHandler, access ProductAccess) {
 	group.GET("/hot-offers", access.RequireProductReadAccess, h.List)
 }
+
+type DashboardHandler interface{ Get(*gin.Context) }
+
+func RegisterDashboardRoutes(group *gin.RouterGroup, h DashboardHandler, access ProductAccess) {
+	group.GET("/dashboard", access.RequireProductReadAccess, h.Get)
+}

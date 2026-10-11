@@ -9,7 +9,7 @@ info:
     Реализованы GET /healthcheck, GET /products, GET /products/{id}/batches, GET /inventory,
     POST /supplies, GET /supplies, GET /supplies/{id}, GET /dishes,
     GET /dishes/{id}, GET /stop-list, GET /hot-offers, GET /procurement-recommendations, POST /orders/check, POST /orders,
-    GET /orders, GET /orders/{id} и GET /order-attempts.
+    GET /orders, GET /orders/{id}, GET /order-attempts и GET /dashboard.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
@@ -984,6 +984,48 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/Unavailable'
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboard
+      summary: Получить обзор состояния всего склада
+      description: |
+        Роли admin, manager, storekeeper, order_operator. Query-параметров нет.
+        Один read-only Repeatable Read снимок и UTC meta.server_time для всех
+        блоков. Счётчики не ограничиваются размером превью: положительные партии
+        с expires_at <= T просрочены, T < expires_at <= T + threshold истекают.
+        Стоп-лист считает активные недоступные блюда по последней рецептуре;
+        отсутствие продуктов — все продукты без годного остатка, включая неактивные.
+        attention_batches — первые 20 проблемных партий по expires_at, ID;
+        attention_total — их полное число. hot_offers и procurement_recommendations
+        — первые 3 элемента общей приоритетной сортировки отдельных эндпоинтов.
+        Кладовщик получает hot_offers: [], оператор procurement_recommendations: [].
+        Роли не меняют общие счётчики, внимание склада и настройки оболочки.
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Согласованная сводка всего склада; пустые блоки возвращаются как []
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
   /procurement-recommendations:
     get:
       tags: [Procurement]
@@ -1423,6 +1465,46 @@ components:
         status: {type: string, enum: [expiring, expired]}
         expires_at: {type: string, format: date-time}
         remaining_seconds: {type: integer, format: int64}
+    DashboardSettings:
+      type: object
+      additionalProperties: false
+      required: [restaurant_name, timezone, expiring_threshold_hours]
+      properties:
+        restaurant_name: {type: string}
+        timezone: {type: string, example: Europe/Moscow}
+        expiring_threshold_hours: {type: integer, minimum: 1, maximum: 720}
+    DashboardResponse:
+      type: object
+      additionalProperties: false
+      required: [expiring_batches_count, expired_batches_count, stop_list_dishes_count, out_of_stock_products_count, attention_batches, attention_total, hot_offers, procurement_recommendations, settings, meta]
+      properties:
+        expiring_batches_count: {type: integer, format: int64, minimum: 0}
+        expired_batches_count: {type: integer, format: int64, minimum: 0}
+        stop_list_dishes_count: {type: integer, format: int64, minimum: 0}
+        out_of_stock_products_count: {type: integer, format: int64, minimum: 0}
+        attention_total: {type: integer, format: int64, minimum: 0}
+        attention_batches:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/AttentionBatch'
+        hot_offers:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/HotOffer'
+        procurement_recommendations:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/ProcurementItem'
+        settings:
+          $ref: '#/components/schemas/DashboardSettings'
+        meta:
+          allOf:
+            - $ref: '#/components/schemas/Meta'
+            - type: object
+              required: [server_time]
     InventoryListResponse:
       allOf:
         - $ref: '#/components/schemas/ListEnvelope'
