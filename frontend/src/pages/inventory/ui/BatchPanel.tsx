@@ -10,8 +10,8 @@ import { Badge, Button, EmptyState, ErrorState, FormField, Pagination, Select, S
 import { batchStatuses, remainingTime } from './inventory-format'
 import styles from './InventoryPage.module.css'
 
-export function BatchPanel({ item }: { item: InventoryItem }) {
-  const [params, setParams] = useState<Omit<BatchSearch, 'productId'>>({ sort: 'expires_at', page: 1, page_size: 20 })
+export function BatchPanel({ item, supplyId = '' }: { item: { product: Pick<InventoryItem['product'], 'id' | 'name' | 'unit' | 'display_unit'> }; supplyId?: string }) {
+  const [params, setParams] = useState<Omit<BatchSearch, 'productId'>>({ sort: 'expires_at', page: 1, page_size: 20, ...(supplyId && { status: 'all' }) })
   const query = useProductBatchesQuery({ productId: item.product.id, ...params })
   const session = useSelector(selectSession)
   const timezone = session.settings?.timezone
@@ -34,7 +34,7 @@ export function BatchPanel({ item }: { item: InventoryItem }) {
       {query.isFetching ? <Skeleton label={`Загрузка партий: ${item.product.name}`} /> : query.error || unitMismatch ? <ErrorState title="Не удалось загрузить партии" description={unitMismatch ? 'Ответ сервера содержит несовместимые единицы.' : 'Список продуктов доступен. Повторите загрузку этой панели.'} onRetry={() => { void query.refetch() }} /> : data && <>
         <p className="text-caption text-muted">Найдено партий: {data.total}. Статусы на {formatRestaurantDateTime(data.meta.server_time, timezone)}.</p>
         {data.items.length === 0 ? <EmptyState title="Нет подходящих партий" description="Попробуйте другой фильтр истории. Израсходованные партии не входят в режим «С остатком»." /> : <ul className={styles.batchList}>{data.items.map((batch) => <li key={batch.id} className={styles.batch}>
-          <div className={styles.row}><strong>{batch.supply.number} · строка {batch.line_number}</strong><Badge tone={batch.status === 'expired' ? 'danger' : batch.status === 'expiring' ? 'warning' : batch.status === 'valid' ? 'success' : 'neutral'}>{batchStatuses[batch.status]}</Badge></div>
+          <div className={styles.row}>{supplyId === batch.supply.id && <Badge>Выбранная поставка</Badge>}<strong>{batch.supply.number} · строка {batch.line_number}</strong><Badge tone={batch.status === 'expired' ? 'danger' : batch.status === 'expiring' ? 'warning' : batch.status === 'valid' ? 'success' : 'neutral'}>{batchStatuses[batch.status]}</Badge></div>
           <dl className={styles.metrics}>
             <div><dt>Остаток партии</dt><dd>{formatQuantity(batch.remaining_quantity, batch.unit, item.product.display_unit)}</dd></div>
             <div><dt>Принято</dt><dd>{formatQuantity(batch.initial_quantity, batch.unit, item.product.display_unit)}</dd></div>

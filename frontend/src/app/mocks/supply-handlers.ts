@@ -1,11 +1,22 @@
+import { z } from 'zod'
+import { supplyDetailFixture } from './supply-detail-fixtures'
 import { delay } from 'msw'
 import { http } from 'msw/http'
 import { compareSupplyInstants } from '@/entities/supply'
-import { createHealthcheckResponse } from './responses'
+import { createHealthcheckResponse, createMockError } from './responses'
 import { getMockScenario } from './scenarios'
 import { newlyReceivedSupply, supplyFixtures } from './supply-fixtures'
 
 export const supplyHandlers = [
+  http.get('/api/v1/supplies/:id', async ({ params }) => {
+    const scenario = getMockScenario()
+    if (scenario === 'slow') await delay(2000)
+    if (['network-error', 'unauthorized', 'forbidden', 'conflict', 'validation-error', 'rate-limit', 'server-error', 'bad-gateway', 'invalid-json', 'invalid-schema'].includes(scenario)) return createHealthcheckResponse(scenario)
+    if (!z.uuid().safeParse(params.id).success) return createMockError(422, 'VALIDATION_ERROR', 'Некорректный идентификатор')
+    const summary = [newlyReceivedSupply, ...supplyFixtures].find((item) => item.id === String(params.id).toLowerCase())
+    if (!summary || scenario === 'supply-not-found') return createMockError(404, 'NOT_FOUND', 'Поставка не найдена')
+    return Response.json(supplyDetailFixture(summary), { headers: { 'X-Mock-Mode': 'true' } })
+  }),
   http.get('/api/v1/supplies', async ({ request }) => {
     const scenario = getMockScenario()
     if (scenario === 'slow') await delay(2000)

@@ -10,3 +10,4 @@ export type {
   ListResponse,
   Meta,
 } from './types'
+export { batchSchema, productBriefSchema } from './warehouse-contracts'

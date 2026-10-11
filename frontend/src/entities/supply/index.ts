@@ -1,5 +1,5 @@
-export { supplyApi, useSuppliesQuery, invalidateSupplies } from './api/supply-api'
-export { supplyListSchema, supplySummarySchema } from './model/contracts'
-export type { SupplyList, SupplySummary } from './model/contracts'
+export { supplyApi, useSuppliesQuery, useSupplyQuery, invalidateSupplies } from './api/supply-api'
+export { supplyDetailSchema, supplyListSchema, supplySummarySchema } from './model/contracts'
+export type { SupplyDetail, SupplyLine, SupplyList, SupplySummary } from './model/contracts'
 export { defaultSupplySearch, readSupplySearch, supplySearchParams, changeSupplySearch, supplyPeriodError, safeSupplyListUrl, supplyFilterSchema, supplyInstantToInput, compareSupplyInstants } from './model/supply-search'
 export type { SupplySearch } from './model/supply-search'

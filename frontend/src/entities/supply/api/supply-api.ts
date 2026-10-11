@@ -1,5 +1,6 @@
+import { z } from 'zod'
 import { baseApi, type ApiError } from '@/shared/api'
-import { supplyListSchema, type SupplyList } from '../model/contracts'
+import { supplyDetailSchema, supplyListSchema, type SupplyDetail, type SupplyList } from '../model/contracts'
 import { supplyPeriodError, type SupplySearch } from '../model/supply-search'
 
 function invalidResponse(): ApiError {
@@ -7,6 +8,16 @@ function invalidResponse(): ApiError {
 }
 export const supplyApi = baseApi.enhanceEndpoints({ addTagTypes: ['Supplies'] }).injectEndpoints({
   endpoints: (build) => ({
+    supply: build.query<SupplyDetail, string>({
+      providesTags: ['Supplies'],
+      queryFn: async (id, _api, _options, query) => {
+        if (!z.uuid().safeParse(id).success) return { error: { status: 422, code: 'VALIDATION_ERROR', message: 'Некорректный идентификатор поставки.', details: {} } }
+        const result = await query({ url: `/supplies/${encodeURIComponent(id)}` })
+        if (result.error) return { error: result.error }
+        const parsed = supplyDetailSchema.safeParse(result.data)
+        return parsed.success && parsed.data.id.toLowerCase() === id.toLowerCase() ? { data: parsed.data } : { error: invalidResponse() }
+      },
+    }),
     supplies: build.query<SupplyList, SupplySearch>({
       providesTags: ['Supplies'],
       queryFn: async (values, _api, _options, query) => {
@@ -21,6 +32,6 @@ export const supplyApi = baseApi.enhanceEndpoints({ addTagTypes: ['Supplies'] })
     }),
   }),
 })
-export const { useSuppliesQuery } = supplyApi
+export const { useSuppliesQuery, useSupplyQuery } = supplyApi
 /** Dispatch after a successful reception, including when its response is replayed. */
 export const invalidateSupplies = () => supplyApi.util.invalidateTags(['Supplies'])

@@ -13,6 +13,7 @@ import { supplyHandlers } from '@/app/mocks/supply-handlers'
 import { newlyReceivedSupply, supplyFixtures } from '@/app/mocks/supply-fixtures'
 import { setMockScenario } from '@/app/mocks/scenarios'
 import { SuppliesPage } from './SuppliesPage'
+import { SupplyDetailPage } from './SupplyDetailPage'
 import { SupplyEntryPage } from './SupplyEntryPage'
 
 const server = setupServer(...supplyHandlers)
@@ -29,8 +30,8 @@ function mount(path = '/supplies?search=ТЕСТ', role: Role = 'manager') {
   const store = makeStore(role); stores.push(store)
   render(<Provider store={store}><MemoryRouter initialEntries={[path]}><Routes>
     <Route path="/supplies" element={<SuppliesPage />} />
-    <Route path="/supplies/new" element={<SupplyEntryPage reception />} />
-    <Route path="/supplies/:id" element={<SupplyEntryPage />} />
+    <Route path="/supplies/new" element={<SupplyEntryPage />} />
+    <Route path="/supplies/:id" element={<SupplyDetailPage />} />
   </Routes></MemoryRouter></Provider>)
   return { store, user: userEvent.setup() }
 }

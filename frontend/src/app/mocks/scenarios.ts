@@ -1,4 +1,5 @@
 export const mockScenarios = [
+  { value: 'supply-not-found', label: 'Поставка · Не найдена' },
   { value: 'supplies-empty', label: 'Поставки · Пустая история' },
   { value: 'supplies-received', label: 'Поставки · После тестовой приёмки' },
   { value: 'inventory-empty', label: 'Склад · Пустой список' },

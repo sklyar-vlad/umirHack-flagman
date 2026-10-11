@@ -27,3 +27,8 @@ Vitest проверяет URL/page reset, опубликованные схем�
 Запуск: `./scripts/frontend-checks.sh`; `cd frontend && npm run test:browser`. Для системного Chromium: `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/Applications/Chromium.app/Contents/MacOS/Chromium`. MSW включается явно `VITE_ENABLE_MOCKS=true`, fixture-секреты только локальные; production никогда не использует моки. Эти проверки подтверждают frontend, не настоящий сервер.
 
 Warehouse/categories/batches/auth уже опубликованы в текущем OpenAPI. Реальные cookie/CSRF/RBAC и данные S07 ещё не проверены frontend-сценариями: необходим отдельный прогон с отключёнными моками и тестовой серверной сессией. F03 адаптер остаётся изолированным; его сопоставление с опубликованным auth-контрактом не входит в F05.
+
+
+## Выбор из поставки (F07)
+
+Ссылка «На склад» из деталей поставки добавляет UI-only `product_id`/`supply_id` вместе с поиском по названию. Они не входят в API-параметры inventory. Отдельная панель получает точный ProductBrief из SupplyDetail и открывает существующий BatchPanel в `status=all`, включая depleted. Партии выбранной поставки отмечаются; остальные партии продукта доступны для сравнения. Панель независима от результата поиска склада и доступна admin/manager/storekeeper. Оператор не выполняет supply-запросы при подделанном выборе. Фильтры сохраняют выбор, сброс/«Снять выбор поставки» очищают его; login return сохраняет только валидные UUID.

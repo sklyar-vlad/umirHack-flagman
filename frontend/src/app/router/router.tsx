@@ -6,7 +6,7 @@ import { AppShell } from '@/widgets/app-shell'
 import { SectionLanding, SectionPage } from '@/pages/section'
 import { RouteStatusPage } from '@/pages/route-status'
 import { InventoryPage } from '@/pages/inventory'
-import { SuppliesPage, SupplyEntryPage } from '@/pages/supplies'
+import { SuppliesPage, SupplyEntryPage, SupplyDetailPage } from '@/pages/supplies'
 import { RouteError } from './RouteError'
 import { RouteLoading } from './RouteLoading'
 
@@ -25,8 +25,8 @@ const protectedRoutes: RouteObject[] = [
   })),
   { path: '/admin', element: guarded(administration, <SectionLanding group="admin" />) },
   { path: '/dishes/:id', element: guarded(dishes) },
-  { path: '/supplies/new', element: guarded(supplies, <SupplyEntryPage reception />) },
-  { path: '/supplies/:id', element: guarded(supplies, <SupplyEntryPage />) },
+  { path: '/supplies/new', element: guarded(supplies, <SupplyEntryPage />) },
+  { path: '/supplies/:id', element: guarded(supplies, <SupplyDetailPage />) },
   { path: '/forbidden', element: <RouteStatusPage forbidden /> },
   { path: '*', Component: RouteStatusPage },
 ]

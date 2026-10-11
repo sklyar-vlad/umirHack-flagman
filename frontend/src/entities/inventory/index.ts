@@ -4,3 +4,4 @@ export { inventoryFilters, inventoryResponseSchema, batchesResponseSchema, categ
 export type { InventoryItem, InventoryResponse, Batch, BatchesResponse, Category, InventoryFilter } from './model/contracts'
 export { defaultInventorySearch, readInventorySearch, inventorySearchParams, changeInventorySearch } from './model/inventory-search'
 export type { InventorySearch } from './model/inventory-search'
+export { readInventorySelection, inventorySelectionParams, supplyInventoryUrl } from './model/inventory-selection'
