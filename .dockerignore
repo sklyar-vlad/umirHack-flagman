@@ -19,3 +19,12 @@ frontend/node_modules/*
 *cypress/screenshots*
 .dockerignore
 */Dockerfile*
+
+**/.env
+**/.env.*
+.serena/
+.beads/
+.beads.gate.lock
+**/*.pem
+**/*.key
+**/*.dump

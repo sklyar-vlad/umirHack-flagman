@@ -40,7 +40,7 @@ services:
       - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
       - ./monitoring/grafana/entrypoint.sh:/etc/grafana/entrypoint.sh:ro
       - grafana-data:/var/lib/grafana
-    networks: [flagman]
+    networks: [flagman, warehouse]
 secrets:
   metrics_token:
     file: ${FLAGMAN_SECRETS_DIR:?Set an absolute secrets directory outside repository}/metrics_token

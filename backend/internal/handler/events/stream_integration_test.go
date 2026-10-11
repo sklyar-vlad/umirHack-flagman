@@ -68,6 +68,7 @@ func (f *fixture) serve(t *testing.T, service *eventservice.Service, lifecycle c
 	r := gin.New()
 	access := authhandler.NewHandler(auth)
 	r.Use(access.CORS())
+	basehandler.RegisterAuthRoutes(r.Group("/api/v1"), access)
 	api := r.Group("/api/v1", access.RequireRouteAccess)
 	basehandler.RegisterEventRoutes(api, h)
 	server := httptest.NewUnstartedServer(r)

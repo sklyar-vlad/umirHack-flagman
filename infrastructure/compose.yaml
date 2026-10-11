@@ -8,14 +8,16 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.admin.address=:8081"
       - "--entrypoints.web.transport.respondingtimeouts.writetimeout=0s"
     ports:
       - "80:80"
+      - "127.0.0.1:8081:8081"
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=flagman"
       - "traefik.http.routers.traefik.rule=Host(`traefik.flagman.localhost`)"
-      - "traefik.http.routers.traefik.entrypoints=web"
+      - "traefik.http.routers.traefik.entrypoints=admin"
       - "traefik.http.routers.traefik.service=api@internal"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -24,10 +26,8 @@ services:
 
   db:
     image: postgres:18-alpine
-    ports:
-      - "5432:5432"
     networks:
-      - flagman
+      - warehouse
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -49,10 +49,11 @@ services:
       - .env:/app/.env:ro
     networks:
       - flagman
+      - warehouse
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=flagman"
-      - "traefik.http.routers.backend.rule=Host(`api.flagman.localhost`)"
+      - "traefik.http.routers.backend.rule=Host(`api.flagman.localhost`) && PathPrefix(`/api/`)"
       - "traefik.http.routers.backend.entrypoints=web"
       - "traefik.http.services.backend.loadbalancer.server.port=8080"
       - "traefik.http.services.backend.loadbalancer.responseforwarding.flushinterval=-1ms"
@@ -85,3 +86,7 @@ networks:
   flagman:
     name: "flagman"
     driver: bridge
+
+  warehouse:
+    name: "flagman-warehouse"
+    internal: true

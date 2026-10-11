@@ -17,7 +17,7 @@ FROM golang:1.26-alpine
 
 WORKDIR /app
 
-COPY --from=build-stage /app /app
+COPY --from=build-stage /app/server /app/server
 
 EXPOSE 8080
 
