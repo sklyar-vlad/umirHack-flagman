@@ -1,4 +1,7 @@
 export const mockScenarios = [
+  { value: 'dashboard-empty', label: 'Обзор · Пустые блоки' },
+  { value: 'dashboard-preview', label: 'Обзор · Больше 20 партий' },
+  { value: 'dashboard-expired', label: 'Обзор · Партия истекла' },
   { value: 'hot-offers-empty', label: 'Предложения · Нет рекомендаций' },
   { value: 'hot-offers-expired', label: 'Предложения · Партия истекла' },
   { value: 'hot-offers-expiring', label: 'Предложения · Срок через секунду' },

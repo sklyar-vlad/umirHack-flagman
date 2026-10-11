@@ -34,6 +34,7 @@ export const roleNames: Record<Role, string> = { admin: 'Администрат�
 export function canAccess(role: Role, section: Section) { return section.roles.includes(role) }
 export function visibleSections(role: Role, group: Section['group']) { return sections.filter((section) => section.group === group && canAccess(role, section)) }
 export function sectionForPath(path: string) {
+  if (path === '/dashboard') return sections.find((section) => section.id === 'overview')
   // More specific records must win over their parent section.
   return [...sections].sort((a, b) => b.path.length - a.path.length).find((section) => path === section.path || (section.path !== '/' && path.startsWith(`${section.path}/`)))
 }

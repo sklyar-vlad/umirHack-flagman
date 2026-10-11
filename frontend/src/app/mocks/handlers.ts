@@ -1,3 +1,4 @@
+import { dashboardHandlers } from './dashboard-handlers'
 import { hotOfferHandlers } from './hot-offer-handlers'
 import { procurementHandlers } from './procurement-handlers'
 import { orderCompositionHandlers } from './order-composition-handlers'
@@ -18,6 +19,7 @@ function missingHandler() {
 
 export const handlers = [
   ...authHandlers,
+  ...dashboardHandlers,
   ...orderHandlers,
   ...stopListHandlers,
   ...procurementHandlers,

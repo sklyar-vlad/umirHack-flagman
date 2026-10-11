@@ -6,10 +6,11 @@ import { Button, Drawer, Icon } from '@/shared/ui'
 import styles from './AppShell.module.css'
 
 function Navigation({ role, onNavigate }: { role: keyof typeof roleNames; onNavigate?: () => void }) {
+  const overviewAlias = useLocation().pathname === '/dashboard'
   return <nav aria-label="Разделы приложения" className={styles.navigation}>
     {(['main', 'extra'] as const).map((group) => <div key={group} className={styles.group}>
       {group === 'extra' && <p className="text-caption text-muted">Дополнительно</p>}
-      {visibleSections(role, group).map((section) => <NavLink key={section.id} to={section.path} end={section.path === '/'} onClick={onNavigate}
+      {visibleSections(role, group).map((section) => <NavLink key={section.id} to={section.id === 'overview' && overviewAlias ? '/dashboard' : section.path} end={section.path === '/'} onClick={onNavigate}
         className={({ isActive }) => `${styles.navLink} ${isActive ? styles.active : ''}`}>
         <Icon name={section.icon} /><span>{section.title}</span>
       </NavLink>)}

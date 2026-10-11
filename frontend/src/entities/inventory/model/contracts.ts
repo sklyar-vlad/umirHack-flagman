@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { batchSchema } from '@/shared/api'
+import { batchSchema, attentionBatchSchema } from '@/shared/api'
 import { parseApiDateTime } from '@/shared/lib/restaurant-time'
 
 // Published backend/docs/openapi.yaml: InventoryItem, Batch, CategoryListResponse.
@@ -9,7 +9,6 @@ const instant = z.string().refine((value) => {
   try { parseApiDateTime(value); return true } catch { return false }
 }, 'Ожидается RFC3339 с часовым поясом')
 const quantity = z.string().regex(/^\d{1,11}(?:\.\d{1,3})?$/)
-const positiveQuantity = quantity.refine((value) => !/^0+(?:\.0+)?$/.test(value))
 const aggregate = z.string().regex(/^\d+\.\d{3}$/)
 const unit = z.enum(['g', 'ml', 'pcs'])
 const category = z.object({ id, name: z.string() })
@@ -33,11 +32,7 @@ const envelope = {
 export const inventoryResponseSchema = z.object({
   ...envelope, items: z.array(inventoryItemSchema),
   counts: z.object({ all: integer, expiring: integer, expired: integer, out_of_stock: integer, deficit: integer }),
-  attention_batches: z.array(z.object({
-    batch_id: id, product_id: id, product_name: z.string(), supply_id: id, supply_number: z.string(),
-    line_number: integer.min(1), remaining_quantity: positiveQuantity, unit,
-    status: z.enum(['expiring', 'expired']), expires_at: instant, remaining_seconds: z.number().int(),
-  })).max(20), attention_total: integer,
+  attention_batches: z.array(attentionBatchSchema).max(20), attention_total: integer,
 })
 export const batchesResponseSchema = z.object({ ...envelope, items: z.array(batchSchema) })
 export const categoriesResponseSchema = z.object({

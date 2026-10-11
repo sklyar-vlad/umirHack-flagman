@@ -21,3 +21,9 @@ export const batchSchema = z.object({
   expiry_source: z.enum(['explicit', 'calculated']), expires_at: instant, remaining_seconds: z.number().int(),
   status: z.enum(['valid', 'expiring', 'expired', 'depleted']), created_at: instant,
 }).refine((value) => value.unit !== 'pcs' || [value.initial_quantity, value.remaining_quantity].every((raw) => !raw.includes('.') || /^\d+\.0+$/.test(raw)), 'Количество штук должно быть целым')
+
+export const attentionBatchSchema = z.object({
+  batch_id: id, product_id: id, product_name: z.string(), supply_id: id, supply_number: z.string(),
+  line_number: integer.min(1), remaining_quantity: positiveQuantity, unit,
+  status: z.enum(['expiring', 'expired']), expires_at: instant, remaining_seconds: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER),
+}).refine((value) => value.unit !== 'pcs' || /^\d+(?:\.0+)?$/.test(value.remaining_quantity), 'Количество штук должно быть целым')
