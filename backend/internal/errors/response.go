@@ -21,6 +21,7 @@ func MakeResponse(
 		Details: map[string]any{},
 	}
 
+	var productInUse *ProductInUse
 	var revisionConflict *RevisionConflict
 	var fieldError *validations.FieldError
 	var maxBytesError *http.MaxBytesError
@@ -84,6 +85,15 @@ func MakeResponse(
 		status = http.StatusConflict
 		body.Code = "LAST_ADMIN_PROTECTED"
 		body.Message = "Нельзя отключить или понизить последнего активного администратора"
+	case errors.Is(err, ErrUnitLocked):
+		status = http.StatusConflict
+		body.Code = "UNIT_LOCKED"
+		body.Message = "Единица продукта уже используется в истории"
+	case errors.As(err, &productInUse):
+		status = http.StatusConflict
+		body.Code = "PRODUCT_IN_USE"
+		body.Message = "Продукт используется активными блюдами"
+		body.Details = map[string]any{"dishes": productInUse.Dishes}
 	case errors.Is(err, ErrConflict):
 		status = http.StatusConflict
 		body.Code = "CONFLICT"

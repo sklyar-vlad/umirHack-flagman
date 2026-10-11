@@ -16,6 +16,7 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/handler"
 	authhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auth"
 	batchhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/batch"
+	cataloghandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/catalog"
 	dashboardhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/dashboard"
 	offershandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/hotoffers"
 	inventoryhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/inventory"
@@ -28,6 +29,7 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 	authrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auth"
 	batchrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/batch"
+	catalogrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/catalog"
 	dashboardrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/dashboard"
 	offersrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/hotoffers"
 	inventoryrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/inventory"
@@ -40,6 +42,7 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service"
 	authservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auth"
 	batchservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/batch"
+	catalogservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/catalog"
 	dashboardservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/dashboard"
 	offersservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/hotoffers"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
@@ -86,6 +89,7 @@ func main() {
 	}
 	access := authhandler.NewHandler(sessionAuth)
 	hand := handler.NewHandler(supplyhandler.NewHandler(serv), access, logger)
+	catalog := catalogservice.NewService(catalogrepository.NewRepository(), repo, repo)
 	products := productservice.NewService(productrepository.NewRepository(), repo)
 	inventory := inventoryservice.NewService(inventoryrepository.NewRepository(), repo)
 	batches := batchservice.NewService(batchrepository.NewRepository(), repo)
@@ -134,6 +138,7 @@ func main() {
 	handler.RegisterUserReadRoutes(api, userhandler.NewHandler(users))
 	handler.RegisterUserWriteRoutes(api, userhandler.NewHandler(users))
 	handler.RegisterRoutes(api, hand)
+	handler.RegisterCatalogRoutes(api, cataloghandler.NewHandler(catalog))
 	handler.RegisterProductRoutes(api, producthandler.NewHandler(products), access)
 	handler.RegisterInventoryRoutes(api, inventoryhandler.NewHandler(inventory), access)
 	handler.RegisterBatchRoutes(api, batchhandler.NewHandler(batches), access)
