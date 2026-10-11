@@ -37,6 +37,7 @@ import (
 	catalogrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/catalog"
 	dashboardrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/dashboard"
 	dishrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/dish"
+	expirationrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/expiration"
 	offersrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/hotoffers"
 	inventoryrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/inventory"
 	menurepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/menu"
@@ -54,6 +55,7 @@ import (
 	catalogservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/catalog"
 	dashboardservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/dashboard"
 	dishservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/dish"
+	expirationservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/expiration"
 	offersservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/hotoffers"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
 	inventoryservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/inventory"
@@ -131,6 +133,19 @@ func main() {
 	defer func() {
 		cancelCleanup()
 		<-cleanupDone
+	}()
+
+	expiry := expirationservice.NewService(expirationrepository.NewRepository(), repo, repo, logger)
+	expiryWorker := expirationservice.NewWorker(settingsrepository.NewRepository(), repo, expiry, logger)
+	expiryCtx, cancelExpiry := context.WithCancel(context.Background())
+	expiryDone := make(chan struct{})
+	go func() {
+		defer close(expiryDone)
+		expiryWorker.Run(expiryCtx)
+	}()
+	defer func() {
+		cancelExpiry()
+		<-expiryDone
 	}()
 
 	const (
