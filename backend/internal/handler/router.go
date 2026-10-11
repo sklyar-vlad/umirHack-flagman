@@ -141,3 +141,23 @@ func RegisterUserWriteRoutes(group *gin.RouterGroup, h UserWriteHandler) {
 	group.PATCH("/users/:id", h.Update)
 	group.POST("/users/:id/password", h.Password)
 }
+
+type CatalogHandler interface {
+	ListCategories(*gin.Context)
+	GetCategory(*gin.Context)
+	CreateCategory(*gin.Context)
+	UpdateCategory(*gin.Context)
+	GetProduct(*gin.Context)
+	CreateProduct(*gin.Context)
+	UpdateProduct(*gin.Context)
+}
+
+func RegisterCatalogRoutes(group *gin.RouterGroup, h CatalogHandler) {
+	group.GET("/product-categories", h.ListCategories)
+	group.GET("/product-categories/:id", h.GetCategory)
+	group.POST("/product-categories", h.CreateCategory)
+	group.PATCH("/product-categories/:id", h.UpdateCategory)
+	group.GET("/products/:id", h.GetProduct)
+	group.POST("/products", h.CreateProduct)
+	group.PATCH("/products/:id", h.UpdateProduct)
+}

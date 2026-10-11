@@ -11,7 +11,8 @@ info:
     GET /dishes/{id}, GET /stop-list, GET /hot-offers, GET /procurement-recommendations, POST /orders/check, POST /orders,
     GET /orders, GET /orders/{id}, GET /order-attempts, GET /dashboard,
     POST /auth/login, GET /auth/me и POST /auth/logout,
-    GET /roles, GET /users, GET /users/{id}, POST /users, PATCH /users/{id}, POST /users/{id}/password.
+    GET /roles, GET /users, GET /users/{id}, POST /users, PATCH /users/{id}, POST /users/{id}/password,
+    GET/POST /product-categories, GET/PATCH /product-categories/{id}, GET/PATCH /products/{id}, POST /products.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
@@ -74,6 +75,8 @@ servers:
 tags:
   - name: Auth
     description: Вход, текущая сессия и выход
+  - name: Catalog
+    description: Категории и администрирование продуктов
   - name: Users
     description: Администрирование пользователей и ролей
   - name: System
@@ -473,6 +476,254 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
+  /product-categories:
+    get:
+      tags:
+      - Catalog
+      operationId: listProductCategories
+      summary: listProductCategories
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: Чтение разрешено всем четырём ролям; изменение только admin. Буквальный поиск имени без учёта регистра.
+        Сортировка name ASC, id ASC. Total и страница в одном read-only снимке; пустой items — [].
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Search'
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum:
+          - name
+          default: name
+    post:
+      tags:
+      - Catalog
+      operationId: createProductCategory
+      summary: createProductCategory
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: 'Чтение разрешено всем четырём ролям; изменение только admin. Имя 1–200 Unicode-символов после
+        trim, уникально без учёта регистра в пределах типа ресурса: 409 CONFLICT.'
+      responses:
+        '201':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogCategory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryRequest'
+  /product-categories/{id}:
+    get:
+      tags:
+      - Catalog
+      operationId: getProductCategory
+      summary: getProductCategory
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: Чтение разрешено всем четырём ролям; изменение только admin.
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogCategory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+    patch:
+      tags:
+      - Catalog
+      operationId: updateProductCategory
+      summary: updateProductCategory
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: Чтение разрешено всем четырём ролям; изменение только admin. expected_revision обязателен. 409
+        REVISION_CONFLICT содержит details.current_revision. Успех увеличивает revision и атомарно пишет аудит.
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogCategory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCategoryRequest'
+  /products/{id}:
+    get:
+      tags:
+      - Catalog
+      operationId: getProduct
+      summary: getProduct
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: Чтение разрешено всем четырём ролям; изменение только admin.
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+    patch:
+      tags:
+      - Catalog
+      operationId: updateProduct
+      summary: updateProduct
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: 'Чтение разрешено всем четырём ролям; изменение только admin. expected_revision обязателен. 409
+        REVISION_CONFLICT содержит details.current_revision. Успех увеличивает revision и атомарно пишет аудит. Только
+        переданные поля изменяются; null разрешён только для target_stock и standard_shelf_life_hours. Единица при
+        любой партии/историческом рецепте: 409 UNIT_LOCKED. Отключение ингредиента текущего активного блюда: 409 PRODUCT_IN_USE
+        с details.dishes (id/name). Остатки и сроки существующих партий не меняются; новая цель сразу меняет закупки.'
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProductRequest'
   /products:
     get:
       tags: [Inventory]
@@ -531,6 +782,52 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/Unavailable'
+    post:
+      tags:
+      - Catalog
+      operationId: createProduct
+      summary: createProduct
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: 'Чтение разрешено всем четырём ролям; изменение только admin. Имя 1–200 Unicode-символов после trim,
+        уникально без учёта регистра в пределах типа ресурса: 409 CONFLICT. g: g/kg; ml: ml/l; pcs: pcs. Цель — точная
+        неотрицательная строка в базовых единицах, для pcs целая. Срок — положительное целое до 2147483647 или null.
+        is_active по умолчанию true.'
+      responses:
+        '201':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
   /products/{id}/batches:
     get:
       tags: [Inventory]
@@ -1856,6 +2153,116 @@ components:
       properties:
         status: {type: string, enum: [ok]}
         service: {type: string, enum: [umirHack-flagman]}
+    CatalogCategory:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - name
+      - revision
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        revision:
+          type: integer
+          minimum: 1
+    CategoryListResponse:
+      allOf:
+      - $ref: '#/components/schemas/ListEnvelope'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/CatalogCategory'
+    CreateCategoryRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+    UpdateCategoryRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - expected_revision
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        expected_revision:
+          type: integer
+          minimum: 1
+          maximum: 2147483646
+    CreateProductRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - category_id
+      - unit
+      - display_unit
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        category_id:
+          $ref: '#/components/schemas/UUID'
+        unit:
+          $ref: '#/components/schemas/Unit'
+        display_unit:
+          $ref: '#/components/schemas/DisplayUnit'
+        standard_shelf_life_hours:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 2147483647
+        target_stock:
+          $ref: '#/components/schemas/NullableQuantity'
+        is_active:
+          type: boolean
+          default: true
+    UpdateProductRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - expected_revision
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        category_id:
+          $ref: '#/components/schemas/UUID'
+        unit:
+          $ref: '#/components/schemas/Unit'
+        display_unit:
+          $ref: '#/components/schemas/DisplayUnit'
+        standard_shelf_life_hours:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 2147483647
+        target_stock:
+          $ref: '#/components/schemas/NullableQuantity'
+        is_active:
+          type: boolean
+        expected_revision:
+          type: integer
+          minimum: 1
+          maximum: 2147483646
+      minProperties: 2
     CategoryBrief:
       type: object
       required: [id, name]
