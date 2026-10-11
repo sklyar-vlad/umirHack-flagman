@@ -219,3 +219,9 @@ type IngredientShortageAnalyticsHandler interface{ IngredientShortages(*gin.Cont
 func RegisterIngredientShortageAnalyticsRoutes(group *gin.RouterGroup, h IngredientShortageAnalyticsHandler) {
 	group.GET("/analytics/ingredient-shortages", h.IngredientShortages)
 }
+
+type StopListForecastHandler interface{ List(*gin.Context) }
+
+func RegisterStopListForecastRoutes(group *gin.RouterGroup, h StopListForecastHandler) {
+	group.GET("/analytics/stop-list-forecast", h.List)
+}
