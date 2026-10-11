@@ -19,6 +19,16 @@ function validEnvelope(data: OrderList | OrderAttemptList, values: HistorySearch
 }
 export const orderApi = baseApi.enhanceEndpoints({ addTagTypes: ['Orders', 'OrderAttempts', 'Dishes', 'Inventory', 'Batches', 'Procurement', 'StopList', 'HotOffers'] }).injectEndpoints({
   endpoints: (build) => ({
+    order: build.query<OrderDetail, string>({
+      providesTags: ['Orders'],
+      queryFn: async (id, _api, _options, query) => {
+        if (!z.uuid().safeParse(id).success) return { error: { status: 422, code: 'VALIDATION_ERROR', message: 'Некорректный идентификатор заказа.', details: {} } }
+        const result = await query({ url: `/orders/${encodeURIComponent(id)}` })
+        if (result.error) return { error: result.error }
+        const parsed = orderDetailSchema.safeParse(result.data)
+        return parsed.success && parsed.data.id.toLowerCase() === id.toLowerCase() ? { data: parsed.data } : { error: invalidResponse() }
+      },
+    }),
     checkOrder: build.mutation<OrderCheck, OrderRequest>({
       queryFn: async (body, _api, _options, query) => {
         const valid = orderRequestSchema.safeParse(body)
@@ -63,7 +73,7 @@ export const orderApi = baseApi.enhanceEndpoints({ addTagTypes: ['Orders', 'Orde
     }),
   }),
 })
-export const { useOrdersQuery, useOrderAttemptsQuery, useCheckOrderMutation, useCreateOrderMutation } = orderApi
+export const { useOrderQuery, useOrdersQuery, useOrderAttemptsQuery, useCheckOrderMutation, useCreateOrderMutation } = orderApi
 export const invalidateOrders = () => orderApi.util.invalidateTags(['Orders', 'OrderAttempts'])
 
 function matchesItems(items: { dish_id: string; portions: number; recipe_version: number | null }[], body: OrderRequest, versions = false) {

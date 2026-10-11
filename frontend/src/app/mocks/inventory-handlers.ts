@@ -1,4 +1,5 @@
 import { consumedCompositionAmounts } from './order-composition-fixtures'
+import { orderDemoInventory, orderDemoSupplies } from './order-detail-warehouse-fixtures'
 import type { Batch } from '@/entities/inventory'
 import { receivedSupplies } from './reception-fixtures'
 import { parseQuantity } from '@/shared/lib/quantity'
@@ -23,7 +24,7 @@ function thousandths(raw: string) { const [whole, fraction = ''] = raw.split('.'
 function aggregate(value: bigint) { const digits = value.toString().padStart(4, '0'); return `${digits.slice(0, -3)}.${digits.slice(-3)}` }
 function currentInventoryBatches(): Batch[] {
   const consumed = consumedCompositionAmounts()
-  return inventoryBatches.map((batch) => {
+  return [...orderDemoSupplies().flatMap((supply) => supply.items.map((line) => line.batch)), ...inventoryBatches].map((batch) => {
     const removed = consumed[batch.id] ?? 0
     if (!removed) return batch
     const remaining = thousandths(batch.remaining_quantity) - BigInt(removed) * 1000n
@@ -57,7 +58,7 @@ export const inventoryHandlers = [
     if (error) return error
     const url = new URL(request.url), search = (url.searchParams.get('search') ?? '').toLocaleLowerCase('ru')
     const category = url.searchParams.get('category_id'), filter = url.searchParams.get('filter') ?? 'all'
-    const area = scenario === 'inventory-empty' ? [] : receivedInventory().filter((item) => item.product.name.toLocaleLowerCase('ru').includes(search) && (!category || item.product.category.id === category))
+    const area = scenario === 'inventory-empty' ? [] : [...orderDemoInventory(), ...receivedInventory()].filter((item) => item.product.name.toLocaleLowerCase('ru').includes(search) && (!category || item.product.category.id === category))
     const matches = (item: typeof inventoryItems[number], key: InventoryFilter) => key === 'all' || key === 'expiring' && item.has_expiring || key === 'expired' && item.has_expired || key === 'out_of_stock' && item.is_out_of_stock || key === 'deficit' && nonzero(item.deficit_quantity)
     const items = area.filter((item) => matches(item, filter as InventoryFilter)).sort((a, b) => {
       if (url.searchParams.get('sort') === 'nearest_expires_at') {

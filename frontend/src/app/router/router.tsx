@@ -7,7 +7,7 @@ import { SectionLanding, SectionPage } from '@/pages/section'
 import { RouteStatusPage } from '@/pages/route-status'
 import { InventoryPage } from '@/pages/inventory'
 import { SuppliesPage, SupplyEntryPage, SupplyDetailPage } from '@/pages/supplies'
-import { OrdersPage, OrderEntryPage, NewOrderPage } from '@/pages/orders'
+import { OrdersPage, OrderDetailPage, NewOrderPage } from '@/pages/orders'
 import { RouteError } from './RouteError'
 import { RouteLoading } from './RouteLoading'
 
@@ -30,7 +30,7 @@ const protectedRoutes: RouteObject[] = [
   { path: '/supplies/new', element: guarded(supplies, <SupplyEntryPage />) },
   { path: '/supplies/:id', element: guarded(supplies, <SupplyDetailPage />) },
   { path: '/orders/new', element: guarded(orders, <NewOrderPage />) },
-  { path: '/orders/:id', element: guarded(orders, <OrderEntryPage />) },
+  { path: '/orders/:id', element: guarded(orders, <OrderDetailPage />) },
   { path: '/forbidden', element: <RouteStatusPage forbidden /> },
   { path: '*', Component: RouteStatusPage },
 ]

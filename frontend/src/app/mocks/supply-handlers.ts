@@ -1,4 +1,5 @@
 import { receivedSupplies } from './reception-fixtures'
+import { orderDemoSupplies } from './order-detail-warehouse-fixtures'
 import { z } from 'zod'
 import { supplyDetailFixture } from './supply-detail-fixtures'
 import { delay } from 'msw'
@@ -14,7 +15,7 @@ export const supplyHandlers = [
     if (scenario === 'slow') await delay(2000)
     if (['network-error', 'unauthorized', 'forbidden', 'conflict', 'validation-error', 'rate-limit', 'server-error', 'bad-gateway', 'invalid-json', 'invalid-schema'].includes(scenario)) return createHealthcheckResponse(scenario)
     if (!z.uuid().safeParse(params.id).success) return createMockError(422, 'VALIDATION_ERROR', 'Некорректный идентификатор')
-    const received = receivedSupplies().find((supply) => supply.id === params.id)
+    const received = [...receivedSupplies(), ...orderDemoSupplies()].find((supply) => supply.id === params.id)
     if (received) return Response.json(received)
     const summary = [newlyReceivedSupply, ...supplyFixtures].find((item) => item.id === String(params.id).toLowerCase())
     if (!summary || scenario === 'supply-not-found') return createMockError(404, 'NOT_FOUND', 'Поставка не найдена')

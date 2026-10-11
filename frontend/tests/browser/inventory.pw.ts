@@ -121,6 +121,7 @@ test('independent loading/error/empty panels and list states; 403 retains sessio
   await page.getByLabel('Сценарий API').selectOption('slow')
   await expect(page.getByRole('status', { name: 'Загрузка склада' })).toBeVisible()
   await expect(page.getByRole('article', { name: 'Молоко' })).toBeVisible()
+  await expect(page.getByRole('status', { name: 'Загрузка склада' })).toHaveCount(0)
   await page.getByLabel('Сценарий API').selectOption('server-error')
   await expect(page.getByRole('heading', { name: 'Не удалось загрузить склад' })).toBeVisible()
   await expect(page.getByRole('article')).toHaveCount(0)

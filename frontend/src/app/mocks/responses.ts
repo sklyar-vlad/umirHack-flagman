@@ -29,7 +29,10 @@ export function createMockError(
 /** Ошибки здесь намеренно форсируются для проверки транспорта, не прав healthcheck. */
 export function createHealthcheckResponse(scenario: MockScenario): Response {
   switch (scenario) {
-        case 'dishes-empty':
+    case 'order-detail-demo':
+    case 'order-detail-split':
+    case 'order-not-found':
+    case 'dishes-empty':
     case 'dishes-error':
     case 'dishes-slow':
     case 'order-check-slow':

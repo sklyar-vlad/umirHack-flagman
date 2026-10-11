@@ -1,4 +1,7 @@
 export const mockScenarios = [
+  { value: 'order-detail-demo', label: 'Детали заказа · Три ингредиента' },
+  { value: 'order-detail-split', label: 'Детали заказа · Несколько партий' },
+  { value: 'order-not-found', label: 'Детали заказа · Не найден' },
   { value: 'dishes-empty', label: 'Блюда · Пустой каталог' },
   { value: 'dishes-error', label: 'Блюда · Ошибка каталога' },
   { value: 'dishes-slow', label: 'Блюда · Загрузка' },

@@ -31,7 +31,7 @@ for (const width of [360, 390, 1024, 1440]) {
     const result = page.getByRole('table', { name: 'Фактические списания: Суп дня' }).or(page.getByRole('region', { name: 'Фактические списания: Суп дня' })).filter({ visible: true })
     await expect(result).toContainText('500 мл'); await expect(result).toContainText('50 мл')
     await expect(page.getByRole('link', { name: 'К заказу №1001' })).toHaveAttribute('href', /\/orders\/[a-f\d-]{36}$/)
-    await expect(page.getByRole('link', { name: 'Партия на складе' }).filter({ visible: true }).first()).toHaveAttribute('href', /product_id=.*supply_id=/)
+    await expect(page.getByRole('link', { name: /^Партия на складе:/ }).filter({ visible: true }).first()).toHaveAttribute('href', /product_id=.*supply_id=/)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: `test-results/created-order-${width}.png`, fullPage: true })
     expect(posts).toHaveLength(1); expect(posts[0].key).toMatch(/^[a-f\d-]{36}$/); expect(posts[0].csrf).toBe('mock-csrf-for-local-tests')
