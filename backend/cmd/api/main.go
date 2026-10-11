@@ -16,6 +16,7 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/handler"
 	authhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auth"
 	batchhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/batch"
+	dashboardhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/dashboard"
 	offershandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/hotoffers"
 	inventoryhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/inventory"
 	menuhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/menu"
@@ -26,6 +27,7 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 	authrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auth"
 	batchrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/batch"
+	dashboardrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/dashboard"
 	offersrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/hotoffers"
 	inventoryrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/inventory"
 	menurepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/menu"
@@ -36,6 +38,7 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service"
 	authservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auth"
 	batchservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/batch"
+	dashboardservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/dashboard"
 	offersservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/hotoffers"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
 	inventoryservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/inventory"
@@ -93,6 +96,7 @@ func main() {
 		repo,
 	)
 	hotOffers := offersservice.NewService(offersrepository.NewRepository(), menurepository.NewRepository(), repo)
+	dashboard := dashboardservice.NewService(dashboardrepository.NewRepository(), repo)
 	cleanupCtx, cancelCleanup := context.WithCancel(context.Background())
 	cleanupDone := make(chan struct{})
 	go func() {
@@ -131,6 +135,7 @@ func main() {
 	handler.RegisterOrderHistoryRoutes(api, orderhandler.NewHistoryHandler(orderHistory), access)
 	handler.RegisterProcurementRoutes(api, procurementhandler.NewHandler(procurement), access)
 	handler.RegisterHotOffersRoutes(api, offershandler.NewHandler(hotOffers), access)
+	handler.RegisterDashboardRoutes(api, dashboardhandler.NewHandler(dashboard), access)
 
 	server := &http.Server{
 		Addr:         net.JoinHostPort("", cfg.Server.Port),
