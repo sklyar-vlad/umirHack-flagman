@@ -341,6 +341,11 @@ func verifyGrafana(t *testing.T, f *fixture, role, password, schema string) {
 		}
 		resp, err := client.Do(r)
 		if err != nil {
+			// Provisioning can still hold Grafana's database after health is ready.
+			// Let the bounded dashboard readiness loop retry transport timeouts.
+			if method == http.MethodGet && path == "/api/dashboards/uid/flagman" {
+				return 0, nil
+			}
 			t.Fatal(err)
 		}
 		defer resp.Body.Close()
