@@ -1,8 +1,13 @@
 version: "3"
 
 vars:
+  ENV_FILE: '{{.ENV_FILE | default "./infrastructure/.env"}}'
   COMPOSE_CMD: docker compose --env-file ./infrastructure/.env -f ./infrastructure/compose.yaml -f ./infrastructure/compose.local.yaml
   GOOSE_CMD: goose -env ./infrastructure/.env -dir ./backend/database/migrations
+
+env:
+  FLAGMAN_ENV_FILE: '{{.ENV_FILE}}'
+  FLAGMAN_MODE: '{{.MODE | default "auto"}}'
 
 tasks:
   default:
@@ -13,21 +18,16 @@ tasks:
 ### START
 
   up:
-    desc: Поднять БД, применить миграции и запустить приложение
+    desc: Поднять БД, применить миграции и запустить приложение (DEPLOY_MODE=vps для HTTPS)
     cmds:
-      - '{{.COMPOSE_CMD}} stop frontend backend'
-      - '{{.COMPOSE_CMD}} up -d --wait --wait-timeout 60 db'
-      - task: migrate
-      - '{{.COMPOSE_CMD}} up -d --build traefik backend frontend'
+      - sh ./infrastructure/manage.sh up
 
 ### STOP
 
   down:
     desc: down all containers
     cmds:
-      - echo "⚠️  stopping containers... ⚠️"
-      - docker compose -f ./infrastructure/compose.yaml down
-      - echo "✅ all containers stopped and removed ✅"
+      - sh ./infrastructure/manage.sh down
     silent: true
 
 ### LOGS
@@ -35,7 +35,7 @@ tasks:
   logs:
     desc: check logs all containers
     cmds:
-      - docker compose -f ./infrastructure/compose.yaml logs -f
+      - sh ./infrastructure/manage.sh logs
 
 ### DATABASE 
 
@@ -49,68 +49,57 @@ tasks:
   migrate:
     desc: Применить все ожидающие миграции
     cmds:
-      - '{{.GOOSE_CMD}} up'
+      - sh ./infrastructure/manage.sh migrate
 
   migrate-one:
     desc: Применить одну следующую миграцию
     cmds:
-      - '{{.GOOSE_CMD}} up-by-one'
+      - sh ./infrastructure/manage.sh migrate-one
 
   migrate-status:
     desc: Показать состояние миграций
     cmds:
-      - '{{.GOOSE_CMD}} status'
+      - sh ./infrastructure/manage.sh migrate-status
 
   migrate-version:
     desc: Показать текущую версию схемы
     cmds:
-      - '{{.GOOSE_CMD}} version'
+      - sh ./infrastructure/manage.sh migrate-version
 
   migrate-validate:
     desc: Проверить формат файлов миграций
     cmds:
-      - '{{.GOOSE_CMD}} validate'
+      - sh ./infrastructure/manage.sh migrate-validate
 
   rollback-one:
     desc: Откатить одну последнюю миграцию
     cmds:
-      - '{{.GOOSE_CMD}} down'
+      - sh ./infrastructure/manage.sh rollback-one
 
   rollback:
     desc: Откатить все миграции
     cmds:
-      - '{{.GOOSE_CMD}} reset'
+      - sh ./infrastructure/manage.sh rollback
 
   seed:
     desc: Заполнить начальные справочники, рецептуры и настройки
     preconditions:
-      - sh: test -f ./infrastructure/.env
+      - sh: test -f "$FLAGMAN_ENV_FILE"
         msg: Создай infrastructure/.env из infrastructure/.env.example
       - sh: test -f ./backend/database/seeds/001_catalog.sql
         msg: Не найден backend/database/seeds/001_catalog.sql
       - sh: test -f ./backend/database/seeds/002_inventory.sql
         msg: Не найден backend/database/seeds/002_inventory.sql
     cmds:
-      - '{{.COMPOSE_CMD}} up -d --wait --wait-timeout 60 db'
-      - task: migrate
-      - task: seed-users
-      - >-
-          {{.COMPOSE_CMD}} exec -T db
-          sh -c 'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
-          < ./backend/database/seeds/001_catalog.sql
-      - >-
-          {{.COMPOSE_CMD}} exec -T db
-          sh -c 'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
-          < ./backend/database/seeds/002_inventory.sql
+      - sh ./infrastructure/manage.sh seed
 
   seed-users:
     desc: Создать демопользователей всех четырёх ролей
-    dir: backend
     preconditions:
-      - sh: test -f ../infrastructure/.env
+      - sh: test -f "$FLAGMAN_ENV_FILE"
         msg: Не найден infrastructure/.env
     cmds:
-      - go run ./cmd/seed-users
+      - sh ./infrastructure/manage.sh seed-users
 
   demo-events:
     desc: Поток поставок и заказов через API выделенного demo-окружения

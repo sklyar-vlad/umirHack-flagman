@@ -10,7 +10,13 @@ COPY . .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/api
+    CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/api && \
+    CGO_ENABLED=0 GOOS=linux go build -o seed-users ./cmd/seed-users
+
+FROM golang:1.26-alpine AS seed-users
+WORKDIR /app
+COPY --from=build-stage /app/seed-users /app/seed-users
+ENTRYPOINT ["/app/seed-users", "-env", "/dev/null"]
 
 # -- RUN STAGE --
 FROM golang:1.26-alpine 
