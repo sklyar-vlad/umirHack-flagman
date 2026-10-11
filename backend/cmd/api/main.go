@@ -14,12 +14,15 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/database"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/config"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/handler"
+	analyticshandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/analytics"
 	auditloghandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auditlog"
 	authhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auth"
 	batchhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/batch"
 	cataloghandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/catalog"
 	dashboardhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/dashboard"
 	dishhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/dish"
+	eventhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/events"
+	forecasthandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/forecast"
 	offershandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/hotoffers"
 	inventoryhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/inventory"
 	menuhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/menu"
@@ -29,13 +32,18 @@ import (
 	settingshandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/settings"
 	supplyhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/supply"
 	userhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/user"
+	writeoffhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/writeoff"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
+	analyticsrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/analytics"
 	auditlogrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auditlog"
 	authrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auth"
 	batchrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/batch"
 	catalogrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/catalog"
 	dashboardrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/dashboard"
 	dishrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/dish"
+	eventrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/events"
+	expirationrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/expiration"
+	forecastrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/forecast"
 	offersrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/hotoffers"
 	inventoryrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/inventory"
 	menurepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/menu"
@@ -45,13 +53,18 @@ import (
 	settingsrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/settings"
 	supplyrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/supply"
 	userrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/user"
+	writeoffrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/writeoff"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service"
+	analyticsservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/analytics"
 	auditlogservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auditlog"
 	authservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auth"
 	batchservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/batch"
 	catalogservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/catalog"
 	dashboardservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/dashboard"
 	dishservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/dish"
+	eventservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/events"
+	expirationservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/expiration"
+	forecastservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/forecast"
 	offersservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/hotoffers"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
 	inventoryservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/inventory"
@@ -62,6 +75,7 @@ import (
 	settingsservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/settings"
 	supplyservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/supply"
 	userservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/user"
+	writeoffservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/writeoff"
 	customLogger "github.com/sklyar-vlad/umirHack-flagman/logger"
 	"go.uber.org/zap"
 )
@@ -101,6 +115,10 @@ func main() {
 	catalog := catalogservice.NewService(catalogrepository.NewRepository(), repo, repo)
 	dishes := dishservice.NewService(dishrepository.NewRepository(), menurepository.NewRepository(), repo, repo)
 	settings := settingsservice.NewService(settingsrepository.NewRepository(), repo, repo)
+	analytics := analyticsservice.NewService(analyticsrepository.NewRepository(), repo)
+	forecast := forecastservice.NewService(forecastrepository.NewRepository(), menurepository.NewRepository(), repo)
+	stockMovements := writeoffservice.NewHistoryService(writeoffrepository.NewRepository(), repo)
+	writeOff := writeoffservice.NewService(writeoffrepository.NewRepository(), repo, idem)
 	auditLog := auditlogservice.NewService(auditlogrepository.NewRepository(), repo)
 	products := productservice.NewService(productrepository.NewRepository(), repo)
 	inventory := inventoryservice.NewService(inventoryrepository.NewRepository(), repo)
@@ -128,11 +146,30 @@ func main() {
 		<-cleanupDone
 	}()
 
+	expiry := expirationservice.NewService(expirationrepository.NewRepository(), repo, repo, logger)
+	expiryWorker := expirationservice.NewWorker(settingsrepository.NewRepository(), repo, expiry, logger)
+	expiryCtx, cancelExpiry := context.WithCancel(context.Background())
+	expiryDone := make(chan struct{})
+	go func() {
+		defer close(expiryDone)
+		expiryWorker.Run(expiryCtx)
+	}()
+	defer func() {
+		cancelExpiry()
+		<-expiryDone
+	}()
+
 	const (
 		maxBodyBytes      int64 = 1 << 20
 		requestsPerSecond       = 10
 		burstRequests           = 20
 	)
+
+	eventStream := eventservice.NewService(eventrepository.NewRepository(), repo, logger)
+	eventsCtx, cancelEvents := context.WithCancel(context.Background())
+	eventsDone := make(chan struct{})
+	go func() { defer close(eventsDone); eventStream.Run(eventsCtx) }()
+	defer func() { cancelEvents(); <-eventsDone }()
 
 	mux := gin.New()
 	mux.Use(
@@ -146,9 +183,15 @@ func main() {
 	mux.NoRoute(handler.NotFound)
 
 	api := mux.Group("/api/v1", access.RequireRouteAccess)
+	handler.RegisterStopListForecastRoutes(api, forecasthandler.NewHandler(forecast))
+	handler.RegisterIngredientShortageAnalyticsRoutes(api, analyticshandler.NewHandler(analytics))
+	handler.RegisterWriteOffAnalyticsRoutes(api, analyticshandler.NewHandler(analytics))
+	handler.RegisterStockMovementRoutes(api, writeoffhandler.NewHistoryHandler(stockMovements))
+	handler.RegisterWriteOffRoutes(api, writeoffhandler.NewHandler(writeOff))
 	handler.RegisterAuditLogRoutes(api, auditloghandler.NewHandler(auditLog))
 	handler.RegisterSettingsRoutes(api, settingshandler.NewHandler(settings))
 	handler.RegisterAuthRoutes(api, access)
+	handler.RegisterEventRoutes(api, eventhandler.NewHandler(eventStream, sessionAuth, eventsCtx))
 	handler.RegisterUserReadRoutes(api, userhandler.NewHandler(users))
 	handler.RegisterUserWriteRoutes(api, userhandler.NewHandler(users))
 	handler.RegisterRoutes(api, hand)
@@ -168,9 +211,10 @@ func main() {
 	handler.RegisterDashboardRoutes(api, dashboardhandler.NewHandler(dashboard), access)
 
 	server := &http.Server{
-		Addr:         net.JoinHostPort("", cfg.Server.Port),
-		Handler:      mux,
-		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
+		Addr:        net.JoinHostPort("", cfg.Server.Port),
+		Handler:     mux,
+		ReadTimeout: time.Duration(cfg.Server.ReadTimeout) * time.Second,
+		// SSE replaces the whole-response timeout with renewed per-write deadlines.
 		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
 		IdleTimeout:  time.Duration(cfg.Server.IdleTimeout) * time.Second,
 	}
@@ -188,10 +232,12 @@ func main() {
 	<-stop
 
 	logger.Info("shutdown signal received...")
+	cancelEvents()
 	ctxShutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := server.Shutdown(ctxShutdown); err != nil {
 		logger.Error("graceful shutdown failed", zap.Error(err))
+		_ = server.Close()
 	} else {
 		logger.Info("server stopped gracefully")
 	}

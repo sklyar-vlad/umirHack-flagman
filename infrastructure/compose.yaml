@@ -8,6 +8,7 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.transport.respondingtimeouts.writetimeout=0s"
     ports:
       - "80:80"
     labels:
@@ -54,6 +55,7 @@ services:
       - "traefik.http.routers.backend.rule=Host(`api.flagman.localhost`)"
       - "traefik.http.routers.backend.entrypoints=web"
       - "traefik.http.services.backend.loadbalancer.server.port=8080"
+      - "traefik.http.services.backend.loadbalancer.responseforwarding.flushinterval=-1ms"
     depends_on:
       db:
         condition: service_healthy
@@ -73,6 +75,7 @@ services:
       - 'traefik.http.routers.frontend.rule=Host(`flagman.localhost`)'
       - 'traefik.http.routers.frontend.entrypoints=web'
       - 'traefik.http.services.frontend.loadbalancer.server.port=80'
+      - 'traefik.http.services.frontend.loadbalancer.responseforwarding.flushinterval=-1ms'
 
 volumes:
   postgres-data:

@@ -195,3 +195,37 @@ type AuditLogHandler interface{ List(*gin.Context) }
 func RegisterAuditLogRoutes(group *gin.RouterGroup, h AuditLogHandler) {
 	group.GET("/audit-log", h.List)
 }
+
+type WriteOffHandler interface{ Create(*gin.Context) }
+
+func RegisterWriteOffRoutes(group *gin.RouterGroup, h WriteOffHandler) {
+	group.POST("/write-offs", h.Create)
+}
+
+type StockMovementHandler interface{ List(*gin.Context) }
+
+func RegisterStockMovementRoutes(group *gin.RouterGroup, h StockMovementHandler) {
+	group.GET("/stock-movements", h.List)
+}
+
+type WriteOffAnalyticsHandler interface{ WriteOffs(*gin.Context) }
+
+func RegisterWriteOffAnalyticsRoutes(group *gin.RouterGroup, h WriteOffAnalyticsHandler) {
+	group.GET("/analytics/write-offs", h.WriteOffs)
+}
+
+type IngredientShortageAnalyticsHandler interface{ IngredientShortages(*gin.Context) }
+
+func RegisterIngredientShortageAnalyticsRoutes(group *gin.RouterGroup, h IngredientShortageAnalyticsHandler) {
+	group.GET("/analytics/ingredient-shortages", h.IngredientShortages)
+}
+
+type StopListForecastHandler interface{ List(*gin.Context) }
+
+func RegisterStopListForecastRoutes(group *gin.RouterGroup, h StopListForecastHandler) {
+	group.GET("/analytics/stop-list-forecast", h.List)
+}
+
+type EventHandler interface{ Stream(*gin.Context) }
+
+func RegisterEventRoutes(group *gin.RouterGroup, h EventHandler) { group.GET("/events", h.Stream) }

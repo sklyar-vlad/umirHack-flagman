@@ -13,7 +13,8 @@ info:
     POST /auth/login, GET /auth/me и POST /auth/logout,
     GET /roles, GET /users, GET /users/{id}, POST /users, PATCH /users/{id}, POST /users/{id}/password,
     GET/POST /product-categories, GET/PATCH /product-categories/{id}, GET/PATCH /products/{id}, POST /products.
-    GET/PATCH /settings и GET /audit-log.
+    GET/PATCH /settings, GET /audit-log, POST /write-offs и GET /stock-movements,
+    GET /analytics/write-offs, GET /analytics/ingredient-shortages и GET /analytics/stop-list-forecast.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
@@ -91,6 +92,57 @@ tags:
   - name: Orders
     description: Проверка корзины, создание и чтение заказа
 paths:
+  /events:
+    get:
+      tags: [System]
+      operationId: streamEvents
+      summary: Поток изменений с durable replay
+      x-implementation-status: implemented
+      description: |
+        Все четыре роли, действующая cookie-сессия, без CSRF на GET.
+        id — опубликованный cursor, event — тип, data — occurred_at, доступные
+        роли topics и списки UUID. Нет request_id, имён, рецептов или секретов.
+        Без Last-Event-ID читается только новый хвост; 0 запрашивает всю историю.
+        Replay строго по cursor; пропуски sequence допустимы. История минимум
+        24 часа после публикации. Старый cursor получает resync.required с
+        текущим high-water ID и перечитывает доступные разделы. Некорректный,
+        повторный или будущий cursor даёт 422 до начала потока.
+        Дубли при reconnect допустимы. Heartbeat-комментарий каждые 20 секунд;
+        inventory.time_changed каждые 30 секунд. Сессия проверяется каждый цикл
+        и при чтении backlog; отзыв, expiry, disable и shutdown закрывают поток.
+      parameters:
+        - name: Last-Event-ID
+          in: header
+          required: false
+          description: Один десятичный неотрицательный int64; не больше durable high-water.
+          schema: {type: string, pattern: '^[0-9]{1,19}$'}
+          example: '123'
+      responses:
+        '200':
+          description: Длительный поток SSE; каждое сообщение заканчивается пустой строкой.
+          headers:
+            Cache-Control:
+              schema: {type: string, enum: [no-cache]}
+            X-Accel-Buffering:
+              schema: {type: string, enum: ['no']}
+          content:
+            text/event-stream:
+              schema: {type: string}
+              example: |
+                id: 123
+                event: inventory.changed
+                data: {"occurred_at":"2026-10-09T09:00:00Z","topics":["inventory"]}
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /healthcheck:
     get:
       tags: [System]
@@ -1930,8 +1982,8 @@ paths:
         Отсутствующие поля сохраняются; null, повторы, неизвестные поля и неверные типы запрещены.
         Имя обрезается по краям; timezone — имя IANA, кроме host-dependent Local.
         Конкурирующие сохранения сериализуются; устаревшая ревизия возвращает 409 REVISION_CONFLICT
-        с details.current_revision. До реализации expiry worker включение auto_writeoff_expired
-        возвращает 422 FEATURE_UNAVAILABLE без частичного сохранения или событий.
+        с details.current_revision. Включение auto_writeoff_expired запускает автоматическое списание просроченного
+        положительного остатка в течение минуты; выключение сохраняет видимую просрочку.
         Успех атомарно увеличивает revision, пишет типизированный аудит до/после и settings.changed outbox.
         Cache-Control no-store.
       x-implementation-status: implemented
@@ -1962,7 +2014,7 @@ paths:
         '413':
           $ref: '#/components/responses/PayloadTooLarge'
         '422':
-          description: Ошибка валидации или FEATURE_UNAVAILABLE при включении неготового автосписания
+          description: Ошибка валидации настроек
           content:
             application/json:
               schema:
@@ -2016,6 +2068,230 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuditLogListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /write-offs:
+    post:
+      tags: [Inventory]
+      operationId: createWriteOff
+      summary: Списать количество одной партии с причиной
+      x-implementation-status: implemented
+      description: |
+        Роли admin/manager/storekeeper, Origin/CSRF и Idempotency-Key.
+        Можно списать годную или просроченную партию. Количество положительное,
+        для pcs целое; причина обрезается и содержит 1–500 символов без управляющих.
+        Текущие права, продукт и партия блокируются в порядке actor/product/batch.
+        Остаток, manual_writeoff, аудит, outbox и HTTP-результат атомарны.
+        Превышение остатка — 409 INSUFFICIENT_BATCH_STOCK.
+        Повтор возвращает сохранённый ответ; другое тело — IDEMPOTENCY_CONFLICT;
+        параллельный повтор — REQUEST_IN_PROGRESS. Технические ошибки откатывают всё.
+        Предметные отказы сохраняют только ответ. Cache-Control no-store.
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WriteOffRequest'
+      responses:
+        '201':
+          description: Исторический факт ручного списания
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovement'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /stock-movements:
+    get:
+      tags: [Inventory]
+      operationId: listStockMovements
+      summary: История складских движений
+      x-implementation-status: implemented
+      description: |
+        Admin/manager/storekeeper. Read-only repeatable-read для total и страницы.
+        Полуоткрытый интервал from <= occurred_at < to. Стабильная сортировка
+        occurred_at DESC, id DESC. product_name/unit и remaining_quantity_after
+        берутся из исторических снимков; actor=null для системных действий.
+        Order ID относится к связанному order_item, иначе null. Cache-Control no-store.
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - name: product_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - name: batch_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - name: order_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - name: type
+        in: query
+        schema: {type: string, enum: [receipt, order_consumption, expiration, manual_writeoff]}
+      - name: from
+        in: query
+        schema: {type: string, format: date-time}
+      - name: to
+        in: query
+        schema: {type: string, format: date-time}
+      - name: sort
+        in: query
+        schema: {type: string, enum: [-occurred_at], default: -occurred_at}
+      responses:
+        '200':
+          description: Исторические движения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovementListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /analytics/write-offs:
+    get:
+      tags: [Analytics]
+      operationId: getWriteOffAnalytics
+      summary: Потери по продукту и исторической единице
+      x-implementation-status: implemented
+      description: |
+        Только admin/manager. Только expiration/manual_writeoff, без receipt и
+        order_consumption. Интервал occurred_at [from,to). Суммы точные, положительные,
+        не ограничены размером партии. Группы product_id/unit; product_name — последний
+        снимок в отфильтрованной группе, переименование не дробит её. Причина ограничивает
+        движения до суммирования. Сортировка product_name, product_id, unit; sort не принимается.
+        Count и страница в одном read-only Repeatable Read снимке. Cache-Control no-store.
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/HistoryFrom'
+      - $ref: '#/components/parameters/HistoryTo'
+      - name: product_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - name: reason
+        in: query
+        schema: {type: string, enum: [all, expiration, manual_writeoff], default: all}
+      responses:
+        '200':
+          description: Группы потерь; total — число групп до пагинации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WriteOffAnalyticsListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /analytics/ingredient-shortages:
+    get:
+      tags: [Analytics]
+      operationId: getIngredientShortageAnalytics
+      summary: Недостача ингредиентов из отклонённых заказов
+      x-implementation-status: implemented
+      description: |
+        Только admin/manager. Только сохранённые shortages попыток INSUFFICIENT_STOCK.
+        Интервал created_at [from,to). Группы product_id/unit, точная сумма missing_quantity
+        и число различных попыток. Последний исторический product_name внутри фильтра.
+        Сортировка rejected_attempts_count DESC, product_id, unit; sort не принимается.
+        Check, успешный заказ и другие причины отказа не учитываются; replay ключа не
+        создаёт новую попытку. Дефицит отражает отклонённый спрос, не будущие заказы.
+        Нет общей суммы разных единиц. Count и страница используют один read-only
+        Repeatable Read снимок. Cache-Control no-store.
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/HistoryFrom'
+      - $ref: '#/components/parameters/HistoryTo'
+      responses:
+        '200':
+          description: Группы дефицита; total — число групп до пагинации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngredientShortageAnalyticsListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /analytics/stop-list-forecast:
+    get:
+      tags: [Analytics]
+      operationId: getStopListForecast
+      summary: Оценка момента возникновения стоп-листа
+      x-implementation-status: implemented
+      description: |
+        Только admin/manager. Все активные блюда с текущими рецептами. История только
+        order_consumption по product_id/unit в [server_time-lookback_days,server_time),
+        среднее за все 24-часовые дни периода. Непрерывное ожидаемое потребление склада
+        по FEFO (expires_at, received_at, batch ID), исключение остатка при expires_at.
+        Поиск первой невозможности приготовить порцию с учётом следующих партий.
+        При расходе время — первая наносекунда после пересечения порога одной порции;
+        при истечении — expires_at. Не предполагает будущие поставки и смену рецепта.
+        Нет истории в текущей единице — неизвестный спрос, insufficient_data, отдельно
+        оценка сроков без неизвестного расхода. Положительная история даёт только low.
+        null/unknown различают no_stop_within_horizon и недостаток истории в assumptions.
+        Уже недоступное блюдо имеет server_time/already_unavailable; без рецепта
+        limiting_product_id=null. Сортировка estimated_stop_at ASC NULLS LAST, dish_id;
+        при совпадении ограничений выбирается меньший product_id. Пагинация после расчёта.
+        Один read-only Repeatable Read снимок рецептов, партий и истории. Никаких записей.
+        Cache-Control no-store. Дубликаты, неизвестные и некорректные параметры дают 422.
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - name: lookback_days
+        in: query
+        schema: {type: integer, minimum: 1, maximum: 90, default: 7}
+      - name: horizon_hours
+        in: query
+        schema: {type: integer, minimum: 1, maximum: 720, default: 72}
+      responses:
+        '200':
+          description: Оценки; total — число активных блюд до пагинации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StopListForecastListResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2127,6 +2403,142 @@ components:
         $ref: '#/components/schemas/UUID'
       example: 99999999-9999-4999-8999-999999999999
   schemas:
+    StopListForecast:
+      type: object
+      additionalProperties: false
+      required: [dish_id, dish_name, estimated_stop_at, cause, limiting_product_id, confidence, assumptions]
+      properties:
+        dish_id:
+          $ref: '#/components/schemas/UUID'
+        dish_name: {type: string}
+        estimated_stop_at: {type: string, format: date-time, nullable: true}
+        cause: {type: string, enum: [already_unavailable, expiry, estimated_demand, unknown]}
+        limiting_product_id: {type: string, format: uuid, nullable: true}
+        confidence: {type: string, enum: [low, insufficient_data]}
+        assumptions:
+          type: array
+          items: {type: string}
+          description: |
+            estimate_only, no_future_supplies, current_recipe_unchanged,
+            constant_average_product_consumption_full_lookback, continuous_expected_consumption;
+            дополнительно expiry_only_for_missing_history, missing_history:<product UUID>,
+            recipe_missing, no_stop_within_horizon либо unknown_demand_no_expiry_stop_within_horizon.
+    StopListForecastListResponse:
+      allOf:
+      - $ref: '#/components/schemas/ListEnvelope'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/StopListForecast'
+          meta:
+            type: object
+            required: [server_time, lookback_days, horizon_hours]
+            properties:
+              server_time: {type: string, format: date-time}
+              lookback_days: {type: integer, minimum: 1, maximum: 90}
+              horizon_hours: {type: integer, minimum: 1, maximum: 720}
+    WriteOffRequest:
+      type: object
+      additionalProperties: false
+      required: [batch_id, quantity, reason]
+      properties:
+        batch_id:
+          $ref: '#/components/schemas/UUID'
+        quantity:
+          $ref: '#/components/schemas/Quantity'
+        reason: {type: string, minLength: 1, maxLength: 500}
+    IngredientShortageAnalytics:
+      type: object
+      additionalProperties: false
+      required: [product_id, product_name, unit, rejected_attempts_count, total_missing_quantity]
+      properties:
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        unit:
+          $ref: '#/components/schemas/Unit'
+        rejected_attempts_count: {type: integer, format: int64, minimum: 1}
+        total_missing_quantity:
+          $ref: '#/components/schemas/AggregateQuantity'
+    IngredientShortageAnalyticsListResponse:
+      allOf:
+      - $ref: '#/components/schemas/ListEnvelope'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/IngredientShortageAnalytics'
+    WriteOffAnalytics:
+      type: object
+      additionalProperties: false
+      required: [product_id, product_name, unit, expired_written_off_quantity, manual_written_off_quantity, total_written_off_quantity, movements_count]
+      properties:
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        unit:
+          $ref: '#/components/schemas/Unit'
+        expired_written_off_quantity:
+          $ref: '#/components/schemas/AggregateQuantity'
+        manual_written_off_quantity:
+          $ref: '#/components/schemas/AggregateQuantity'
+        total_written_off_quantity:
+          $ref: '#/components/schemas/AggregateQuantity'
+        movements_count: {type: integer, format: int64, minimum: 1}
+    WriteOffAnalyticsListResponse:
+      allOf:
+      - $ref: '#/components/schemas/ListEnvelope'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/WriteOffAnalytics'
+    StockMovement:
+      type: object
+      additionalProperties: false
+      required: [id, batch_id, product_id, product_name, unit, type, delta_quantity, remaining_quantity_after, order_item_id, order_id, actor, occurred_at, note]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        batch_id:
+          $ref: '#/components/schemas/UUID'
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        unit: {type: string, enum: [g, ml, pcs]}
+        type: {type: string, enum: [receipt, order_consumption, expiration, manual_writeoff]}
+        delta_quantity: {type: string, pattern: '^-?[0-9]+[.][0-9]{3}$', example: '-1.125'}
+        remaining_quantity_after:
+          $ref: '#/components/schemas/Quantity'
+        order_item_id: {type: string, format: uuid, nullable: true}
+        order_id: {type: string, format: uuid, nullable: true}
+        actor:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [id, name]
+          properties:
+            id: {type: string, format: uuid}
+            name: {type: string}
+        occurred_at: {type: string, format: date-time}
+        note: {type: string, nullable: true}
+    StockMovementListResponse:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, page_size, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StockMovement'
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        meta: {type: object}
     Settings:
       type: object
       additionalProperties: false
@@ -2146,7 +2558,7 @@ components:
         restaurant_name: {type: string, minLength: 1, maxLength: 200}
         timezone: {type: string, minLength: 1, maxLength: 100}
         expiring_threshold_hours: {type: integer, minimum: 1, maximum: 720}
-        auto_writeoff_expired: {type: boolean, description: Включение недоступно до реализации expiry worker}
+        auto_writeoff_expired: {type: boolean, description: Включает списание просроченного положительного остатка в течение минуты}
         expected_revision: {type: integer, minimum: 1, maximum: 2147483646}
     AuditLogEntry:
       type: object

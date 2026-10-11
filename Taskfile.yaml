@@ -112,6 +112,35 @@ tasks:
     cmds:
       - go run ./cmd/seed-users
 
+  demo-events:
+    desc: Поток поставок и заказов через API выделенного demo-окружения
+    dir: backend
+    env:
+      DEMO_EVENTS_URL: '{{.DEMO_URL | default ""}}'
+      DEMO_EVENTS_ORIGIN: '{{.ORIGIN | default ""}}'
+      DEMO_EVENTS_CONFIRM: '{{.CONFIRM | default ""}}'
+      DEMO_EVENTS_SCENARIO: '{{.SCENARIO | default "normal"}}'
+      DEMO_EVENTS_COUNT: '{{.COUNT | default "10"}}'
+      DEMO_EVENTS_INTERVAL: '{{.INTERVAL | default "1s"}}'
+      DEMO_EVENTS_EXPIRY: '{{.EXPIRY | default "30s"}}'
+      DEMO_EVENTS_DISH: '{{.DISH_ID | default ""}}'
+    preconditions:
+      - sh: test "${ENV:-}" = demo
+        msg: Требуется ENV=demo
+      - sh: test "${DEMO_EVENTS_CONFIRM:-}" = demo
+        msg: Укажи CONFIRM=demo для выделенного demo-адреса
+      - sh: test -n "${DEMO_EVENTS_URL:-}" && test -n "${DEMO_EVENTS_ORIGIN:-}"
+        msg: Укажи DEMO_URL и ORIGIN явно
+      - sh: test -n "${DEMO_MANAGER_PASSWORD:-}"
+        msg: Экспортируй пароль demo-менеджера в DEMO_MANAGER_PASSWORD
+    cmds:
+      - >-
+          go run ./cmd/demo-events --confirm-demo
+          --demo-url "$DEMO_EVENTS_URL" --origin "$DEMO_EVENTS_ORIGIN"
+          --scenario "$DEMO_EVENTS_SCENARIO" --count "$DEMO_EVENTS_COUNT"
+          --interval "$DEMO_EVENTS_INTERVAL" --expiry "$DEMO_EVENTS_EXPIRY"
+          --dish-id "$DEMO_EVENTS_DISH"
+
   demo-reset:
     desc: Очистить только базу postgres_demo; требуется CONFIRM=postgres-demo
     dotenv:

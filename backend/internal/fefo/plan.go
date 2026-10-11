@@ -32,15 +32,7 @@ type Allocation struct {
 // no partial plan. Neither input slice is mutated; now is fixed by the caller.
 func Plan(demands []Demand, batches []model.OrderBatch, now time.Time) ([]Allocation, error) {
 	ordered := slices.Clone(batches)
-	slices.SortFunc(ordered, func(a, b model.OrderBatch) int {
-		if order := a.ExpiresAt.Compare(b.ExpiresAt); order != 0 {
-			return order
-		}
-		if order := a.ReceivedAt.Compare(b.ReceivedAt); order != 0 {
-			return order
-		}
-		return slices.Compare(a.ID[:], b.ID[:])
-	})
+	slices.SortFunc(ordered, CompareBatches)
 	remaining := make(map[uuid.UUID]*big.Int, len(ordered))
 	byProduct := make(map[uuid.UUID][]model.OrderBatch)
 	for i := range ordered {
@@ -102,4 +94,16 @@ func Plan(demands []Demand, batches []model.OrderBatch, now time.Time) ([]Alloca
 		}
 	}
 	return plan, nil
+}
+
+// CompareBatches is the shared allocation order for orders and read-only
+// simulations: expiry, supply receipt time, then batch identity.
+func CompareBatches(a, b model.OrderBatch) int {
+	if order := a.ExpiresAt.Compare(b.ExpiresAt); order != 0 {
+		return order
+	}
+	if order := a.ReceivedAt.Compare(b.ReceivedAt); order != 0 {
+		return order
+	}
+	return slices.Compare(a.ID[:], b.ID[:])
 }
