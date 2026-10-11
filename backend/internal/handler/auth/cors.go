@@ -11,7 +11,7 @@ import (
 
 func (h *Handler) CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/auth/") {
+		if path := c.Request.URL.Path; strings.HasPrefix(path, "/api/v1/auth/") || path == "/api/v1/roles" || path == "/api/v1/users" || strings.HasPrefix(path, "/api/v1/users/") {
 			c.Header("Cache-Control", "no-store")
 		}
 		c.Writer.Header().Add("Vary", "Origin")

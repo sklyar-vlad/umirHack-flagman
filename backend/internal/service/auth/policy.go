@@ -14,11 +14,18 @@ const (
 	warehouse permission = iota + 1
 	supplies
 	menuAndOrders
+	administration
 )
 
 // Each implemented business operation is listed explicitly. A future route
 // must declare its policy before it can be used, including by an administrator.
 var routePermissions = map[string]permission{
+	"POST /users":                      administration,
+	"PATCH /users/:id":                 administration,
+	"POST /users/:id/password":         administration,
+	"GET /roles":                       administration,
+	"GET /users":                       administration,
+	"GET /users/:id":                   administration,
 	"GET /auth/me":                     warehouse,
 	"POST /auth/logout":                warehouse,
 	"GET /products":                    warehouse,
@@ -42,7 +49,9 @@ var routePermissions = map[string]permission{
 
 func roleAllowed(role string, permission permission) bool {
 	switch role {
-	case roleAdmin, roleManager:
+	case roleAdmin:
+		return permission == warehouse || permission == supplies || permission == menuAndOrders || permission == administration
+	case roleManager:
 		return permission == warehouse || permission == supplies || permission == menuAndOrders
 	case roleStorekeeper:
 		return permission == warehouse || permission == supplies
