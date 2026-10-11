@@ -161,3 +161,21 @@ func RegisterCatalogRoutes(group *gin.RouterGroup, h CatalogHandler) {
 	group.POST("/products", h.CreateProduct)
 	group.PATCH("/products/:id", h.UpdateProduct)
 }
+
+type DishCreateHandler interface{ Create(*gin.Context) }
+
+func RegisterDishCreateRoutes(group *gin.RouterGroup, h DishCreateHandler) {
+	group.POST("/dishes", h.Create)
+}
+
+type DishUpdateHandler interface{ Update(*gin.Context) }
+
+func RegisterDishUpdateRoutes(group *gin.RouterGroup, h DishUpdateHandler) {
+	group.PATCH("/dishes/:id", h.Update)
+}
+
+type DishPreviewHandler interface{ Preview(*gin.Context) }
+
+func RegisterDishPreviewRoutes(group *gin.RouterGroup, h DishPreviewHandler) {
+	group.POST("/dishes/preview", h.Preview)
+}

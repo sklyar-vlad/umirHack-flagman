@@ -18,6 +18,7 @@ import (
 	batchhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/batch"
 	cataloghandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/catalog"
 	dashboardhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/dashboard"
+	dishhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/dish"
 	offershandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/hotoffers"
 	inventoryhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/inventory"
 	menuhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/menu"
@@ -31,6 +32,7 @@ import (
 	batchrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/batch"
 	catalogrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/catalog"
 	dashboardrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/dashboard"
+	dishrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/dish"
 	offersrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/hotoffers"
 	inventoryrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/inventory"
 	menurepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/menu"
@@ -44,6 +46,7 @@ import (
 	batchservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/batch"
 	catalogservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/catalog"
 	dashboardservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/dashboard"
+	dishservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/dish"
 	offersservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/hotoffers"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
 	inventoryservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/inventory"
@@ -90,6 +93,7 @@ func main() {
 	access := authhandler.NewHandler(sessionAuth)
 	hand := handler.NewHandler(supplyhandler.NewHandler(serv), access, logger)
 	catalog := catalogservice.NewService(catalogrepository.NewRepository(), repo, repo)
+	dishes := dishservice.NewService(dishrepository.NewRepository(), menurepository.NewRepository(), repo, repo)
 	products := productservice.NewService(productrepository.NewRepository(), repo)
 	inventory := inventoryservice.NewService(inventoryrepository.NewRepository(), repo)
 	batches := batchservice.NewService(batchrepository.NewRepository(), repo)
@@ -139,6 +143,9 @@ func main() {
 	handler.RegisterUserWriteRoutes(api, userhandler.NewHandler(users))
 	handler.RegisterRoutes(api, hand)
 	handler.RegisterCatalogRoutes(api, cataloghandler.NewHandler(catalog))
+	handler.RegisterDishCreateRoutes(api, dishhandler.NewHandler(dishes))
+	handler.RegisterDishUpdateRoutes(api, dishhandler.NewHandler(dishes))
+	handler.RegisterDishPreviewRoutes(api, dishhandler.NewHandler(dishes))
 	handler.RegisterProductRoutes(api, producthandler.NewHandler(products), access)
 	handler.RegisterInventoryRoutes(api, inventoryhandler.NewHandler(inventory), access)
 	handler.RegisterBatchRoutes(api, batchhandler.NewHandler(batches), access)
