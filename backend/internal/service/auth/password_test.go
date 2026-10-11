@@ -60,3 +60,31 @@ func TestHashRejectsInvalidPassword(t *testing.T) {
 		}
 	}
 }
+
+func TestVerifyPasswordAndRejectMalformedPHC(t *testing.T) {
+	plain := "пароль достаточно длинный"
+	encoded, err := Hash(plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !Verify(plain, encoded) || Verify(plain+"!", encoded) {
+		t.Fatal("password verification mismatch")
+	}
+	for _, hash := range []string{
+		"", "fixture", strings.Replace(encoded, "argon2id", "argon2i", 1),
+		strings.Replace(encoded, "v=19", "v=16", 1),
+		strings.Replace(encoded, "m=19456", "m=4294967295", 1),
+		strings.Replace(encoded, "t=2", "t=0", 1),
+		strings.Replace(encoded, "t=2", "t=99999999999999999999", 1),
+		strings.Replace(encoded, "p=1", "p=0", 1),
+		strings.Replace(encoded, "p=1", "p=255", 1), encoded + "$extra",
+		encoded[:strings.LastIndex(encoded, "$")+1] + "AA",
+	} {
+		if Verify(plain, hash) {
+			t.Fatal("malformed hash accepted")
+		}
+	}
+	if Verify(strings.Repeat("x", 129), encoded) || Verify(string([]byte{255}), encoded) {
+		t.Fatal("invalid password accepted")
+	}
+}

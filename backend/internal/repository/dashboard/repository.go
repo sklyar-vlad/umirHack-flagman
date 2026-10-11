@@ -14,6 +14,36 @@ type Repository struct{}
 
 func NewRepository() *Repository { return &Repository{} }
 
+// LoadBatches reads positive warehouse batches once for both attention and FEFO.
+// Expired rows remain available to attention; the planner excludes them itself.
+func (r *Repository) LoadBatches(ctx context.Context, q repository.DBTX) ([]model.OrderBatch, error) {
+	tx, err := repository.RequireTransaction(q)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(ctx, `SELECT b.id,b.product_id,b.supply_id,s.number,b.line_number,
+		b.remaining_quantity::text,b.expires_at,s.received_at
+		FROM batches b JOIN supplies s ON s.id=b.supply_id
+		WHERE b.remaining_quantity>0 ORDER BY b.expires_at,b.id`)
+	if err != nil {
+		return nil, fmt.Errorf("load dashboard batches: %w", err)
+	}
+	defer rows.Close()
+	batches := []model.OrderBatch{}
+	for rows.Next() {
+		var b model.OrderBatch
+		if err := rows.Scan(&b.ID, &b.ProductID, &b.SupplyID, &b.SupplyNumber, &b.LineNumber,
+			&b.RemainingQuantity, &b.ExpiresAt, &b.ReceivedAt); err != nil {
+			return nil, fmt.Errorf("scan dashboard batch: %w", err)
+		}
+		batches = append(batches, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read dashboard batches: %w", err)
+	}
+	return batches, nil
+}
+
 // Load reads each warehouse product aggregate once, including products without
 // stock or a target. Recipes and procurement reuse these exact quantities.
 func (r *Repository) Load(ctx context.Context, q repository.DBTX, now time.Time) (model.DashboardData, error) {

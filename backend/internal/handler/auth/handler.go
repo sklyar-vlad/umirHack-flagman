@@ -10,11 +10,20 @@ import (
 	authservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auth"
 )
 
-type Handler struct{ service *authservice.Service }
+type Handler struct {
+	service *authservice.Service
+	limiter *loginLimiter
+}
 
-func NewHandler(service *authservice.Service) *Handler { return &Handler{service: service} }
+func NewHandler(service *authservice.Service) *Handler {
+	return &Handler{service: service, limiter: newLoginLimiter()}
+}
 
 func (h *Handler) RequireSupplyAccess(c *gin.Context) {
+	if _, ok := c.Get(verifiedSessionKey); ok {
+		c.Next()
+		return
+	}
 	token, ok := sessionToken(c)
 	if !ok || h.service == nil {
 		basehandler.WriteError(c, apperrors.ErrUnauthorized)
@@ -35,6 +44,10 @@ func (h *Handler) RequireSupplyAccess(c *gin.Context) {
 }
 
 func (h *Handler) RequireProductReadAccess(c *gin.Context) {
+	if _, ok := c.Get(verifiedSessionKey); ok {
+		c.Next()
+		return
+	}
 	token, ok := sessionToken(c)
 	if !ok || h.service == nil {
 		basehandler.WriteError(c, apperrors.ErrUnauthorized)
@@ -50,6 +63,10 @@ func (h *Handler) RequireProductReadAccess(c *gin.Context) {
 }
 
 func (h *Handler) RequireOrderAccess(c *gin.Context) {
+	if _, ok := c.Get(verifiedSessionKey); ok {
+		c.Next()
+		return
+	}
 	token, ok := sessionToken(c)
 	if !ok || h.service == nil {
 		basehandler.WriteError(c, apperrors.ErrUnauthorized)

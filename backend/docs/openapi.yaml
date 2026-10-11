@@ -9,7 +9,11 @@ info:
     Реализованы GET /healthcheck, GET /products, GET /products/{id}/batches, GET /inventory,
     POST /supplies, GET /supplies, GET /supplies/{id}, GET /dishes,
     GET /dishes/{id}, GET /stop-list, GET /hot-offers, GET /procurement-recommendations, POST /orders/check, POST /orders,
-    GET /orders, GET /orders/{id} и GET /order-attempts.
+    GET /orders, GET /orders/{id}, GET /order-attempts, GET /dashboard,
+    POST /auth/login, GET /auth/me и POST /auth/logout,
+    GET /roles, GET /users, GET /users/{id}, POST /users, PATCH /users/{id}, POST /users/{id}/password,
+    GET/POST /product-categories, GET/PATCH /product-categories/{id}, GET/PATCH /products/{id}, POST /products.
+    GET/PATCH /settings и GET /audit-log.
     Операции с x-implementation-status: planned
     описывают согласованное будущее поведение, а не доступные сейчас маршруты.
     В каждой стори добавляются её операции, схемы, примеры и статусы реализации.
@@ -51,9 +55,16 @@ info:
 
     Поставки требуют действующую сессию flagman_session и проверку роли.
     Для POST обязательны X-CSRF-Token и Origin, совпадающий с FRONTEND_ORIGIN
-    (по умолчанию http://flagman.localhost). Выдача сессий через login пока
-    не реализована. Запланированные бизнес-операции также требуют авторизацию
-    согласно README после подключения их маршрутов.
+    (по умолчанию http://flagman.localhost). POST /auth/login выдаёт случайную
+    12-часовую сессию; в БД хранится SHA-256 cookie-токена. Cookie host-only,
+    HttpOnly, SameSite=Lax, Secure при HTTPS frontend или прямом TLS.
+    Все реализованные бизнес-маршруты защищены фиксированной матрицей ролей;
+    новые маршруты запрещены до явного добавления политики. POST /orders/check
+    только читает данные и не требует CSRF. login требует Origin; logout —
+    Origin и CSRF. CORS допускает только FRONTEND_ORIGIN с credentials.
+    Лимит login на процесс: 20 запросов на адрес соединения и 5 попыток на
+    нормализованный email за 15 минут; 429 с Retry-After: 900. Адрес берётся из
+    соединения, заголовки пересылки не доверяются. Пароли, cookie и CSRF не логируются.
 
     UUID и даты примеров иллюстративные: при реальном запросе используйте
     существующие ID и актуальные сроки годности.
@@ -63,6 +74,12 @@ servers:
   - url: http://api.flagman.localhost/api/v1
     description: Прямой доступ к backend через локальный Traefik
 tags:
+  - name: Auth
+    description: Вход, текущая сессия и выход
+  - name: Catalog
+    description: Категории и администрирование продуктов
+  - name: Users
+    description: Администрирование пользователей и ролей
   - name: System
     description: Состояние процесса
   - name: Inventory
@@ -102,6 +119,612 @@ paths:
           $ref: '#/components/responses/PayloadTooLarge'
         '500':
           $ref: '#/components/responses/InternalError'
+  /roles:
+    get:
+      tags:
+      - Users
+      operationId: listRoles
+      summary: Список четырёх ролей
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store.'
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /users:
+    get:
+      tags:
+      - Users
+      operationId: listUsers
+      summary: Список пользователей
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store. Буквальный поиск по имени/email;
+        %, _ и обратный слеш не являются шаблонами. Сортировка name ASC, id ASC. Total до пагинации. Один read-only
+        repeatable-read снимок.'
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - name: search
+        in: query
+        schema:
+          type: string
+        description: Буквальная часть имени или email без учёта регистра
+      - name: role
+        in: query
+        schema:
+          type: string
+          enum:
+          - all
+          - admin
+          - manager
+          - storekeeper
+          - order_operator
+          default: all
+      - name: is_active
+        in: query
+        schema:
+          type: string
+          enum:
+          - all
+          - 'true'
+          - 'false'
+          default: all
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum:
+          - name
+          default: name
+    post:
+      tags:
+      - Users
+      operationId: createUser
+      summary: Создать пользователя с начальным паролем
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store. Имя обрезается по краям; email
+        приводится к нижнему регистру и обрезается, должен быть уникален (409 CONFLICT). Начальный password передаёт
+        admin, email-рассылки нет. По умолчанию is_active=true. Пароль и хеш не возвращаются.'
+      x-implementation-status: implemented
+      responses:
+        '201':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+  /users/{id}:
+    get:
+      tags:
+      - Users
+      operationId: getUser
+      summary: Безопасные детали пользователя
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store.'
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+    patch:
+      tags:
+      - Users
+      operationId: updateUser
+      summary: Изменить пользователя по ожидаемой ревизии
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store. Требуется expected_revision
+        и хотя бы одно изменяемое поле. Отсутствующие поля сохраняются. 409 REVISION_CONFLICT содержит details.current_revision.
+        Смена роли и отключение отзывают все сессии. Последний активный admin защищён от понижения и отключения, включая
+        параллельные запросы: 409 LAST_ADMIN_PROTECTED.'
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+  /users/{id}/password:
+    post:
+      tags:
+      - Users
+      operationId: resetUserPassword
+      summary: Сбросить пароль пользователя
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store. Пароль 12–128 Unicode-символов.
+        Требуется expected_revision; 409 REVISION_CONFLICT содержит details.current_revision. Ревизия увеличивается,
+        все сессии пользователя отзываются. При сбросе собственного пароля нужен новый login.'
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPasswordRequest'
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Войти по email и паролю
+      x-implementation-status: implemented
+      security: []
+      description: |
+        Argon2id; неверные данные и отключённый пользователь дают 401.
+        Email нормализуется в lower(trim(email)). Пароль не обрезается.
+        Тело JSON не более 4 КиБ. Ответ и ошибки не кешируются.
+        Новая независимая сессия живёт 12 часов; Set-Cookie содержит непрозрачный
+        токен, JSON содержит только user, csrf_token и session_expires_at.
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Сессия создана
+          headers:
+            Set-Cookie:
+              description: flagman_session; Path=/api/v1; Max-Age=43200; HttpOnly; SameSite=Lax; Secure при HTTPS
+              schema: {type: string}
+            Cache-Control:
+              schema: {type: string, enum: [no-store]}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/me:
+    get:
+      tags: [Auth]
+      operationId: currentSession
+      summary: Получить пользователя, CSRF и настройки оболочки
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      description: Текущий активный пользователь; истёкшая или отозванная сессия даёт 401. Cache-Control — no-store.
+      responses:
+        '200':
+          description: Текущая сессия и настройки оболочки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentSessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Отозвать текущую сессию
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      description: Отзывает только текущую сессию и удаляет cookie с тем же Path. Cache-Control — no-store.
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CSRFToken'
+      responses:
+        '204':
+          description: Текущая сессия отозвана; cookie удалена
+          headers:
+            Set-Cookie:
+              description: Пустая flagman_session; Path=/api/v1; Max-Age=0; Expires в прошлом
+              schema: {type: string}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /product-categories:
+    get:
+      tags:
+      - Catalog
+      operationId: listProductCategories
+      summary: listProductCategories
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: Чтение разрешено всем четырём ролям; изменение только admin. Буквальный поиск имени без учёта регистра.
+        Сортировка name ASC, id ASC. Total и страница в одном read-only снимке; пустой items — [].
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Search'
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum:
+          - name
+          default: name
+    post:
+      tags:
+      - Catalog
+      operationId: createProductCategory
+      summary: createProductCategory
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: 'Чтение разрешено всем четырём ролям; изменение только admin. Имя 1–200 Unicode-символов после
+        trim, уникально без учёта регистра в пределах типа ресурса: 409 CONFLICT.'
+      responses:
+        '201':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogCategory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryRequest'
+  /product-categories/{id}:
+    get:
+      tags:
+      - Catalog
+      operationId: getProductCategory
+      summary: getProductCategory
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: Чтение разрешено всем четырём ролям; изменение только admin.
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogCategory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+    patch:
+      tags:
+      - Catalog
+      operationId: updateProductCategory
+      summary: updateProductCategory
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: Чтение разрешено всем четырём ролям; изменение только admin. expected_revision обязателен. 409
+        REVISION_CONFLICT содержит details.current_revision. Успех увеличивает revision и атомарно пишет аудит.
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogCategory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCategoryRequest'
+  /products/{id}:
+    get:
+      tags:
+      - Catalog
+      operationId: getProduct
+      summary: getProduct
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: Чтение разрешено всем четырём ролям; изменение только admin.
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+    patch:
+      tags:
+      - Catalog
+      operationId: updateProduct
+      summary: updateProduct
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: 'Чтение разрешено всем четырём ролям; изменение только admin. expected_revision обязателен. 409
+        REVISION_CONFLICT содержит details.current_revision. Успех увеличивает revision и атомарно пишет аудит. Только
+        переданные поля изменяются; null разрешён только для target_stock и standard_shelf_life_hours. Единица при
+        любой партии/историческом рецепте: 409 UNIT_LOCKED. Отключение ингредиента текущего активного блюда: 409 PRODUCT_IN_USE
+        с details.dishes (id/name). Остатки и сроки существующих партий не меняются; новая цель сразу меняет закупки.'
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProductRequest'
   /products:
     get:
       tags: [Inventory]
@@ -160,6 +783,52 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/Unavailable'
+    post:
+      tags:
+      - Catalog
+      operationId: createProduct
+      summary: createProduct
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: 'Чтение разрешено всем четырём ролям; изменение только admin. Имя 1–200 Unicode-символов после trim,
+        уникально без учёта регистра в пределах типа ресурса: 409 CONFLICT. g: g/kg; ml: ml/l; pcs: pcs. Цель — точная
+        неотрицательная строка в базовых единицах, для pcs целая. Срок — положительное целое до 2147483647 или null.
+        is_active по умолчанию true.'
+      responses:
+        '201':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
   /products/{id}/batches:
     get:
       tags: [Inventory]
@@ -503,6 +1172,51 @@ paths:
         '503':
           $ref: '#/components/responses/Unavailable'
   /dishes:
+    post:
+      tags:
+      - Dishes
+      operationId: createDish
+      summary: Создать блюдо и первую версию рецепта
+      description: 'Только admin с Origin и CSRF. Имя уникально без учёта регистра. Непустой
+        рецепт с активными продуктами и точными положительными расходами; pcs целые. Дубли:
+        422 DUPLICATE_INGREDIENT. Блюдо и рецепт атомарны.'
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDishRequest'
+      responses:
+        '201':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dish'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
     get:
       tags: [Dishes]
       operationId: listDishes
@@ -557,6 +1271,56 @@ paths:
         '503':
           $ref: '#/components/responses/Unavailable'
   /dishes/{id}:
+    patch:
+      tags:
+      - Dishes
+      operationId: updateDish
+      summary: Атомарно изменить блюдо и рецептуру
+      description: 'Только admin с Origin и CSRF. expected_revision проверяется под блокировкой,
+        конфликт: 409 REVISION_CONFLICT с details.current_revision. Только переданные
+        поля меняются; null очищает description. Переданный recipe целиком заменяет состав
+        новой неизменяемой версией. Старые заказы и рецепты сохраняются. Metadata-only
+        PATCH не создаёт версию. Активируемый состав должен содержать активные продукты.'
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDishRequest'
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dish'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
     get:
       tags: [Dishes]
       operationId: getDish
@@ -601,6 +1365,51 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /dishes/preview:
+    post:
+      tags:
+      - Dishes
+      operationId: previewDish
+      summary: Проверить введённый рецепт без сохранения
+      description: Только admin с Origin и CSRF. Те же правила непустого рецепта, активности
+        продуктов, точных расходов и отсутствия дублей. Одна read-only snapshot и UTC
+        server_time. Все требования на одну порцию; shortages только недостающие. Не создаёт
+        блюдо, рецепт, заказ, движения, аудит, outbox или резерв.
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreviewDishRequest'
+      responses:
+        '200':
+          description: Доступность введённого рецепта без сохранения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DishPreview'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
         '413':
@@ -984,6 +1793,48 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/Unavailable'
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboard
+      summary: Получить обзор состояния всего склада
+      description: |
+        Роли admin, manager, storekeeper, order_operator. Query-параметров нет.
+        Один read-only Repeatable Read снимок и UTC meta.server_time для всех
+        блоков. Счётчики не ограничиваются размером превью: положительные партии
+        с expires_at <= T просрочены, T < expires_at <= T + threshold истекают.
+        Стоп-лист считает активные недоступные блюда по последней рецептуре;
+        отсутствие продуктов — все продукты без годного остатка, включая неактивные.
+        attention_batches — первые 20 проблемных партий по expires_at, ID;
+        attention_total — их полное число. hot_offers и procurement_recommendations
+        — первые 3 элемента общей приоритетной сортировки отдельных эндпоинтов.
+        Кладовщик получает hot_offers: [], оператор procurement_recommendations: [].
+        Роли не меняют общие счётчики, внимание склада и настройки оболочки.
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Согласованная сводка всего склада; пустые блоки возвращаются как []
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
   /procurement-recommendations:
     get:
       tags: [Procurement]
@@ -1050,6 +1901,129 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/Unavailable'
+  /settings:
+    get:
+      tags: [Settings]
+      operationId: getSettings
+      summary: Настройки единственного ресторана
+      description: Все четыре активные роли. Cache-Control no-store. Возвращает текущую revision.
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Настройки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      tags: [Settings]
+      operationId: updateSettings
+      summary: Изменить настройки по ожидаемой ревизии
+      description: |
+        Только admin; точный Origin и CSRF. Требует expected_revision и хотя бы одно изменяемое поле.
+        Отсутствующие поля сохраняются; null, повторы, неизвестные поля и неверные типы запрещены.
+        Имя обрезается по краям; timezone — имя IANA, кроме host-dependent Local.
+        Конкурирующие сохранения сериализуются; устаревшая ревизия возвращает 409 REVISION_CONFLICT
+        с details.current_revision. До реализации expiry worker включение auto_writeoff_expired
+        возвращает 422 FEATURE_UNAVAILABLE без частичного сохранения или событий.
+        Успех атомарно увеличивает revision, пишет типизированный аудит до/после и settings.changed outbox.
+        Cache-Control no-store.
+      x-implementation-status: implemented
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettingsRequest'
+      responses:
+        '200':
+          description: Обновлённые настройки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          description: Ошибка валидации или FEATURE_UNAVAILABLE при включении неготового автосписания
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /audit-log:
+    get:
+      tags: [AuditLog]
+      operationId: listAuditLog
+      summary: Журнал успешных изменений
+      description: |
+        Только admin; Cache-Control no-store. Read-only repeatable-read снимок списка и total.
+        Буквальный регистронезависимый поиск по имени автора, действию, типу/UUID объекта и request_id.
+        %, _ и обратный слеш — обычные символы. Для системного автора поиск system или Система.
+        actor_id=system фильтрует null actor; настройки имеют entity_id=null.
+        Интервал created_at — [from,to); сортировка created_at DESC, id DESC до пагинации.
+        before/after проецируются на разрешённые поля, включая вложенные рецепты/партии.
+        Пароли, хеши, токены и cookie не возвращаются. Нет маршрутов изменения журнала.
+      x-implementation-status: implemented
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - name: search
+        in: query
+        schema: {type: string}
+      - name: actor_id
+        in: query
+        description: UUID пользователя или system для системных действий
+        schema:
+          oneOf:
+          - {type: string, format: uuid}
+          - {type: string, enum: [system]}
+      - name: action
+        in: query
+        schema: {type: string, enum: [create, update, password_change, manual_writeoff, expiration]}
+      - name: entity_type
+        in: query
+        schema: {type: string, enum: [product_category, product, dish, supply, order, stock_movement, user, settings]}
+      - name: entity_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - $ref: '#/components/parameters/HistoryFrom'
+      - $ref: '#/components/parameters/HistoryTo'
+      - $ref: '#/components/parameters/HistorySort'
+      responses:
+        '200':
+          description: Страница журнала
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     SessionCookie:
@@ -1153,6 +2127,226 @@ components:
         $ref: '#/components/schemas/UUID'
       example: 99999999-9999-4999-8999-999999999999
   schemas:
+    Settings:
+      type: object
+      additionalProperties: false
+      required: [restaurant_name, timezone, expiring_threshold_hours, auto_writeoff_expired, revision]
+      properties:
+        restaurant_name: {type: string, minLength: 1, maxLength: 200}
+        timezone: {type: string, minLength: 1, maxLength: 100, example: Europe/Moscow}
+        expiring_threshold_hours: {type: integer, minimum: 1, maximum: 720}
+        auto_writeoff_expired: {type: boolean, example: false}
+        revision: {type: integer, minimum: 1}
+    UpdateSettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_revision]
+      minProperties: 2
+      properties:
+        restaurant_name: {type: string, minLength: 1, maxLength: 200}
+        timezone: {type: string, minLength: 1, maxLength: 100}
+        expiring_threshold_hours: {type: integer, minimum: 1, maximum: 720}
+        auto_writeoff_expired: {type: boolean, description: Включение недоступно до реализации expiry worker}
+        expected_revision: {type: integer, minimum: 1, maximum: 2147483646}
+    AuditLogEntry:
+      type: object
+      additionalProperties: false
+      required: [id, created_at, actor, action, entity_type, entity_id, request_id, before, after]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        created_at: {type: string, format: date-time}
+        actor:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [id, name]
+          properties:
+            id:
+              $ref: '#/components/schemas/UUID'
+            name: {type: string}
+        action: {type: string, example: update}
+        entity_type: {type: string, example: settings}
+        entity_id: {type: string, format: uuid, nullable: true, description: null для singleton settings}
+        request_id: {type: string, nullable: true}
+        before: {type: object, nullable: true, description: Разрешённый типизированный снимок; null для создания}
+        after: {type: object, nullable: true, description: Разрешённый типизированный снимок; неизвестные legacy типы скрываются}
+    AuditLogListResponse:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, page_size, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLogEntry'
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        meta: {type: object}
+    Role:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      - name
+      properties:
+        code:
+          type: string
+          enum:
+          - admin
+          - manager
+          - storekeeper
+          - order_operator
+        name:
+          type: string
+    RoleListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+    UserListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - total
+      - page
+      - page_size
+      - meta
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthUser'
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        meta:
+          type: object
+    CreateUserRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - email
+      - role
+      - password
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        role:
+          type: string
+          enum:
+          - admin
+          - manager
+          - storekeeper
+          - order_operator
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+          writeOnly: true
+        is_active:
+          type: boolean
+          default: true
+    UpdateUserRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - expected_revision
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        role:
+          type: string
+          enum:
+          - admin
+          - manager
+          - storekeeper
+          - order_operator
+        is_active:
+          type: boolean
+        expected_revision:
+          type: integer
+          minimum: 1
+      minProperties: 2
+    UserPasswordRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - password
+      - expected_revision
+      properties:
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+          writeOnly: true
+        expected_revision:
+          type: integer
+          minimum: 1
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: {type: string, minLength: 1, maxLength: 254}
+        password: {type: string, minLength: 1, maxLength: 128, writeOnly: true}
+    AuthUser:
+      type: object
+      additionalProperties: false
+      required: [id, name, email, role, is_active, revision, created_at, last_login_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name: {type: string}
+        email: {type: string}
+        role: {type: string, enum: [admin, manager, storekeeper, order_operator]}
+        is_active: {type: boolean}
+        revision: {type: integer, minimum: 1}
+        created_at: {type: string, format: date-time}
+        last_login_at: {type: string, format: date-time, nullable: true}
+    LoginResponse:
+      type: object
+      required: [user, csrf_token, session_expires_at]
+      properties:
+        user:
+          $ref: '#/components/schemas/AuthUser'
+        csrf_token: {type: string}
+        session_expires_at: {type: string, format: date-time}
+    CurrentSessionResponse:
+      allOf:
+        - $ref: '#/components/schemas/LoginResponse'
+        - type: object
+          required: [settings]
+          properties:
+            settings:
+              $ref: '#/components/schemas/DashboardSettings'
     UUID:
       type: string
       format: uuid
@@ -1280,6 +2474,116 @@ components:
       properties:
         status: {type: string, enum: [ok]}
         service: {type: string, enum: [umirHack-flagman]}
+    CatalogCategory:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - name
+      - revision
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        revision:
+          type: integer
+          minimum: 1
+    CategoryListResponse:
+      allOf:
+      - $ref: '#/components/schemas/ListEnvelope'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/CatalogCategory'
+    CreateCategoryRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+    UpdateCategoryRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - expected_revision
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        expected_revision:
+          type: integer
+          minimum: 1
+          maximum: 2147483646
+    CreateProductRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - category_id
+      - unit
+      - display_unit
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        category_id:
+          $ref: '#/components/schemas/UUID'
+        unit:
+          $ref: '#/components/schemas/Unit'
+        display_unit:
+          $ref: '#/components/schemas/DisplayUnit'
+        standard_shelf_life_hours:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 2147483647
+        target_stock:
+          $ref: '#/components/schemas/NullableQuantity'
+        is_active:
+          type: boolean
+          default: true
+    UpdateProductRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - expected_revision
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        category_id:
+          $ref: '#/components/schemas/UUID'
+        unit:
+          $ref: '#/components/schemas/Unit'
+        display_unit:
+          $ref: '#/components/schemas/DisplayUnit'
+        standard_shelf_life_hours:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 2147483647
+        target_stock:
+          $ref: '#/components/schemas/NullableQuantity'
+        is_active:
+          type: boolean
+        expected_revision:
+          type: integer
+          minimum: 1
+          maximum: 2147483646
+      minProperties: 2
     CategoryBrief:
       type: object
       required: [id, name]
@@ -1423,6 +2727,46 @@ components:
         status: {type: string, enum: [expiring, expired]}
         expires_at: {type: string, format: date-time}
         remaining_seconds: {type: integer, format: int64}
+    DashboardSettings:
+      type: object
+      additionalProperties: false
+      required: [restaurant_name, timezone, expiring_threshold_hours]
+      properties:
+        restaurant_name: {type: string}
+        timezone: {type: string, example: Europe/Moscow}
+        expiring_threshold_hours: {type: integer, minimum: 1, maximum: 720}
+    DashboardResponse:
+      type: object
+      additionalProperties: false
+      required: [expiring_batches_count, expired_batches_count, stop_list_dishes_count, out_of_stock_products_count, attention_batches, attention_total, hot_offers, procurement_recommendations, settings, meta]
+      properties:
+        expiring_batches_count: {type: integer, format: int64, minimum: 0}
+        expired_batches_count: {type: integer, format: int64, minimum: 0}
+        stop_list_dishes_count: {type: integer, format: int64, minimum: 0}
+        out_of_stock_products_count: {type: integer, format: int64, minimum: 0}
+        attention_total: {type: integer, format: int64, minimum: 0}
+        attention_batches:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/AttentionBatch'
+        hot_offers:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/HotOffer'
+        procurement_recommendations:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/ProcurementItem'
+        settings:
+          $ref: '#/components/schemas/DashboardSettings'
+        meta:
+          allOf:
+            - $ref: '#/components/schemas/Meta'
+            - type: object
+              required: [server_time]
     InventoryListResponse:
       allOf:
         - $ref: '#/components/schemas/ListEnvelope'
@@ -1612,6 +2956,104 @@ components:
           $ref: '#/components/schemas/Unit'
         quantity_per_portion:
           $ref: '#/components/schemas/PositiveQuantity'
+    RecipeInput:
+      type: object
+      additionalProperties: false
+      required:
+      - product_id
+      - quantity_per_portion
+      properties:
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        quantity_per_portion:
+          $ref: '#/components/schemas/PositiveQuantity'
+    CreateDishRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - recipe
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+        is_active:
+          type: boolean
+          default: true
+        recipe:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RecipeInput'
+          maxItems: 100
+    UpdateDishRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - expected_revision
+      minProperties: 2
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+          maximum: 2147483646
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+        is_active:
+          type: boolean
+        recipe:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RecipeInput'
+          maxItems: 100
+    PreviewDishRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - recipe
+      properties:
+        recipe:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RecipeInput'
+          maxItems: 100
+    DishPreview:
+      type: object
+      required:
+      - is_available
+      - available_portions
+      - requirements
+      - shortages
+      - meta
+      properties:
+        is_available:
+          type: boolean
+        available_portions:
+          type: string
+          pattern: ^[0-9]+$
+        requirements:
+          type: array
+          items:
+            $ref: '#/components/schemas/Requirement'
+        shortages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Shortage'
+        meta:
+          $ref: '#/components/schemas/Meta'
     Dish:
       type: object
       required: [id, name, description, is_active, revision, recipe_version, recipe, is_available, available_portions, shortages, unavailability_reasons, meta]

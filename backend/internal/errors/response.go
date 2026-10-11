@@ -21,10 +21,20 @@ func MakeResponse(
 		Details: map[string]any{},
 	}
 
+	var productInUse *ProductInUse
+	var revisionConflict *RevisionConflict
 	var fieldError *validations.FieldError
 	var maxBytesError *http.MaxBytesError
 
 	switch {
+	case errors.Is(err, ErrFeatureUnavailable):
+		status = http.StatusUnprocessableEntity
+		body.Code = "FEATURE_UNAVAILABLE"
+		body.Message = "Автоматическое списание пока недоступно"
+	case errors.Is(err, ErrDuplicateIngredient):
+		status = http.StatusUnprocessableEntity
+		body.Code = "DUPLICATE_INGREDIENT"
+		body.Message = "Ингредиенты не должны повторяться"
 	case errors.Is(err, ErrBodyTooLarge) || errors.As(err, &maxBytesError):
 		status = http.StatusRequestEntityTooLarge
 		body.Code = "PAYLOAD_TOO_LARGE"
@@ -74,6 +84,24 @@ func MakeResponse(
 		status = http.StatusConflict
 		body.Code = "REQUEST_IN_PROGRESS"
 		body.Message = "Запрос с этим ключом ещё выполняется"
+	case errors.As(err, &revisionConflict):
+		status = http.StatusConflict
+		body.Code = "REVISION_CONFLICT"
+		body.Message = "Ресурс уже изменён"
+		body.Details = map[string]any{"current_revision": revisionConflict.CurrentRevision}
+	case errors.Is(err, ErrLastAdmin):
+		status = http.StatusConflict
+		body.Code = "LAST_ADMIN_PROTECTED"
+		body.Message = "Нельзя отключить или понизить последнего активного администратора"
+	case errors.Is(err, ErrUnitLocked):
+		status = http.StatusConflict
+		body.Code = "UNIT_LOCKED"
+		body.Message = "Единица продукта уже используется в истории"
+	case errors.As(err, &productInUse):
+		status = http.StatusConflict
+		body.Code = "PRODUCT_IN_USE"
+		body.Message = "Продукт используется активными блюдами"
+		body.Details = map[string]any{"dishes": productInUse.Dishes}
 	case errors.Is(err, ErrConflict):
 		status = http.StatusConflict
 		body.Code = "CONFLICT"

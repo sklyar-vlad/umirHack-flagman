@@ -14,28 +14,44 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/database"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/config"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/handler"
+	auditloghandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auditlog"
 	authhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auth"
 	batchhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/batch"
+	cataloghandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/catalog"
+	dashboardhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/dashboard"
+	dishhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/dish"
 	offershandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/hotoffers"
 	inventoryhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/inventory"
 	menuhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/menu"
 	orderhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/order"
 	procurementhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/procurement"
 	producthandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/product"
+	settingshandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/settings"
 	supplyhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/supply"
+	userhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/user"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
+	auditlogrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auditlog"
 	authrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/auth"
 	batchrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/batch"
+	catalogrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/catalog"
+	dashboardrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/dashboard"
+	dishrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/dish"
 	offersrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/hotoffers"
 	inventoryrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/inventory"
 	menurepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/menu"
 	orderrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/order"
 	procurementrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/procurement"
 	productrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/product"
+	settingsrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/settings"
 	supplyrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/supply"
+	userrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/user"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service"
+	auditlogservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auditlog"
 	authservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/auth"
 	batchservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/batch"
+	catalogservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/catalog"
+	dashboardservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/dashboard"
+	dishservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/dish"
 	offersservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/hotoffers"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
 	inventoryservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/inventory"
@@ -43,7 +59,9 @@ import (
 	orderservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/order"
 	procurementservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/procurement"
 	productservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/product"
+	settingsservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/settings"
 	supplyservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/supply"
+	userservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/user"
 	customLogger "github.com/sklyar-vlad/umirHack-flagman/logger"
 	"go.uber.org/zap"
 )
@@ -80,6 +98,10 @@ func main() {
 	}
 	access := authhandler.NewHandler(sessionAuth)
 	hand := handler.NewHandler(supplyhandler.NewHandler(serv), access, logger)
+	catalog := catalogservice.NewService(catalogrepository.NewRepository(), repo, repo)
+	dishes := dishservice.NewService(dishrepository.NewRepository(), menurepository.NewRepository(), repo, repo)
+	settings := settingsservice.NewService(settingsrepository.NewRepository(), repo, repo)
+	auditLog := auditlogservice.NewService(auditlogrepository.NewRepository(), repo)
 	products := productservice.NewService(productrepository.NewRepository(), repo)
 	inventory := inventoryservice.NewService(inventoryrepository.NewRepository(), repo)
 	batches := batchservice.NewService(batchrepository.NewRepository(), repo)
@@ -93,6 +115,8 @@ func main() {
 		repo,
 	)
 	hotOffers := offersservice.NewService(offersrepository.NewRepository(), menurepository.NewRepository(), repo)
+	users := userservice.NewService(userrepository.NewRepository(), repo, repo)
+	dashboard := dashboardservice.NewService(dashboardrepository.NewRepository(), repo)
 	cleanupCtx, cancelCleanup := context.WithCancel(context.Background())
 	cleanupDone := make(chan struct{})
 	go func() {
@@ -115,13 +139,23 @@ func main() {
 		handler.RequestID(),
 		handler.RequestLogger(logger),
 		handler.Recovery(logger),
+		access.CORS(),
 		handler.RateLimit(requestsPerSecond, burstRequests),
 		handler.BodyLimit(maxBodyBytes),
 	)
 	mux.NoRoute(handler.NotFound)
 
-	api := mux.Group("/api/v1")
+	api := mux.Group("/api/v1", access.RequireRouteAccess)
+	handler.RegisterAuditLogRoutes(api, auditloghandler.NewHandler(auditLog))
+	handler.RegisterSettingsRoutes(api, settingshandler.NewHandler(settings))
+	handler.RegisterAuthRoutes(api, access)
+	handler.RegisterUserReadRoutes(api, userhandler.NewHandler(users))
+	handler.RegisterUserWriteRoutes(api, userhandler.NewHandler(users))
 	handler.RegisterRoutes(api, hand)
+	handler.RegisterCatalogRoutes(api, cataloghandler.NewHandler(catalog))
+	handler.RegisterDishCreateRoutes(api, dishhandler.NewHandler(dishes))
+	handler.RegisterDishUpdateRoutes(api, dishhandler.NewHandler(dishes))
+	handler.RegisterDishPreviewRoutes(api, dishhandler.NewHandler(dishes))
 	handler.RegisterProductRoutes(api, producthandler.NewHandler(products), access)
 	handler.RegisterInventoryRoutes(api, inventoryhandler.NewHandler(inventory), access)
 	handler.RegisterBatchRoutes(api, batchhandler.NewHandler(batches), access)
@@ -131,6 +165,7 @@ func main() {
 	handler.RegisterOrderHistoryRoutes(api, orderhandler.NewHistoryHandler(orderHistory), access)
 	handler.RegisterProcurementRoutes(api, procurementhandler.NewHandler(procurement), access)
 	handler.RegisterHotOffersRoutes(api, offershandler.NewHandler(hotOffers), access)
+	handler.RegisterDashboardRoutes(api, dashboardhandler.NewHandler(dashboard), access)
 
 	server := &http.Server{
 		Addr:         net.JoinHostPort("", cfg.Server.Port),

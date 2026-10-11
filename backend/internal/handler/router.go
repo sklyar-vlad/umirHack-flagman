@@ -99,3 +99,99 @@ type HotOffersHandler interface{ List(*gin.Context) }
 func RegisterHotOffersRoutes(group *gin.RouterGroup, h HotOffersHandler, access ProductAccess) {
 	group.GET("/hot-offers", access.RequireProductReadAccess, h.List)
 }
+
+type DashboardHandler interface{ Get(*gin.Context) }
+
+func RegisterDashboardRoutes(group *gin.RouterGroup, h DashboardHandler, access ProductAccess) {
+	group.GET("/dashboard", access.RequireProductReadAccess, h.Get)
+}
+
+type AuthHandler interface {
+	Login(*gin.Context)
+	Me(*gin.Context)
+	Logout(*gin.Context)
+}
+
+func RegisterAuthRoutes(group *gin.RouterGroup, h AuthHandler) {
+	group.POST("/auth/login", h.Login)
+	group.GET("/auth/me", h.Me)
+	group.POST("/auth/logout", h.Logout)
+}
+
+type UserReadHandler interface {
+	Roles(*gin.Context)
+	List(*gin.Context)
+	Get(*gin.Context)
+}
+
+func RegisterUserReadRoutes(group *gin.RouterGroup, h UserReadHandler) {
+	group.GET("/roles", h.Roles)
+	group.GET("/users", h.List)
+	group.GET("/users/:id", h.Get)
+}
+
+type UserWriteHandler interface {
+	Create(*gin.Context)
+	Update(*gin.Context)
+	Password(*gin.Context)
+}
+
+func RegisterUserWriteRoutes(group *gin.RouterGroup, h UserWriteHandler) {
+	group.POST("/users", h.Create)
+	group.PATCH("/users/:id", h.Update)
+	group.POST("/users/:id/password", h.Password)
+}
+
+type CatalogHandler interface {
+	ListCategories(*gin.Context)
+	GetCategory(*gin.Context)
+	CreateCategory(*gin.Context)
+	UpdateCategory(*gin.Context)
+	GetProduct(*gin.Context)
+	CreateProduct(*gin.Context)
+	UpdateProduct(*gin.Context)
+}
+
+func RegisterCatalogRoutes(group *gin.RouterGroup, h CatalogHandler) {
+	group.GET("/product-categories", h.ListCategories)
+	group.GET("/product-categories/:id", h.GetCategory)
+	group.POST("/product-categories", h.CreateCategory)
+	group.PATCH("/product-categories/:id", h.UpdateCategory)
+	group.GET("/products/:id", h.GetProduct)
+	group.POST("/products", h.CreateProduct)
+	group.PATCH("/products/:id", h.UpdateProduct)
+}
+
+type DishCreateHandler interface{ Create(*gin.Context) }
+
+func RegisterDishCreateRoutes(group *gin.RouterGroup, h DishCreateHandler) {
+	group.POST("/dishes", h.Create)
+}
+
+type DishUpdateHandler interface{ Update(*gin.Context) }
+
+func RegisterDishUpdateRoutes(group *gin.RouterGroup, h DishUpdateHandler) {
+	group.PATCH("/dishes/:id", h.Update)
+}
+
+type DishPreviewHandler interface{ Preview(*gin.Context) }
+
+func RegisterDishPreviewRoutes(group *gin.RouterGroup, h DishPreviewHandler) {
+	group.POST("/dishes/preview", h.Preview)
+}
+
+type SettingsHandler interface {
+	Get(*gin.Context)
+	Update(*gin.Context)
+}
+
+func RegisterSettingsRoutes(group *gin.RouterGroup, h SettingsHandler) {
+	group.GET("/settings", h.Get)
+	group.PATCH("/settings", h.Update)
+}
+
+type AuditLogHandler interface{ List(*gin.Context) }
+
+func RegisterAuditLogRoutes(group *gin.RouterGroup, h AuditLogHandler) {
+	group.GET("/audit-log", h.List)
+}

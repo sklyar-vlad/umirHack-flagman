@@ -68,20 +68,10 @@ func (s *Service) List(ctx context.Context, filter model.ProcurementFilter) (dto
 	if err != nil {
 		return dto.ProcurementListResponse{}, err
 	}
-	items, err := recommendations(stock)
+	items, err := BuildRecommendations(stock, dishes)
 	if err != nil {
 		return dto.ProcurementListResponse{}, err
 	}
-	affected, err := affectedDishes(dishes)
-	if err != nil {
-		return dto.ProcurementListResponse{}, err
-	}
-	for i := range items {
-		if linked := affected[items[i].ProductID]; linked != nil {
-			items[i].AffectedDishes = linked
-		}
-	}
-	sortRecommendations(items)
 	total := int64(len(items))
 	page := []dto.ProcurementItem{}
 	if offset < total {
@@ -200,4 +190,24 @@ func affectedDishes(dishes []model.Dish) (map[uuid.UUID][]dto.AffectedDish, erro
 		linked[productID] = slices.CompactFunc(dishes, func(a, b dto.AffectedDish) bool { return a.ID == b.ID })
 	}
 	return linked, nil
+}
+
+// BuildRecommendations derives the complete priority-ordered list from a shared
+// stock/recipe snapshot. It performs no database reads or stock mutations.
+func BuildRecommendations(stock []model.ProcurementStock, dishes []model.Dish) ([]dto.ProcurementItem, error) {
+	items, err := recommendations(stock)
+	if err != nil {
+		return nil, err
+	}
+	affected, err := affectedDishes(dishes)
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		if linked := affected[items[i].ProductID]; linked != nil {
+			items[i].AffectedDishes = linked
+		}
+	}
+	sortRecommendations(items)
+	return items, nil
 }
