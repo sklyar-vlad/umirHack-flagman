@@ -27,18 +27,5 @@ coverage
 __screenshots__/
 *.timestamp-*-*.mjs
 
-# Beads / Dolt files (added by bd init)
-.dolt/
-*.db
-.beads-credential-key
-.beads/proxieddb/
-*.gate.lock*
-
-# Local agent runtime and credentials
-/.ralph/
-/.serena/
-/.beads/
-/.beads.gate.lock
-/.agent-home/
 __pycache__/
 *.pyc
