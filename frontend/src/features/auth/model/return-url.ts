@@ -1,4 +1,5 @@
 import { inventorySearchParams, readInventorySearch } from '@/entities/inventory'
+import { safeSupplyListUrl } from '@/entities/supply'
 
 /** Reject external URLs, ambiguous encodings, login loops and credential-bearing query strings. */
 export function safeReturnUrl(value: string | null | undefined): string {
@@ -9,6 +10,10 @@ export function safeReturnUrl(value: string | null | undefined): string {
   if (url.pathname === '/inventory') {
     const params = inventorySearchParams(readInventorySearch(url.searchParams)).toString()
     return url.pathname + (params ? `?${params}` : '')
+  }
+  if (url.pathname === '/supplies') return safeSupplyListUrl(url.pathname + url.search)
+  if (/^\/supplies\/(?:new|[0-9a-f-]{36})$/i.test(url.pathname) && url.searchParams.has('returnTo')) {
+    return `${url.pathname}?returnTo=${encodeURIComponent(safeSupplyListUrl(url.searchParams.get('returnTo')))}`
   }
   return url.pathname
 }

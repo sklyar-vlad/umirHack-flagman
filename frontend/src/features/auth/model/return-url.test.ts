@@ -20,6 +20,11 @@ describe('safe login navigation and validation', () => {
     expect(loginSchema.safeParse({ email: 'bad', password: '' }).success).toBe(false)
     expect(loginSchema.parse({ email: ' employee@example.test ', password: ' a ' })).toEqual({ email: 'employee@example.test', password: ' a ' })
   })
+  it('allowlists supply list filters and nested return links without credentials', () => {
+    expect(safeReturnUrl('/supplies?search=104&page=2&token=secret#hash')).toBe('/supplies?search=104&page=2')
+    expect(safeReturnUrl('/supplies/new?returnTo=https%3A%2F%2Fevil.test&password=secret')).toBe('/supplies/new?returnTo=%2Fsupplies')
+    expect(safeReturnUrl('/supplies/new?returnTo=%2Fsupplies%3Fsearch%3D104%26page_size%3D20')).toBe('/supplies/new?returnTo=%2Fsupplies%3Fsearch%3D104%26page_size%3D20')
+  })
   it('honors both seconds and HTTP-date Retry-After', () => {
     expect(retryAfterDeadline('5', 1000)).toBe(6000)
     expect(retryAfterDeadline('Thu, 01 Jan 1970 00:00:10 GMT', 1000)).toBe(10000)

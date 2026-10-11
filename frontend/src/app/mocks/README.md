@@ -23,6 +23,10 @@ MSW 3 перехватывает запросы на уровне браузер
 
 Моковые ответы не подтверждают готовность backend. Настоящая интеграция проверяется с отключённым `VITE_ENABLE_MOCKS`; скрытого перехода с ошибок реального API на fixtures нет.
 
+## Поставки (F06)
+
+`supply-handlers.ts`/`supply-fixtures.ts` реализуют опубликованный GET списка: буквальный номер, created_at `[from,to)`, created_at DESC/id DESC, pagination и total. Даты создания/приёмки различаются; есть обе границы периода, одинаковые created_at и наносекунды. `supplies-empty` — пустая история, `supplies-received` — изменённый synthetic список после тестовой приёмки. Последний сценарий не выполняет POST и не проверяет реальную приёмку. Панель также инвалидирует `Supplies`, сохраняя текущий успешный cache. Подробности — `frontend/docs/supplies.md`.
+
 ## Auth (F03)
 
 `auth-handlers.ts` использует плановые auth-поля README через документированный draft-адаптер; текущий OpenAPI уже публикует auth, однако адаптер и реальная интеграция ещё требуют отдельной проверки. Login выдаёт mock-cookie, me загружает user/settings/CSRF, logout проверяет mock-CSRF и удаляет mock-cookie. Fixtures не содержат production credentials. Панель переключает «Сценарий API», включая неверный пароль, отключённого пользователя и истечение. Подробности и ограничения — `frontend/docs/auth-session.md`.

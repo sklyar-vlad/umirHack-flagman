@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { baseApi } from '@/shared/api'
 import { inventoryApi } from '@/entities/inventory'
+import { invalidateSupplies } from '@/entities/supply'
 import { useAppDispatch } from '../store'
 import { getMockScenario, mockScenarios, setMockScenario, type MockScenario } from './scenarios'
 import styles from './MockModeBanner.module.css'
@@ -16,6 +17,7 @@ export function MockModeBanner() {
     // Обновляются только активные подписки, последний ответ не очищается.
     dispatch(baseApi.util.invalidateTags(['Healthcheck']))
     dispatch(inventoryApi.util.invalidateTags(['Inventory', 'Batches', 'ProductCategories']))
+    dispatch(invalidateSupplies())
   }
 
   return (

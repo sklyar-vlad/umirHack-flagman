@@ -6,6 +6,7 @@ import { AppShell } from '@/widgets/app-shell'
 import { SectionLanding, SectionPage } from '@/pages/section'
 import { RouteStatusPage } from '@/pages/route-status'
 import { InventoryPage } from '@/pages/inventory'
+import { SuppliesPage, SupplyEntryPage } from '@/pages/supplies'
 import { RouteError } from './RouteError'
 import { RouteLoading } from './RouteLoading'
 
@@ -18,13 +19,14 @@ const supplies = sections.find((section) => section.id === 'supplies')!
 const protectedRoutes: RouteObject[] = [
   ...sections.map((section): RouteObject => ({
     path: section.path,
-    element: guarded(section, section.id === 'inventory' ? <InventoryPage /> : section.id === 'recommendations'
+    element: guarded(section, section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'recommendations'
       ? <SectionLanding group="recommendations" />
       : <SectionPage section={section} />),
   })),
   { path: '/admin', element: guarded(administration, <SectionLanding group="admin" />) },
   { path: '/dishes/:id', element: guarded(dishes) },
-  { path: '/supplies/:id', element: guarded(supplies) },
+  { path: '/supplies/new', element: guarded(supplies, <SupplyEntryPage reception />) },
+  { path: '/supplies/:id', element: guarded(supplies, <SupplyEntryPage />) },
   { path: '/forbidden', element: <RouteStatusPage forbidden /> },
   { path: '*', Component: RouteStatusPage },
 ]
