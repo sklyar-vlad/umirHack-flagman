@@ -1,3 +1,4 @@
+import { orderHandlers } from './order-handlers'
 import { receptionHandlers } from './reception-handlers'
 import { authHandlers } from './auth-handlers'
 import { inventoryHandlers } from './inventory-handlers'
@@ -13,6 +14,7 @@ function missingHandler() {
 
 export const handlers = [
   ...authHandlers,
+  ...orderHandlers,
   ...inventoryHandlers,
   ...supplyHandlers,
   ...receptionHandlers,

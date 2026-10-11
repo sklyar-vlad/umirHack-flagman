@@ -1,4 +1,5 @@
 export const mockScenarios = [
+  { value: 'orders-empty', label: 'Заказы · Пустая история обеих вкладок' },
   { value: 'products-empty', label: 'Продукты · Пустой каталог' },
   { value: 'products-error', label: 'Продукты · Ошибка каталога' },
   { value: 'products-slow', label: 'Продукты · Загрузка' },

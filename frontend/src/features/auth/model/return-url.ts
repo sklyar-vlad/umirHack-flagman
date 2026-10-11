@@ -1,4 +1,5 @@
 import { inventorySearchParams, readInventorySearch, inventorySelectionParams } from '@/entities/inventory'
+import { safeOrderListUrl } from '@/entities/order'
 import { safeSupplyListUrl } from '@/entities/supply'
 
 /** Reject external URLs, ambiguous encodings, login loops and credential-bearing query strings. */
@@ -12,6 +13,10 @@ export function safeReturnUrl(value: string | null | undefined): string {
     inventorySelectionParams(url.searchParams).forEach((value, key) => allowed.set(key, value))
     const params = allowed.toString()
     return url.pathname + (params ? `?${params}` : '')
+  }
+  if (url.pathname === '/orders') return safeOrderListUrl(url.pathname + url.search)
+  if (/^\/orders\/(?:new|[0-9a-f-]{36})$/i.test(url.pathname) && url.searchParams.has('returnTo')) {
+    return `${url.pathname}?returnTo=${encodeURIComponent(safeOrderListUrl(url.searchParams.get('returnTo')))}`
   }
   if (url.pathname === '/supplies') return safeSupplyListUrl(url.pathname + url.search)
   if (/^\/supplies\/(?:new|[0-9a-f-]{36})$/i.test(url.pathname) && url.searchParams.has('returnTo')) {

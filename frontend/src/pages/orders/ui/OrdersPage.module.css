@@ -1,0 +1,25 @@
+.page, .panel { display: grid; gap: var(--space-24); min-width: 0; }
+.header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: var(--space-16); }
+.header h1 { margin: 0 0 var(--space-8); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
+.actions a { text-decoration: none; }
+.filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-16); align-items: start; }
+.filters p { grid-column: 1 / -1; margin: 0; }
+.tabs { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.tabs button { font: inherit; cursor: pointer; padding: var(--space-12) var(--space-16); border: 1px solid var(--color-border); border-radius: var(--radius-6); background: var(--color-surface); color: var(--color-text); }
+.tabs button[aria-selected='true'] { color: var(--color-brand); border-color: var(--color-brand); }
+.page a:focus-visible, .tabs button:focus-visible, .details summary:focus-visible { outline: var(--focus-width) solid var(--color-focus); outline-offset: var(--space-4); border-radius: var(--radius-6); }
+.page td a { color: var(--color-brand); }
+.page td, .page dd, .attemptId { overflow-wrap: anywhere; }
+.composition { margin: 0; padding-left: var(--space-16); }
+.composition span { display: block; }
+.details { margin-top: var(--space-12); }
+.details summary { cursor: pointer; color: var(--color-brand); }
+.details ul { padding-left: var(--space-16); }
+.details dl { display: grid; gap: var(--space-8); }
+.details dd { margin: 0; }
+@media (max-width: 1100px) {
+  .filters { grid-template-columns: 1fr; }
+  .page :global(.ui-table-wrap) { display: none; }
+  .page :global(.ui-mobile-records) { display: block; }
+}

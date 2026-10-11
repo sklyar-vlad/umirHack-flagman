@@ -39,6 +39,7 @@ export function createHealthcheckResponse(scenario: MockScenario): Response {
     case 'reception-conflict':
     case 'reception-in-progress':
     case 'supply-not-found':
+    case 'orders-empty':
     case 'supplies-empty':
     case 'supplies-received':
     case 'inventory-empty':

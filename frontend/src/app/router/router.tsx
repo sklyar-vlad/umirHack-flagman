@@ -7,6 +7,7 @@ import { SectionLanding, SectionPage } from '@/pages/section'
 import { RouteStatusPage } from '@/pages/route-status'
 import { InventoryPage } from '@/pages/inventory'
 import { SuppliesPage, SupplyEntryPage, SupplyDetailPage } from '@/pages/supplies'
+import { OrdersPage, OrderEntryPage } from '@/pages/orders'
 import { RouteError } from './RouteError'
 import { RouteLoading } from './RouteLoading'
 
@@ -16,10 +17,11 @@ function guarded(section: Section, children = <SectionPage section={section} />)
 const dishes = sections.find((section) => section.id === 'dishes')!
 const administration = sections.find((section) => section.group === 'admin')!
 const supplies = sections.find((section) => section.id === 'supplies')!
+const orders = sections.find((section) => section.id === 'orders')!
 const protectedRoutes: RouteObject[] = [
   ...sections.map((section): RouteObject => ({
     path: section.path,
-    element: guarded(section, section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'recommendations'
+    element: guarded(section, section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'recommendations'
       ? <SectionLanding group="recommendations" />
       : <SectionPage section={section} />),
   })),
@@ -27,6 +29,8 @@ const protectedRoutes: RouteObject[] = [
   { path: '/dishes/:id', element: guarded(dishes) },
   { path: '/supplies/new', element: guarded(supplies, <SupplyEntryPage />) },
   { path: '/supplies/:id', element: guarded(supplies, <SupplyDetailPage />) },
+  { path: '/orders/new', element: guarded(orders, <OrderEntryPage />) },
+  { path: '/orders/:id', element: guarded(orders, <OrderEntryPage />) },
   { path: '/forbidden', element: <RouteStatusPage forbidden /> },
   { path: '*', Component: RouteStatusPage },
 ]
