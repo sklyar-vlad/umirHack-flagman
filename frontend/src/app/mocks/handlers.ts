@@ -1,3 +1,4 @@
+import { shortageHandlers } from './shortage-handlers'
 import { writeOffHandlers } from './write-off-handlers'
 import { lossHandlers } from './loss-handlers'
 import { movementHandlers } from './movement-handlers'
@@ -31,6 +32,7 @@ export const handlers = [
   ...auditHandlers,
   ...movementHandlers,
   ...lossHandlers,
+  ...shortageHandlers,
   ...settingsHandlers,
   ...userHandlers,
   ...dashboardHandlers,

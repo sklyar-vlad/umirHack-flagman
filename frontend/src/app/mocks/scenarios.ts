@@ -1,4 +1,10 @@
 export const mockScenarios = [
+  { value: 'shortages-demo', label: 'Недостача · Исторические единицы и страницы' },
+  { value: 'shortages-empty', label: 'Недостача · Пустой отчёт' },
+  { value: 'shortages-slow', label: 'Недостача · Загрузка' },
+  { value: 'shortages-error', label: 'Недостача · Ошибка чтения' },
+  { value: 'shortages-forbidden', label: 'Недостача · Нет доступа' },
+  { value: 'shortages-invalid', label: 'Недостача · Некорректный ответ' },
   { value: 'writeoff-slow', label: 'Списание · Отправка' },
   { value: 'writeoff-network', label: 'Списание · Обрыв сети' },
   { value: 'writeoff-lost-response', label: 'Списание · Ответ потерян после записи' },

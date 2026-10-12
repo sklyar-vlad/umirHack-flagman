@@ -1,3 +1,4 @@
+import { shortageApi } from '@/entities/ingredient-shortage'
 import { lossApi } from '@/entities/write-off-report'
 import { movementApi } from '@/entities/stock-movement'
 import { auditApi } from '@/entities/audit-log'
@@ -27,6 +28,7 @@ export function MockModeBanner() {
     dispatch(baseApi.util.invalidateTags(['Healthcheck']))
     dispatch(auditApi.util.invalidateTags(['AuditLog']))
     dispatch(movementApi.util.invalidateTags(['StockMovements']))
+    dispatch(shortageApi.util.invalidateTags(['IngredientShortages']))
     dispatch(lossApi.util.invalidateTags(['WriteOffReport']))
     dispatch(inventoryApi.util.invalidateTags(['Inventory', 'Batches', 'ProductCategories']))
     dispatch(invalidateSupplies())

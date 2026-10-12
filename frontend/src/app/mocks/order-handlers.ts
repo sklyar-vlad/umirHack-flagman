@@ -1,3 +1,4 @@
+import { shortageDemoAttempts } from './shortage-fixtures'
 import { delay } from 'msw'
 import { http } from 'msw/http'
 import { compareHistoryInstants } from '@/shared/lib/history'
@@ -22,7 +23,7 @@ export const orderHandlers = [http.get('/api/v1/orders/:id', async ({ params }) 
   const url = new URL(request.url), params = url.searchParams
   const search = (params.get('search') ?? '').toLocaleLowerCase('ru'), from = params.get('from'), to = params.get('to'), reason = params.get('reason_code')
   const demos = ['order-detail-demo', 'order-detail-split'].includes(scenario) ? [{ ...orderDetailFixture, total_portions: 2 }] : []
-  const source = scenario === 'orders-empty' ? [] : resource === 'orders' ? [...demos, ...composedOrders(), ...orderFixtures] : [...composedAttempts(), ...attemptFixtures]
+  const source = scenario === 'orders-empty' ? [] : resource === 'orders' ? [...demos, ...composedOrders(), ...orderFixtures] : [...composedAttempts(), ...attemptFixtures, ...(scenario === 'shortages-demo' ? shortageDemoAttempts : [])]
   const items = source.filter((item) => [('number' in item ? item.number : item.id), ...item.items.map((dish) => dish.dish_name)].some((text) => text.toLocaleLowerCase('ru').includes(search))
     && (!from || compareHistoryInstants(item.created_at, from) >= 0) && (!to || compareHistoryInstants(item.created_at, to) < 0)
     && (!reason || 'reason_code' in item && item.reason_code === reason))
