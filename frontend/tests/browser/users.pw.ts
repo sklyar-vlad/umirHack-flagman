@@ -21,7 +21,7 @@ for (const width of [360, 390, 1024, 1440]) {
     await page.screenshot({ path: `test-results/f21-users-${width}.png`, fullPage: false }); await card(page).screenshot({ path: `test-results/f21-user-card-${width}.png` })
     for (const [link, title, path] of [[`Редактировать: ${anna}`, 'Редактирование пользователя', `/admin/users/${id}/edit`], [`Сбросить пароль: ${anna}`, 'Сброс пароля пользователя', `/admin/users/${id}/password`], ['Создать пользователя', 'Создание пользователя', '/admin/users/new']]) {
       await page.getByRole('link', { name: link, exact: true }).focus(); await page.keyboard.press('Enter'); await expect(page.getByRole('heading', { name: title })).toBeVisible(); expect(new URL(page.url()).pathname).toBe(path)
-      await expect(page.getByRole('heading', { name: 'Форма будет доступна в следующей истории' })).toBeVisible(); await page.getByRole('link', { name: 'В список пользователей' }).click(); await expect(card(page)).toBeVisible()
+      if (title === 'Сброс пароля пользователя') { await expect(page.getByRole('dialog', { name: 'Сброс пароля', exact: true })).toBeVisible(); await page.keyboard.press('Escape') } else await expect(page.getByLabel('Имя пользователя')).toBeVisible(); await page.getByRole('link', { name: 'В список пользователей' }).click(); await expect(card(page)).toBeVisible()
     }
     expect(reads.every((url) => !url.pathname.includes('/password') && !url.searchParams.has('password'))).toBe(true); expect(writes).toEqual([]); expect(errors).toEqual([])
   })
@@ -69,6 +69,7 @@ test('F21 session restoration preserves only user filters and nested return URL'
   await context.clearCookies(); await page.goto(target); await expect(page.getByRole('heading', { name: 'Вход в Кладовую' })).toBeVisible()
   const safe = new URL(page.url()).searchParams.get('returnTo')!; expect(safe).not.toContain('unused'); expect(new URL(safe, 'http://local').searchParams.get('returnTo')).toBe('/admin/users?role=admin&page_size=20')
   await page.getByLabel('Сценарий API').selectOption('role-admin'); await page.getByLabel(/^Email/).fill('employee@example.test'); await page.getByLabel(/^Пароль/).fill('local-test-only'); await page.getByRole('button', { name: 'Войти', exact: true }).click(); await expect(page.getByRole('heading', { name: 'Сброс пароля пользователя' })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Сброс пароля', exact: true })).toBeVisible(); await page.keyboard.press('Escape')
   await page.getByRole('link', { name: 'В список пользователей' }).click(); await expect(card(page)).toBeVisible(); expect(new URL(page.url()).searchParams.get('role')).toBe('admin')
 })
 for (const role of ['manager', 'storekeeper', 'order_operator']) {

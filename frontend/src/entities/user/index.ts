@@ -1,5 +1,10 @@
-export { userSchema, userListSchema, roleListSchema } from './model/contracts'
+export { userSchema, userListSchema, roleListSchema, userRoleSchema } from './model/contracts'
 export type { User, UserList, RoleList } from './model/contracts'
 export { defaultUserSearch, readUserSearch, userSearchParams, changeUserSearch, safeUserListUrl } from './model/user-search'
 export type { UserSearch } from './model/user-search'
-export { userApi, useUsersQuery, useRolesQuery } from './api/user-api'
+export { userApi, useUsersQuery, useRolesQuery, useLazyUserQuery } from './api/user-api'
+
+export { userNameSchema, userEmailSchema, userPasswordSchema, createUserSchema, updateUserSchema, resetUserPasswordSchema } from './model/user-work'
+export type { CreateUser, UpdateUser, ResetUserPassword } from './model/user-work'
+export { writeUser } from './api/write-user'
+export type { UserWrite } from './api/write-user'

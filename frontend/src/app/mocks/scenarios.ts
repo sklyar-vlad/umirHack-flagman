@@ -1,4 +1,11 @@
 export const mockScenarios = [
+  { value: 'user-save-slow', label: 'Пользователь · Сохранение' },
+  { value: 'user-email-conflict', label: 'Пользователь · Адрес занят' },
+  { value: 'user-last-admin', label: 'Пользователь · Последний admin' },
+  { value: 'user-revision-conflict', label: 'Пользователь · Конфликт ревизии' },
+  { value: 'user-validation', label: 'Пользователь · Поля 422' },
+  { value: 'user-lost-response', label: 'Пользователь · Ответ потерян после записи' },
+  { value: 'user-not-found', label: 'Пользователь · Не найден' },
   { value: 'users-empty', label: 'Пользователи · Пустой список' },
   { value: 'users-error', label: 'Пользователи · Ошибка списка' },
   { value: 'users-slow', label: 'Пользователи · Загрузка' },

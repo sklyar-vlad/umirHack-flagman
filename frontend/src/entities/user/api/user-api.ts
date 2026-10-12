@@ -1,10 +1,19 @@
 import { baseApi, type ApiError } from '@/shared/api'
-import { userListSchema, roleListSchema, type UserList, type RoleList } from '../model/contracts'
+import { userListSchema, roleListSchema, type UserList, type RoleList, userSchema, type User } from '../model/contracts'
 import type { UserSearch } from '../model/user-search'
 
 const invalid: ApiError = { status: 'INVALID_RESPONSE', code: 'INVALID_RESPONSE', message: 'Некорректный ответ списка пользователей или ролей.', details: {} }
 export const userApi = baseApi.enhanceEndpoints({ addTagTypes: ['Users', 'Roles'] }).injectEndpoints({
   endpoints: (build) => ({
+    user: build.query<User, string>({
+      providesTags: ['Users'],
+      queryFn: async (id, _api, _options, query) => {
+        const result = await query(`/users/${id}`)
+        if (result.error) return { error: result.error }
+        const parsed = userSchema.safeParse(result.data)
+        return parsed.success && parsed.data.id.toLowerCase() === id.toLowerCase() ? { data: parsed.data } : { error: invalid }
+      },
+    }),
     users: build.query<UserList, UserSearch>({
       providesTags: ['Users'],
       queryFn: async ({ search, ...params }, _api, _options, query) => {
@@ -28,4 +37,4 @@ export const userApi = baseApi.enhanceEndpoints({ addTagTypes: ['Users', 'Roles'
     }),
   }),
 })
-export const { useUsersQuery, useRolesQuery } = userApi
+export const { useUsersQuery, useRolesQuery, useLazyUserQuery } = userApi

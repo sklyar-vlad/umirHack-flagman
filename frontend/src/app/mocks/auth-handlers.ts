@@ -1,6 +1,7 @@
 import { delay } from 'msw'
 import { http } from 'msw/http'
 import { createMockError } from './responses'
+import { getMockSessionUser } from './user-fixtures'
 import { getMockScenario } from './scenarios'
 
 const cookieName = 'flagman_mock_session'
@@ -18,7 +19,7 @@ function roleFixture() {
   const stored = document.cookie.split(';').find((value) => value.trim().startsWith('flagman_mock_role='))?.split('=')[1]
   const selected = scenario === 'role-admin' ? 'admin' : scenario === 'role-storekeeper' ? 'storekeeper' : scenario === 'role-order-operator' ? 'order_operator' : null
   const role = selected ?? (['admin', 'storekeeper', 'order_operator'].includes(stored ?? '') ? stored : 'manager')
-  return { ...fixture, user: { ...fixture.user, role } }
+  return { ...fixture, user: getMockSessionUser() ?? { ...fixture.user, role } }
 }
 function hasSession() {
   // Deliberately readable mock-only cookie, never a replacement for server HttpOnly auth.

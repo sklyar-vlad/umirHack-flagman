@@ -10,6 +10,7 @@ import { http } from 'msw/http'
 import { userApi, userSchema, roleListSchema, defaultUserSearch, readUserSearch, userSearchParams, changeUserSearch, safeUserListUrl } from '@/entities/user'
 import { initialSessionState, sessionReducer, sections, type Role } from '@/entities/session'
 import { RoleGate } from '@/features/access'
+import { AuthContext, type SessionController } from '@/features/auth'
 import { safeReturnUrl } from '@/features/auth/model/return-url'
 import { userHandlers } from '@/app/mocks/user-handlers'
 import { mockUsers, mockRoles, mockUserList } from '@/app/mocks/user-fixtures'
@@ -34,12 +35,14 @@ function mount(path = '/admin/users', role: Role = 'admin') {
     { path: '/admin/users/:id/edit', element: guard(<UserEntryPage />) },
     { path: '/admin/users/:id/password', element: guard(<UserEntryPage password />) },
   ], { initialEntries: [path] })
-  render(<Provider store={store}><RouterProvider router={router} /></Provider>)
+  const auth: SessionController = { restore: vi.fn(async () => true), login: vi.fn(), logout: vi.fn(), expire: vi.fn(), hasAccess: () => true, getVersion: () => 0, registerSubscription: () => () => false }
+  render(<Provider store={store}><AuthContext.Provider value={auth}><RouterProvider router={router} /></AuthContext.Provider></Provider>)
   return { store, router, user: userEvent.setup() }
 }
 const ready = () => screen.findByRole('article', { name: `Пользователь: ${mockUsers[0].name}` })
 beforeAll(() => {
   vi.stubGlobal('Request', class extends NativeRequest { constructor(input: RequestInfo | URL, init?: RequestInit) { super(typeof input === 'string' && input.startsWith('/') ? `${window.location.origin}${input}` : input, init) } })
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }; HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
   server.listen({ onUnhandledFrame: 'error' }); server.events.on('request:start', ({ request }) => requests.push(request))
 })
 beforeEach(() => { setMockScenario('success'); requests.length = 0; document.cookie = 'flagman_mock_role=admin; Path=/' })
@@ -85,10 +88,11 @@ describe('F21 safe published user reads', () => {
     const { user, router } = mount('/admin/users?role=admin'); await ready()
     for (const [link, heading] of [[`Редактировать: ${mockUsers[0].name}`, 'Редактирование пользователя'], [`Сбросить пароль: ${mockUsers[0].name}`, 'Сброс пароля пользователя'], ['Создать пользователя', 'Создание пользователя']]) {
       screen.getByRole('link', { name: link }).focus(); await user.keyboard('{Enter}'); await screen.findByRole('heading', { name: heading })
-      expect(screen.getByRole('heading', { name: 'Форма будет доступна в следующей истории' })).toBeTruthy()
+      if (heading === 'Сброс пароля пользователя') { await screen.findByRole('dialog', { name: 'Сброс пароля' }); await user.click(screen.getByRole('button', { name: 'Отмена' })) }
+      else await screen.findByLabelText('Имя пользователя')
       await user.click(screen.getByRole('link', { name: 'В список пользователей' })); await ready(); expect(router.state.location.search).toBe('?role=admin')
     }
-    expect(requests.every((r) => r.method === 'GET' && !/\/users\//.test(r.url))).toBe(true)
+    expect(requests.every((r) => r.method === 'GET' && ['/api/v1/roles', '/api/v1/users', `/api/v1/users/${mockUsers[0].id}`].includes(new URL(r.url).pathname))).toBe(true)
   })
   it('clears unsubmitted search on reset even when the URL already has default filters', async () => {
     const { user, router } = mount(); await ready()

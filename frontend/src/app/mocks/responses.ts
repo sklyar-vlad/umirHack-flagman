@@ -29,6 +29,13 @@ export function createMockError(
 /** Ошибки здесь намеренно форсируются для проверки транспорта, не прав healthcheck. */
 export function createHealthcheckResponse(scenario: MockScenario): Response {
   switch (scenario) {
+    case 'user-save-slow':
+    case 'user-email-conflict':
+    case 'user-last-admin':
+    case 'user-revision-conflict':
+    case 'user-validation':
+    case 'user-lost-response':
+    case 'user-not-found':
     case 'users-empty':
     case 'users-error':
     case 'users-slow':

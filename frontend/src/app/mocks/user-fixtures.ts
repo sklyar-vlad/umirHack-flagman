@@ -12,6 +12,21 @@ export const mockUsers: User[] = [
 ]
 export function mockUserList(values: UserSearch, empty = false) {
   const search = values.search.toLocaleLowerCase('ru')
-  const filtered = (empty ? [] : mockUsers).filter((user) => (user.name.toLocaleLowerCase('ru').includes(search) || user.email.toLocaleLowerCase('ru').includes(search)) && (values.role === 'all' || user.role === values.role) && (values.is_active === 'all' || String(user.is_active) === values.is_active)).sort((a, b) => a.name.localeCompare(b.name, 'ru') || a.id.localeCompare(b.id))
+  const filtered = (empty ? [] : [...users.values()]).filter((user) => (user.name.toLocaleLowerCase('ru').includes(search) || user.email.toLocaleLowerCase('ru').includes(search)) && (values.role === 'all' || user.role === values.role) && (values.is_active === 'all' || String(user.is_active) === values.is_active)).sort((a, b) => a.name.localeCompare(b.name, 'ru') || a.id.localeCompare(b.id))
   return { items: filtered.slice((values.page - 1) * values.page_size, values.page * values.page_size), total: filtered.length, page: values.page, page_size: values.page_size, meta: {} }
+}
+
+let users = new Map(mockUsers.map((user) => [user.id, { ...user }]))
+let ownUser: User | undefined
+export const mockActorId = '11111111-1111-4111-8111-111111111111'
+export function resetMockUsers() { users = new Map(mockUsers.map((user) => [user.id, { ...user }])); ownUser = undefined }
+export function getMockSessionUser() { return ownUser }
+export function getMockUser(id: string): User | undefined {
+  if (id.toLowerCase() === mockActorId) return ownUser ?? { id: mockActorId, name: 'Тестовый сотрудник', email: 'employee@example.test', role: 'admin', is_active: true, revision: 1, created_at: '2026-01-01T00:00:00Z', last_login_at: null }
+  return users.get(id.toLowerCase())
+}
+export function storeMockUser(user: User) { if (user.id === mockActorId) ownUser = user; else users.set(user.id, user) }
+export function mockEmailUsed(email: string, except?: string) { return [...users.values(), ...(ownUser ? [ownUser] : [])].some((user) => user.email === email && user.id !== except) }
+export function mockLastAdmin(user: User, role: User['role'], active: boolean) {
+  return user.role === 'admin' && user.is_active && (role !== 'admin' || !active) && ![...users.values(), ...(ownUser ? [ownUser] : [])].some((other) => other.id !== user.id && other.role === 'admin' && other.is_active)
 }
