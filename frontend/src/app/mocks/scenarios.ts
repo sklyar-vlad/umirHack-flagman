@@ -1,4 +1,9 @@
 export const mockScenarios = [
+  { value: 'movements-empty', label: 'Движения · Пустая история' },
+  { value: 'movements-slow', label: 'Движения · Загрузка' },
+  { value: 'movements-error', label: 'Движения · Ошибка чтения' },
+  { value: 'movements-forbidden', label: 'Движения · Нет доступа' },
+  { value: 'movements-invalid', label: 'Движения · Некорректный ответ' },
   { value: 'audit-empty', label: 'Журнал · Пустой список' },
   { value: 'audit-slow', label: 'Журнал · Загрузка' },
   { value: 'audit-error', label: 'Журнал · Ошибка чтения' },

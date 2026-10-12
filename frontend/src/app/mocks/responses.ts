@@ -29,6 +29,11 @@ export function createMockError(
 /** Ошибки здесь намеренно форсируются для проверки транспорта, не прав healthcheck. */
 export function createHealthcheckResponse(scenario: MockScenario): Response {
   switch (scenario) {
+    case 'movements-empty':
+    case 'movements-slow':
+    case 'movements-error':
+    case 'movements-forbidden':
+    case 'movements-invalid':
     case 'audit-empty':
     case 'audit-slow':
     case 'audit-error':
