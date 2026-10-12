@@ -11,6 +11,7 @@ export const dishSchema = basketDishSchema.extend({
   meta: z.object({ server_time: z.string().refine((value) => { try { parseApiDateTime(value); return true } catch { return false } }) }).passthrough(),
 })
 export const dishListSchema = z.object({ items: z.array(dishSchema), total: z.number().int().nonnegative(), page: z.number().int().positive(), page_size: z.number().int().min(1).max(100), meta: z.object({}).passthrough() })
+export type DishList = z.infer<typeof dishListSchema>
 export type Dish = z.infer<typeof dishSchema>
 export const stopListSchema = dishListSchema.extend({ meta: dishSchema.shape.meta }).refine(({ items }) =>
   items.every((dish) => dish.is_active && !dish.is_available && !dish.unavailability_reasons.includes('dish_inactive')) && new Set(items.map((dish) => dish.id.toLowerCase())).size === items.length,

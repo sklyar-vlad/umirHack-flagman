@@ -1,5 +1,6 @@
+import type { DishSearch } from '../model/dish-search'
 import { baseApi, type ApiError } from '@/shared/api'
-import { dishSchema, dishListSchema, stopListSchema, type Dish, type StopList } from '../model/contracts'
+import { dishSchema, dishListSchema, stopListSchema, type Dish, type DishList, type StopList } from '../model/contracts'
 import { hotOffersListSchema, type HotOffersList } from '../model/hot-offer-contracts'
 import type { HotOfferSearch } from '../model/hot-offer-search'
 import type { StopListSearch } from '../model/stop-list-search'
@@ -24,6 +25,18 @@ export const dishApi = baseApi.enhanceEndpoints({ addTagTypes: ['Dishes', 'StopL
       return parsed.success && parsed.data.page === args.page && parsed.data.page_size === args.page_size && parsed.data.items.length <= args.page_size && parsed.data.items.length <= parsed.data.total ? { data: parsed.data } : { error: invalid('Некорректный ответ стоп-листа.') }
     },
   }),
+  adminDishes: build.query<DishList, DishSearch>({
+    providesTags: ['Dishes'],
+    queryFn: async ({ search, ...params }, _api, _options, query) => {
+      const result = await query({ url: '/dishes', params: { ...params, ...(search && { search }) } })
+      if (result.error) return { error: result.error }
+      const parsed = dishListSchema.safeParse(result.data)
+      if (!parsed.success) return { error: invalid() }
+      const data = parsed.data
+      if (data.page !== params.page || data.page_size !== params.page_size || data.items.length > params.page_size || data.items.length > data.total || new Set(data.items.map((dish) => dish.id.toLowerCase())).size !== data.items.length || data.items.some((dish) => params.is_active !== 'all' && dish.is_active !== (params.is_active === 'true') || params.availability !== 'all' && dish.is_available !== (params.availability === 'available'))) return { error: invalid() }
+      return { data }
+    },
+  }),
   dishes: build.query<{ items: Dish[]; total: number }, { search: string; page: number }>({
     providesTags: ['Dishes'],
     queryFn: async (args, _api, _options, query) => {
@@ -43,4 +56,4 @@ export const dishApi = baseApi.enhanceEndpoints({ addTagTypes: ['Dishes', 'StopL
     },
   }),
 }) })
-export const { useDishesQuery, useLazyDishQuery, useDishQuery, useStopListQuery, useHotOffersQuery } = dishApi
+export const { useAdminDishesQuery, useDishesQuery, useLazyDishQuery, useDishQuery, useStopListQuery, useHotOffersQuery } = dishApi

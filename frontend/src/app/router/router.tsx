@@ -1,3 +1,4 @@
+import { DishesPage, DishEntryPage } from '@/pages/admin-dishes'
 import { createBrowserRouter, type RouteObject } from 'react-router'
 import { sections, type Section } from '@/entities/session'
 import { SessionGate, SessionLogout } from '@/features/auth'
@@ -26,7 +27,7 @@ const orders = sections.find((section) => section.id === 'orders')!
 const protectedRoutes: RouteObject[] = [
   ...sections.map((section): RouteObject => ({
     path: section.path,
-    element: guarded(section, section.id === 'products' ? <ProductsPage /> : section.id === 'categories' ? <CategoriesPage /> : section.id === 'overview' ? <DashboardPage /> : section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'offers' ? <HotOffersPage /> : section.id === 'procurement' ? <ProcurementPage /> : section.id === 'recommendations'
+    element: guarded(section, section.id === 'recipes' ? <DishesPage /> : section.id === 'products' ? <ProductsPage /> : section.id === 'categories' ? <CategoriesPage /> : section.id === 'overview' ? <DashboardPage /> : section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'offers' ? <HotOffersPage /> : section.id === 'procurement' ? <ProcurementPage /> : section.id === 'recommendations'
       ? <RecommendationsLanding />
       : <SectionPage section={section} />),
   })),
@@ -34,6 +35,10 @@ const protectedRoutes: RouteObject[] = [
   { path: '/admin/products/new', element: guarded(sections.find((section) => section.id === 'products')!, <ProductEntryPage />) },
   { path: '/admin/products/:id', element: guarded(sections.find((section) => section.id === 'products')!, <ProductEntryPage />) },
   { path: '/admin/products/:id/edit', element: guarded(sections.find((section) => section.id === 'products')!, <ProductEntryPage />) },
+  { path: '/admin/recipes', element: guarded(sections.find((section) => section.id === 'recipes')!, <DishesPage />) },
+  { path: '/admin/dishes/new', element: guarded(sections.find((section) => section.id === 'recipes')!, <DishEntryPage />) },
+  { path: '/admin/dishes/:id', element: guarded(sections.find((section) => section.id === 'recipes')!, <DishEntryPage />) },
+  { path: '/admin/dishes/:id/edit', element: guarded(sections.find((section) => section.id === 'recipes')!, <DishEntryPage />) },
   { path: '/admin', element: guarded(administration, <SectionLanding group="admin" />) },
   { path: '/dishes/:id', element: guarded(dishes) },
   { path: '/supplies/new', element: guarded(supplies, <SupplyEntryPage />) },

@@ -1,4 +1,5 @@
 export const mockScenarios = [
+  { value: 'dish-catalog-new-version', label: 'Блюда · Новая версия рецептуры' },
   { value: 'product-save-slow', label: 'Продукт · Сохранение' },
   { value: 'product-lost-response', label: 'Продукт · Ответ потерян после записи' },
   { value: 'product-revision-conflict', label: 'Продукт · Конфликт ревизии' },

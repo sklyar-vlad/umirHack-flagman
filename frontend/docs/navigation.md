@@ -11,7 +11,7 @@
 | Продвигать блюда `/recommendations/offers` | admin, manager, order_operator |
 | Закупить продукты `/recommendations/procurement` | admin, manager, storekeeper |
 | Аналитика `/analytics`, прогноз `/forecast` | admin, manager |
-| `/admin/products`, `/admin/categories`, `/admin/recipes`, `/admin/users`, `/admin/settings`, `/admin/audit` | admin |
+| `/admin/products`, `/admin/categories`, `/admin/dishes` (совместимый `/admin/recipes`), `/admin/users`, `/admin/settings`, `/admin/audit` | admin |
 
 `/admin` открывает первый доступный административный раздел (продукты). Все роли начинают с обзора. Внутренний returnTo очищается от query/hash и проверяется по наиболее конкретному разделу; запрещённый или неизвестный адрес заменяется стартовой страницей. Прямая ссылка на запрещённый раздел показывает «Недостаточно прав», сохраняя адрес. Неизвестный маршрут показывает 404 внутри оболочки. `/forbidden` доступен для явного экрана отказа.
 

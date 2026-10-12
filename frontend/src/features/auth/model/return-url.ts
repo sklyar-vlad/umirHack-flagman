@@ -4,13 +4,20 @@ import { procurementSearchParams, readProcurementSearch } from '@/entities/procu
 import { inventorySearchParams, readInventorySearch, inventorySelectionParams } from '@/entities/inventory'
 import { safeOrderListUrl } from '@/entities/order'
 import { safeSupplyListUrl } from '@/entities/supply'
-import { readStopListSearch, stopListSearchParams, readHotOfferSearch, hotOfferSearchParams } from '@/entities/dish'
+import { readDishSearch, dishSearchParams, safeDishListUrl, readStopListSearch, stopListSearchParams, readHotOfferSearch, hotOfferSearchParams } from '@/entities/dish'
 
 /** Reject external URLs, ambiguous encodings, login loops and credential-bearing query strings. */
 export function safeReturnUrl(value: string | null | undefined): string {
   if (!value || !value.startsWith('/') || value.startsWith('//') || /[\\\s%]/u.test(value.split(/[?#]/)[0])) return '/'
   const url = new URL(value, 'https://internal.invalid')
   if (url.origin !== 'https://internal.invalid' || /^\/login(?:\/|$)/i.test(url.pathname)) return '/'
+  if (url.pathname === '/admin/dishes' || url.pathname === '/admin/recipes') {
+    const params = dishSearchParams(readDishSearch(url.searchParams))
+    return '/admin/dishes' + (params.size ? `?${params}` : '')
+  }
+  if (/^\/admin\/dishes\/(?:new|[0-9a-f-]{36}(?:\/edit)?)$/i.test(url.pathname) && url.searchParams.has('returnTo')) {
+    return `${url.pathname}?${new URLSearchParams({ returnTo: safeDishListUrl(url.searchParams.get('returnTo')) })}`
+  }
   if (url.pathname === '/admin/products') {
     const params = productSearchParams(readProductSearch(url.searchParams))
     return url.pathname + (params.size ? `?${params}` : '')

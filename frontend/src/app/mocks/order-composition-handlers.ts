@@ -1,3 +1,4 @@
+import { dishCatalog, filterDishCatalog } from './dish-catalog-fixtures'
 import { delay } from 'msw'
 import { http } from 'msw/http'
 import { orderRequestSchema } from '@/shared/api/order-work'
@@ -14,8 +15,9 @@ export const orderCompositionHandlers = [
     if (scenario === 'dishes-slow' || scenario === 'slow') await delay(2000)
     const params = new URL(request.url).searchParams, search = params.get('search')?.toLocaleLowerCase('ru') ?? ''
     const page = Number(params.get('page') ?? 1), page_size = Number(params.get('page_size') ?? 20)
-    const items = scenario === 'dishes-empty' ? [] : compositionDishes(scenario === 'order-recipe-changed', scenario === 'order-inactive').filter((item) => item.name.toLocaleLowerCase('ru').includes(search))
-    return Response.json({ items: items.slice((page - 1) * page_size, page * page_size), total: items.length, page, page_size, meta: {} })
+    const source = params.has('is_active') ? dishCatalog(scenario === 'dish-catalog-new-version') : compositionDishes(scenario === 'order-recipe-changed', scenario === 'order-inactive')
+    const items = scenario === 'dishes-empty' ? [] : filterDishCatalog(source, search, params.get('is_active') ?? 'all', params.get('availability') ?? 'all')
+    return Response.json({ items: items.slice((page - 1) * page_size, page * page_size), total: items.length, page, page_size, meta: { server_time: items[0]?.meta.server_time ?? new Date().toISOString() } })
   }),
   http.get('/api/v1/dishes/:id', async ({ params }) => {
     const scenario = getMockScenario()
@@ -23,7 +25,8 @@ export const orderCompositionHandlers = [
     if (scenario === 'dish-detail-error') return createMockError(500, 'INTERNAL_ERROR', 'Состав недоступен')
     if (scenario === 'dish-detail-missing') return createMockError(404, 'NOT_FOUND', 'Блюдо не найдено')
     if (scenario === 'dish-detail-slow') await delay(1500)
-    const dish = compositionDishes(scenario === 'order-recipe-changed' || scenario === 'order-final-recipe', scenario === 'order-inactive' || scenario === 'order-final-inactive').find((item) => item.id === params.id)
+    const source = dishCatalog(scenario === 'dish-catalog-new-version')
+    const dish = (scenario === 'dish-catalog-new-version' ? source : [...compositionDishes(scenario === 'order-recipe-changed' || scenario === 'order-final-recipe', scenario === 'order-inactive' || scenario === 'order-final-inactive'), ...source]).find((item) => item.id === params.id)
     return dish ? Response.json(dish) : createMockError(404, 'NOT_FOUND', 'Блюдо не найдено')
   }),
   http.post('/api/v1/orders/check', async ({ request }) => {
