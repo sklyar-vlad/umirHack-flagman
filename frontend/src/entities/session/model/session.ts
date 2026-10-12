@@ -32,6 +32,9 @@ const slice = createSlice({
   name: 'session',
   initialState: initialSessionState,
   reducers: {
+    updateSessionSettings: (state, { payload }: PayloadAction<SessionSettings>) => {
+      if (state.status === 'authenticated' && (!state.settings || payload.revision >= state.settings.revision)) state.settings = payload
+    },
     replaceSession: (_state, action: PayloadAction<SessionState>) => {
       const next = action.payload
       const order = next.status === 'authenticated' && next.draftOwner === next.user?.id ? next.drafts.order?.order : undefined
@@ -62,5 +65,5 @@ const slice = createSlice({
   },
 })
 export const sessionReducer = slice.reducer
-export const { replaceSession, saveWorkDraft, clearWorkDraft, replaceBasket } = slice.actions
+export const { replaceSession, saveWorkDraft, clearWorkDraft, replaceBasket, updateSessionSettings } = slice.actions
 export const selectSession = (state: { session: SessionState }) => state.session

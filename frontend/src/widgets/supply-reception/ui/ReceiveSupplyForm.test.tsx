@@ -8,7 +8,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { setupServer } from 'msw/node'
 import { http } from 'msw/http'
 import { baseApi, type CreateSupplyRequest, type ReceptionDraft } from '@/shared/api'
-import { initialSessionState, sessionReducer, type SessionState } from '@/entities/session'
+import { initialSessionState, sessionReducer, updateSessionSettings, type SessionState } from '@/entities/session'
 import { productApi } from '@/entities/product'
 import { receptionHandlers } from '@/app/mocks/reception-handlers'
 import { acceptReception, receptionProducts, receivedSupplies, resetReceptionFixtures } from '@/app/mocks/reception-fixtures'
@@ -59,6 +59,38 @@ afterEach(() => { cleanup(); stores.splice(0).forEach((store) => store.dispatch(
 afterAll(() => { server.close(); vi.unstubAllGlobals() })
 
 describe('published reception UI in explicit MSW', () => {
+  it('retains draft instants/zone on live timezone change until explicit review', async () => {
+    const { user, store } = mount(); await fill(user)
+    const values = store.getState().session.drafts.reception.reception!.values
+    expect(store.getState().session.drafts.reception.reception!.timezone).toBe('Europe/Moscow')
+    const original = receptionPayload(values, receptionProducts, 'Europe/Moscow')
+    store.dispatch(updateSessionSettings({ timezone: 'Asia/Yekaterinburg', restaurantName: 'Тест', expiringThresholdHours: 24, autoWriteoffExpired: false, revision: 2 }))
+    await screen.findByText(/Даты черновика остаются в Europe\/Moscow/)
+    expect(screen.getByLabelText(/^Дата приёмки/)).toHaveProperty('value', '2098-01-01T12:00')
+    expect(screen.getByRole('button', { name: 'Принять поставку' })).toHaveProperty('disabled', true)
+    await user.click(screen.getByRole('button', { name: 'Пересмотреть даты в новой зоне' }))
+    expect(screen.getByLabelText(/^Дата приёмки/)).toHaveProperty('value', '2098-01-01T14:00')
+    expect(store.getState().session.drafts.reception.reception!.timezone).toBe('Asia/Yekaterinburg')
+    await user.click(screen.getByRole('button', { name: 'Принять поставку' })); await screen.findByRole('heading', { name: 'Поставка принята' })
+    expect(requests[0].body).toEqual(original)
+  })
+  it('keeps legacy zone unknown until explicit review, even after further edits', async () => {
+    const { user, store } = mount({ values: { ...emptyReception(), receivedAt: '2098-01-01T12:00' } })
+    await screen.findByText(/Зона старого черновика неизвестна/)
+    await user.type(screen.getByLabelText(/^Номер поставки/), 'Legacy')
+    expect(store.getState().session.drafts.reception.reception!.timezone).toBeUndefined()
+    expect(screen.getByRole('button', { name: 'Принять поставку' })).toHaveProperty('disabled', true)
+    await user.click(screen.getByRole('button', { name: 'Пересмотреть даты в новой зоне' }))
+    expect(store.getState().session.drafts.reception.reception!.timezone).toBe('Europe/Moscow')
+  })
+  it('replays an immutable UTC body without converting it after a timezone change', async () => {
+    const values = { ...emptyReception(), number: 'Точный повтор', receivedAt: '2098-01-01T12:00', items: [{ productId: milk.id, quantity: '1', displayUnit: 'l' as const, expiresAt: '2099-01-01T12:00' }] }
+    const attempt = { key: crypto.randomUUID(), body: receptionPayload(values, receptionProducts, 'Europe/Moscow'), startedAt: Date.now() }
+    const { user, store } = mount({ values, timezone: 'Europe/Moscow', attempt })
+    store.dispatch(updateSessionSettings({ timezone: 'Asia/Yekaterinburg', restaurantName: 'Тест', expiringThresholdHours: 24, autoWriteoffExpired: false, revision: 2 }))
+    await user.click(screen.getByRole('button', { name: 'Повторить исходный запрос' })); await screen.findByRole('heading', { name: 'Поставка принята' })
+    expect(requests[0]).toEqual({ key: attempt.key, body: attempt.body })
+  })
   it('preselects an active product from procurement without sending or filling quantities', async () => {
     mount(undefined, `/supplies/new?product_id=${milk.id}`)
     await waitFor(() => expect((screen.getByLabelText('Продукт, строка 1', { exact: false }) as HTMLSelectElement).value).toBe(milk.id))

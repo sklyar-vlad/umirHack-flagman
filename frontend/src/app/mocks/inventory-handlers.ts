@@ -1,3 +1,4 @@
+import { mockSettings } from './settings-fixtures'
 import { catalogCategories, catalogInventoryItems } from './catalog-fixtures'
 import { consumedCompositionAmounts } from './order-composition-fixtures'
 import { orderDemoInventory, orderDemoSupplies } from './order-detail-warehouse-fixtures'
@@ -27,6 +28,8 @@ function currentInventoryBatches(): Batch[] {
   const consumed = consumedCompositionAmounts()
   return [...orderDemoSupplies().flatMap((supply) => supply.items.map((line) => line.batch)), ...inventoryBatches].map((batch) => {
     const removed = consumed[batch.id] ?? 0
+    const threshold = mockSettings().expiring_threshold_hours * 3600
+    batch = { ...batch, status: batch.status === 'depleted' || batch.status === 'expired' ? batch.status : batch.remaining_seconds <= threshold ? 'expiring' : 'valid' }
     if (!removed) return batch
     const remaining = thousandths(batch.remaining_quantity) - BigInt(removed) * 1000n
     return { ...batch, remaining_quantity: aggregate(remaining), status: remaining === 0n ? 'depleted' : batch.status }
@@ -37,10 +40,10 @@ function receivedInventory() {
   const consumed = consumedCompositionAmounts()
   return catalogInventoryItems().map((original) => {
     const removed = inventoryBatches.filter((batch) => batch.product_id === original.product.id).reduce((sum, batch) => sum + BigInt(consumed[batch.id] ?? 0) * 1000n, 0n)
-    const expiringRemoved = inventoryBatches.filter((batch) => batch.product_id === original.product.id && batch.status === 'expiring').reduce((sum, batch) => sum + BigInt(consumed[batch.id] ?? 0) * 1000n, 0n)
     const current = currentInventoryBatches().filter((batch) => batch.product_id === original.product.id && batch.status !== 'depleted')
     const nearestBatch = current.filter((batch) => batch.status !== 'expired').sort((a, b) => a.expires_at.localeCompare(b.expires_at))[0]
-    const item = removed ? { ...original, has_expiring: current.some((batch) => batch.status === 'expiring'), nearest_expires_at: nearestBatch?.expires_at ?? null, remaining_seconds: nearestBatch?.remaining_seconds ?? null, batches_count: current.length, is_out_of_stock: thousandths(original.available_quantity) === removed, available_quantity: aggregate(thousandths(original.available_quantity) - removed), physical_quantity: aggregate(thousandths(original.physical_quantity) - removed), expiring_quantity: aggregate(thousandths(original.expiring_quantity) - expiringRemoved), deficit_quantity: original.deficit_quantity === null ? null : aggregate(thousandths(original.deficit_quantity) + removed) } : original
+    const updated = { ...original, has_expiring: current.some((batch) => batch.status === 'expiring'), expiring_quantity: aggregate(current.filter((batch) => batch.status === 'expiring').reduce((sum, batch) => sum + thousandths(batch.remaining_quantity), 0n)) }
+    const item = removed ? { ...original, has_expiring: current.some((batch) => batch.status === 'expiring'), nearest_expires_at: nearestBatch?.expires_at ?? null, remaining_seconds: nearestBatch?.remaining_seconds ?? null, batches_count: current.length, is_out_of_stock: thousandths(original.available_quantity) === removed, available_quantity: aggregate(thousandths(original.available_quantity) - removed), physical_quantity: aggregate(thousandths(original.physical_quantity) - removed), expiring_quantity: updated.expiring_quantity, deficit_quantity: original.deficit_quantity === null ? null : aggregate(thousandths(original.deficit_quantity) + removed) } : mockSettings().expiring_threshold_hours === 24 ? original : updated
     const lines = batches.filter((batch) => batch.product_id === item.product.id)
     if (!lines.length) return item
     const total = lines.reduce((sum, line) => sum + parseQuantity(line.remaining_quantity)!, 0n)

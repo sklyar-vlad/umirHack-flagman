@@ -81,7 +81,7 @@ describe('F21 safe published user reads', () => {
     await user.selectOptions(screen.getByLabelText('Активность'), 'true'); await screen.findByRole('heading', { name: 'Ничего не найдено' }); expect(screen.queryAllByRole('article')).toHaveLength(0)
     await act(async () => { await router.navigate(-1) }); await screen.findByRole('article', { name: `Пользователь: ${mockUsers[1].name}` })
     await user.click(screen.getAllByRole('button', { name: 'Сбросить фильтры' })[0]); await ready()
-    await user.type(screen.getByLabelText('Поиск по имени или email'), 'VERA@EXAMPLE.TEST'); await user.keyboard('{Enter}'); await screen.findByRole('article', { name: `Пользователь: ${mockUsers[2].name}` }); expect(screen.getAllByRole('article')).toHaveLength(1)
+    await user.type(screen.getByLabelText('Поиск по имени или email'), 'VERA@EXAMPLE.TEST'); await user.keyboard('{Enter}'); await waitFor(() => { expect(new URLSearchParams(router.state.location.search).get('search')).toBe('VERA@EXAMPLE.TEST'); expect(screen.getAllByRole('article')).toHaveLength(1); expect(screen.getByRole('article', { name: `Пользователь: ${mockUsers[2].name}` })).toBeTruthy() })
     await user.clear(screen.getByLabelText('Поиск по имени или email')); await user.type(screen.getByLabelText('Поиск по имени или email'), '%_\\'); await user.keyboard('{Enter}'); await screen.findByRole('article', { name: 'Пользователь: Менеджер 01 %_\\' }); expect(new URLSearchParams(router.state.location.search).get('search')).toBe('%_\\')
   })
   it('has keyboard create/edit/password entries and safe return filters without writes', async () => {

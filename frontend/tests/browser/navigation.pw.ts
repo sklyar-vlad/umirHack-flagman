@@ -81,7 +81,7 @@ for (const role of ['admin', 'manager', 'storekeeper', 'order_operator']) for (c
       await expect(page.getByRole('heading', { name: 'Пользователи и роли', exact: true })).toBeVisible()
       await expect(page.getByRole('article', { name: 'Пользователь: Анна Администратор' })).toContainText('anna@example.test')
       await page.goto('/admin/settings')
-      await expect(page.getByRole('heading', { name: 'Админ-панель', exact: true })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Настройки ресторана', exact: true })).toBeVisible()
       await expect(page.getByRole('navigation', { name: 'Административные разделы' }).getByRole('link')).toHaveCount(6)
       await (await navigation(page, width)).getByRole('link', { name: 'Админ-панель', exact: true }).click()
       await expect(page).toHaveURL('/admin/products')

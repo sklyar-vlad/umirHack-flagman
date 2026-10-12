@@ -1,4 +1,11 @@
 export const mockScenarios = [
+  { value: 'settings-read-slow', label: 'Настройки · Загрузка' },
+  { value: 'settings-read-error', label: 'Настройки · Ошибка чтения' },
+  { value: 'settings-save-slow', label: 'Настройки · Сохранение' },
+  { value: 'settings-revision-conflict', label: 'Настройки · Конфликт ревизии' },
+  { value: 'settings-validation', label: 'Настройки · Поля 422' },
+  { value: 'settings-feature-unavailable', label: 'Настройки · Worker не готов' },
+  { value: 'settings-lost-response', label: 'Настройки · Ответ потерян после записи' },
   { value: 'user-save-slow', label: 'Пользователь · Сохранение' },
   { value: 'user-email-conflict', label: 'Пользователь · Адрес занят' },
   { value: 'user-last-admin', label: 'Пользователь · Последний admin' },

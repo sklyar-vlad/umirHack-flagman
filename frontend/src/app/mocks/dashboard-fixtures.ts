@@ -9,11 +9,13 @@ import { hotOfferItems } from './hot-offer-fixtures'
 import { procurementItems } from './procurement-fixtures'
 import { stopListDishes } from './stop-list-fixtures'
 import { getMockScenario } from './scenarios'
+import { mockSettings } from './settings-fixtures'
 
 /** Synthetic snapshot only; production never computes dashboard counters in the browser. */
 export function dashboardSnapshot(role: Role = 'manager'): Dashboard {
   const scenario = getMockScenario(), now = Date.now(), server_time = new Date(now).toISOString()
-  const settings = { restaurant_name: 'Тестовый ресторан', timezone: 'Europe/Moscow', expiring_threshold_hours: 24 }
+  const { restaurant_name, timezone, expiring_threshold_hours } = mockSettings()
+  const settings = { restaurant_name, timezone, expiring_threshold_hours }
   if (scenario === 'dashboard-empty') return { expiring_batches_count: 0, expired_batches_count: 0, stop_list_dishes_count: 0, out_of_stock_products_count: 0, attention_batches: [], attention_total: 0, hot_offers: [], procurement_recommendations: [], settings, meta: { server_time } }
   const consumed = consumedCompositionAmounts()
   // Base fixtures use a deliberately fixed snapshot. Move their relative deadlines
@@ -22,7 +24,7 @@ export function dashboardSnapshot(role: Role = 'manager'): Dashboard {
   const receipts = receivedSupplies().flatMap((supply) => supply.items.map((line) => line.batch))
   const batches = [...base, ...receipts].map((batch) => ({ ...batch, remaining_quantity: serializeQuantity(parseQuantity(batch.remaining_quantity)! - parseQuantity(String(consumed[batch.id] ?? 0))!)! }))
     .filter((batch) => parseQuantity(batch.remaining_quantity)! > 0n)
-  const attention: Dashboard['attention_batches'] = batches.filter((batch) => Date.parse(batch.expires_at) <= now + 86400000)
+  const attention: Dashboard['attention_batches'] = batches.filter((batch) => Date.parse(batch.expires_at) <= now + expiring_threshold_hours * 3600000)
     .sort((a, b) => a.expires_at.localeCompare(b.expires_at) || a.id.localeCompare(b.id)).map((batch) => ({
       batch_id: batch.id, product_id: batch.product_id, product_name: catalogInventoryItems().find((item) => item.product.id === batch.product_id)!.product.name,
       supply_id: batch.supply.id, supply_number: batch.supply.number, line_number: batch.line_number,

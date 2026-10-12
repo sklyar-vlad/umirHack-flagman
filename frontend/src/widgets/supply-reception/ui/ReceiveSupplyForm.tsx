@@ -9,7 +9,7 @@ import { UnsavedChangesGuard } from '@/features/unsaved-changes'
 import { ApiAccessBoundary } from '@/features/access'
 import { isApiError, type ReceptionDraft, type ReceptionValues } from '@/shared/api'
 import { Button, EmptyState, ErrorState, FormField, Input, Select, Skeleton } from '@/shared/ui'
-import { canRetryReception, emptyReception, emptyReceptionLine, fieldViolationsSchema, receptionField, receptionPayload, receptionSchema, uncertainReception } from '@/features/receive-supply'
+import { convertReceptionTimezone, canRetryReception, emptyReception, emptyReceptionLine, fieldViolationsSchema, receptionField, receptionPayload, receptionSchema, uncertainReception } from '@/features/receive-supply'
 import styles from './ReceiveSupplyForm.module.css'
 
 const unitLabels = { g: 'г', kg: 'кг', ml: 'мл', l: 'л', pcs: 'шт.' }
@@ -25,7 +25,12 @@ export function ReceiveSupplyForm({ onReceived, initialProductId }: { initialPro
   const [receive, mutation] = useReceiveSupplyMutation()
   const catalogue = useActiveProductsQuery(undefined, { refetchOnMountOrArgChange: true })
   const products = catalogue.currentData ?? []
-  const timezone = session.settings?.timezone ?? 'Europe/Moscow'
+  const restaurantTimezone = session.settings?.timezone ?? 'Europe/Moscow'
+  const [timezone, setTimezone] = useState(initial?.timezone ?? restaurantTimezone)
+  const zoneRef = useRef(timezone)
+  const [legacyReview, setLegacyReview] = useState(!!initial && !initial.timezone && !!(initial.values.receivedAt || initial.values.items.some((line) => line.expiresAt)))
+  const legacyRef = useRef(legacyReview)
+  const timezoneReview = timezone !== restaurantTimezone || legacyReview
   const form = useForm<ReceptionValues>({ defaultValues: initial?.values ?? emptyReception(), resolver: zodResolver(receptionSchema(products, timezone)) })
   const preselected = useRef(false)
   useEffect(() => {
@@ -45,12 +50,12 @@ export function ReceiveSupplyForm({ onReceived, initialProductId }: { initialPro
   useEffect(() => {
     return form.subscribe({ formState: { values: true }, callback: ({ values }) => {
       if (!values.items?.length) return
-      const draft: ReceptionDraft = { values: form.getValues(), ...(attempt.current ? { attempt: attempt.current } : {}) }
+      const draft: ReceptionDraft = { values: form.getValues(), ...(!legacyRef.current && { timezone: zoneRef.current }), ...(attempt.current ? { attempt: attempt.current } : {}) }
       dispatch(saveWorkDraft({ key: 'reception', draft: { reception: draft } }))
     } })
   }, [dispatch, form])
   async function send(values?: ReceptionValues) {
-    if (busy.current || session.user?.id !== owner.current) return
+    if (busy.current || session.user?.id !== owner.current || !attempt.current && timezoneReview) return
     if (attempt.current && !canRetryReception(attempt.current.startedAt)) {
       setNotice('Срок безопасного повтора истёк. Проверьте историю поставок и обратитесь к ответственному сотруднику для выяснения результата. Новая отправка заблокирована, чтобы избежать дубликата.')
       return
@@ -59,7 +64,7 @@ export function ReceiveSupplyForm({ onReceived, initialProductId }: { initialPro
     form.clearErrors()
     const current = attempt.current ?? { key: crypto.randomUUID(), body: receptionPayload(values!, products, timezone), startedAt: Date.now() }
     attempt.current = current
-    dispatch(saveWorkDraft({ key: 'reception', draft: { reception: { values: form.getValues(), attempt: current } } }))
+    dispatch(saveWorkDraft({ key: 'reception', draft: { reception: { values: form.getValues(), ...(!legacyRef.current && { timezone }), attempt: current } } }))
     setNotice(null)
     try {
       const supply = await receive({ key: current.key, body: current.body }).unwrap()
@@ -78,7 +83,7 @@ export function ReceiveSupplyForm({ onReceived, initialProductId }: { initialPro
       } else {
         attempt.current = undefined
         setUnresolved(false)
-        dispatch(saveWorkDraft({ key: 'reception', draft: { reception: { values: form.getValues() } } }))
+        dispatch(saveWorkDraft({ key: 'reception', draft: { reception: { values: form.getValues(), ...(!legacyRef.current && { timezone }) } } }))
         setNotice(error.status === 409 ? 'Номер поставки уже занят. Измените номер и отправьте новую попытку.' : error.message)
         let first: ReturnType<typeof receptionField> = null
         const violations = fieldViolationsSchema.safeParse(error.details.fields)
@@ -99,6 +104,15 @@ export function ReceiveSupplyForm({ onReceived, initialProductId }: { initialPro
       {!catalogue.isFetching && !catalogue.error && !products.length && <EmptyState title="Нет активных продуктов" description="Для новой приёмки нужен хотя бы один активный продукт." />}
       <form className={styles.form} noValidate onSubmit={(event) => { void form.handleSubmit((values) => send(values))(event) }} aria-label="Приёмка поставки">
         <p className="text-muted">Время ресторана: {timezone}. Одна операция принимает все строки. Актуальный срок годности окончательно проверяет сервер.</p>
+        {timezoneReview && !unresolved && <section aria-label="Пересмотр дат черновика"><p role="alert">{legacyReview ? 'Зона старого черновика неизвестна. Проверьте все даты и подтвердите текущую зону.' : `Часовой пояс ресторана изменён на ${restaurantTimezone}. Даты черновика остаются в ${timezone}; отправка приостановлена.`}</p><Button variant="secondary" onClick={() => {
+          try {
+            const values = convertReceptionTimezone(form.getValues(), timezone, restaurantTimezone)
+            zoneRef.current = restaurantTimezone; legacyRef.current = false; setTimezone(restaurantTimezone); setLegacyReview(false)
+            form.reset(values, { keepDefaultValues: true })
+            dispatch(saveWorkDraft({ key: 'reception', draft: { reception: { values, timezone: restaurantTimezone } } }))
+            setNotice('Даты пересмотрены. Исходные моменты сохранены; проверьте отображение перед приёмкой.')
+          } catch { setNotice('Не удалось перевести даты. Исправьте некорректную или неоднозначную дату в исходной зоне и повторите пересмотр.') }
+        }}>Пересмотреть даты в новой зоне</Button></section>}
         <fieldset disabled={locked} className={styles.fields}>
           <div className={styles.header}>
             <FormField label="Номер поставки" required error={errors.number?.message}>{(props) => <Input {...props} {...form.register('number')} autoComplete="off" />}</FormField>
@@ -127,7 +141,7 @@ export function ReceiveSupplyForm({ onReceived, initialProductId }: { initialPro
           <Button variant="secondary" disabled={fields.length >= 100} onClick={() => append(emptyReceptionLine())}>Добавить строку</Button>
         </fieldset>
         {notice && <p role="alert" className={styles.notice}>{notice}</p>}
-        {unresolved ? <Button onClick={() => { void send() }} loading={mutation.isLoading} loadingLabel="Выясняем результат…">Повторить исходный запрос</Button> : <Button type="submit" loading={mutation.isLoading} loadingLabel="Принимаем поставку…" disabled={catalogue.isFetching || !!catalogue.error || !products.length}>Принять поставку</Button>}
+        {unresolved ? <Button onClick={() => { void send() }} loading={mutation.isLoading} loadingLabel="Выясняем результат…">Повторить исходный запрос</Button> : <Button type="submit" loading={mutation.isLoading} loadingLabel="Принимаем поставку…" disabled={timezoneReview || catalogue.isFetching || !!catalogue.error || !products.length}>Принять поставку</Button>}
       </form>
     </ApiAccessBoundary>
   </>

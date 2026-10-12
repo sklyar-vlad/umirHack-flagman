@@ -29,6 +29,13 @@ export function createMockError(
 /** Ошибки здесь намеренно форсируются для проверки транспорта, не прав healthcheck. */
 export function createHealthcheckResponse(scenario: MockScenario): Response {
   switch (scenario) {
+    case 'settings-read-slow':
+    case 'settings-read-error':
+    case 'settings-save-slow':
+    case 'settings-revision-conflict':
+    case 'settings-validation':
+    case 'settings-feature-unavailable':
+    case 'settings-lost-response':
     case 'user-save-slow':
     case 'user-email-conflict':
     case 'user-last-admin':

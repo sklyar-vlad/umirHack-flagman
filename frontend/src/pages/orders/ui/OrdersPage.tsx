@@ -39,7 +39,7 @@ export function OrdersPage() {
         selectTab(next); document.getElementById(`history-tab-${next}`)?.focus()
       }}>{key === 'orders' ? 'Успешные заказы' : 'Отклонённые попытки'}</button>)}</div>
     <section role="tabpanel" id={`history-panel-${tab}`} aria-labelledby={`history-tab-${tab}`} className={styles.panel}>
-      <OrderFilters key={JSON.stringify([tab, current.search, current.from, current.to, values.attempts.reason_code, timezone])} tab={tab} values={{ ...current, reason_code: values.attempts.reason_code }} timezone={timezone} onChange={change} onReset={reset} />
+      <OrderFilters key={JSON.stringify([tab, current.search, current.from, current.to, values.attempts.reason_code])} tab={tab} values={{ ...current, reason_code: values.attempts.reason_code }} timezone={timezone} onChange={change} onReset={reset} />
       {tab === 'attempts' && <p className="text-caption text-muted">У попытки есть собственный ID и причина, без номера успешного заказа. Предварительная проверка и технические ошибки не создают запись в этой истории.</p>}
       {filterError ? <ErrorState title="Некорректные фильтры" description={filterError} /> : <ApiAccessBoundary error={query.error}>
         {query.isFetching && <Skeleton label={`Загрузка ${noun}`} rows={4} />}

@@ -46,3 +46,10 @@ export function historyFilterSchema(timezone: string, original?: Pick<HistorySea
   })
   return z.object({ search: z.string(), from: local(original?.from), to: local(original?.to) }).refine((values) => !historyPeriodError(values), { path: ['to'], message: 'Начало периода должно быть не позже конца.' })
 }
+/** Refuse ambiguous destination wall times before changing any original filter draft. */
+export function convertHistoryTimezone<T extends { search: string; from: string; to: string }>(values: T, original: Pick<HistorySearch, 'from' | 'to'>, from: string, to: string): T {
+  const instants = historyFilterSchema(from, original).parse(values)
+  const projected = { ...values, from: historyInstantToInput(instants.from, to), to: historyInstantToInput(instants.to, to) }
+  historyFilterSchema(to).parse(projected)
+  return projected
+}

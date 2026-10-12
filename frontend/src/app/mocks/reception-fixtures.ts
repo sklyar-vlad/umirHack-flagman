@@ -1,3 +1,4 @@
+import { mockSettings } from './settings-fixtures'
 import { catalogProducts } from './catalog-fixtures'
 import type { SupplyDetail } from '@/entities/supply'
 import type { CreateSupplyRequest } from '@/shared/api'
@@ -25,7 +26,7 @@ export function acceptReception(key: string, body: CreateSupplyRequest): SupplyD
       const product = catalogProducts().find((item) => item.id === line.product_id)!
       const seconds = Math.floor((Date.parse(line.expires_at) - Date.parse(now)) / 1000)
       return { product, batch: { id: crypto.randomUUID(), product_id: product.id, unit: product.unit, supply: { id, number: body.number.trim(), received_at: body.received_at }, line_number: index + 1,
-        initial_quantity: line.quantity, remaining_quantity: line.quantity, produced_at: null, shelf_life_hours: null, expiry_source: 'explicit', expires_at: line.expires_at, remaining_seconds: seconds, status: seconds <= 0 ? 'expired' : seconds <= 86400 ? 'expiring' : 'valid', created_at: now } }
+        initial_quantity: line.quantity, remaining_quantity: line.quantity, produced_at: null, shelf_life_hours: null, expiry_source: 'explicit', expires_at: line.expires_at, remaining_seconds: seconds, status: seconds <= 0 ? 'expired' : seconds <= mockSettings().expiring_threshold_hours * 3600 ? 'expiring' : 'valid', created_at: now } }
     }),
   }
   saved.push({ key, body: JSON.stringify(body), supply })

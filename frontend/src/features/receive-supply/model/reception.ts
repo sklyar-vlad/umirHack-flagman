@@ -3,10 +3,23 @@ import { compareSupplyInstants } from '@/entities/supply'
 import type { Product } from '@/entities/product'
 import { receptionValuesSchema, type CreateSupplyRequest, type ReceptionValues, type ApiError } from '@/shared/api'
 import { quantityFromInput } from '@/shared/lib/quantity'
-import { restaurantDateTimeFromInput } from '@/shared/lib/restaurant-time'
+import { restaurantDateTimeFromInput, restaurantDateTimeToInput } from '@/shared/lib/restaurant-time'
 
 export const emptyReceptionLine = () => ({ productId: '', quantity: '', displayUnit: 'kg' as const, expiresAt: '' })
 export const emptyReception = (): ReceptionValues => ({ number: '', receivedAt: '', items: [emptyReceptionLine()] })
+/** Explicit review preserves instants; immutable pending request bodies are separate. */
+export function convertReceptionTimezone(values: ReceptionValues, from: string, to: string): ReceptionValues {
+  const convert = (value: string) => {
+    if (!value) return ''
+    const instant = restaurantDateTimeFromInput(value, from)!
+    const projected = restaurantDateTimeToInput(instant, to)!
+    // An overlap in the destination zone cannot be represented unambiguously by datetime-local.
+    // Reject the entire conversion before resetting/persisting any original date.
+    if (compareSupplyInstants(restaurantDateTimeFromInput(projected, to)!, instant) !== 0) throw new Error('Не удалось сохранить исходный момент.')
+    return projected
+  }
+  return { ...values, receivedAt: convert(values.receivedAt), items: values.items.map((line) => ({ ...line, expiresAt: convert(line.expiresAt) })) }
+}
 export function receptionSchema(products: Product[], timezone: string) {
   return receptionValuesSchema.superRefine((values, ctx) => {
     const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: 'custom', path, message })

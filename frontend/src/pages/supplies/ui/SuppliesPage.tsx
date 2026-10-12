@@ -33,7 +33,7 @@ export function SuppliesPage() {
       {canReceive && <Link className="ui-button ui-button--primary" to={`/supplies/new?returnTo=${encodeURIComponent(returnTo)}`}>Новая поставка</Link>}
       <Button variant="secondary" disabled={query.isFetching || !!periodError} onClick={() => { void query.refetch() }}>Обновить поставки</Button>
     </div></header>
-    <SupplyFilters key={JSON.stringify([values.search, values.from, values.to, timezone])} values={values} timezone={timezone} onChange={change} onReset={reset} />
+    <SupplyFilters key={JSON.stringify([values.search, values.from, values.to])} values={values} timezone={timezone} onChange={change} onReset={reset} />
     {periodError ? <ErrorState title="Некорректный период" description={periodError} /> : <ApiAccessBoundary error={query.error}>
       {query.isFetching && <Skeleton label="Загрузка поставок" rows={4} />}
       {query.error && <ErrorState title="Не удалось загрузить поставки" description={data ? 'Показан последний успешный список для этих фильтров. Данные могут быть устаревшими.' : 'Попробуйте ещё раз.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}

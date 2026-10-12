@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { parseApiDateTime } from '@/shared/lib/restaurant-time'
+import { isRestaurantTimezone } from './settings-contracts'
 
 const instant = z.string().refine((value) => { try { parseApiDateTime(value); return true } catch { return false } })
 /** Published CreateSupplyRequest: the reception UI uses only explicit expiry. */
@@ -17,6 +18,7 @@ export const receptionValuesSchema = z.object({
 export type ReceptionValues = z.infer<typeof receptionValuesSchema>
 export const receptionDraftSchema = z.object({
   values: receptionValuesSchema,
+  timezone: z.string().refine(isRestaurantTimezone).optional(),
   attempt: z.object({ key: z.uuid(), body: createSupplyRequestSchema, startedAt: z.number().int().nonnegative() }).optional(),
 })
 export type ReceptionDraft = z.infer<typeof receptionDraftSchema>
