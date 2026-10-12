@@ -1,4 +1,10 @@
 export const mockScenarios = [
+  { value: 'losses-empty', label: 'Потери · Пустой отчёт' },
+  { value: 'losses-slow', label: 'Потери · Загрузка' },
+  { value: 'losses-error', label: 'Потери · Ошибка чтения' },
+  { value: 'losses-forbidden', label: 'Потери · Нет доступа' },
+  { value: 'losses-invalid', label: 'Потери · Некорректный ответ' },
+  { value: 'losses-order', label: 'Потери · Дополнительный расход заказа' },
   { value: 'movements-empty', label: 'Движения · Пустая история' },
   { value: 'movements-slow', label: 'Движения · Загрузка' },
   { value: 'movements-error', label: 'Движения · Ошибка чтения' },
