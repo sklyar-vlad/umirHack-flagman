@@ -49,4 +49,4 @@ export const categoryApi = baseApi.enhanceEndpoints({ addTagTypes: ['ProductCate
     }),
   }),
 })
-export const { useCategoriesQuery, useCategoryQuery, useCreateCategoryMutation, useUpdateCategoryMutation } = categoryApi
+export const { useCategoriesQuery, useCategoryQuery, useLazyCategoryQuery, useCreateCategoryMutation, useUpdateCategoryMutation } = categoryApi

@@ -18,6 +18,8 @@ function envelope<T extends { id: string; name: string }>(items: T[], url: URL) 
 function writeError(request: Request) {
   const role = document.cookie.split(';').find((value) => value.trim().startsWith('flagman_mock_role='))?.split('=')[1]
   if (role !== 'admin' && getMockScenario() !== 'role-admin' || request.headers.get('X-CSRF-Token') !== 'mock-csrf-for-local-tests') return createMockError(403, 'FORBIDDEN', 'Изменение доступно только admin с CSRF')
+  if (getMockScenario() === 'category-validation-error') return createMockError(422, 'VALIDATION_ERROR', 'Проверьте название')
+  if (request.method === 'PATCH' && getMockScenario() === 'category-not-found') return createMockError(404, 'NOT_FOUND', 'Категория не найдена')
   if (['network-error', 'unauthorized', 'forbidden', 'server-error', 'rate-limit'].includes(getMockScenario())) return createHealthcheckResponse(getMockScenario())
 }
 export const catalogProductHandlers = [

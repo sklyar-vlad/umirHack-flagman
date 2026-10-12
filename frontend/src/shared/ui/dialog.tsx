@@ -10,15 +10,16 @@ export type DialogProps = {
   actions?: ReactNode
   closeLabel?: string
   initialFocusRef?: { current: HTMLElement | null }
+  returnFocusRef?: { current: HTMLElement | null }
 }
 
-function Modal({ open, onClose, title, description, children, actions, closeLabel = 'Закрыть', initialFocusRef, drawer = false }: DialogProps & { drawer?: boolean }) {
+function Modal({ open, onClose, title, description, children, actions, closeLabel = 'Закрыть', initialFocusRef, returnFocusRef, drawer = false }: DialogProps & { drawer?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null)
   const id = useId()
   useEffect(() => {
     const dialog = ref.current
     if (!dialog || !open) return
-    const previousFocus = document.activeElement
+    const previousFocus = returnFocusRef?.current ?? document.activeElement
     dialog.showModal()
     initialFocusRef?.current?.focus()
     const previousOverflow = document.body.style.overflow
@@ -28,10 +29,21 @@ function Modal({ open, onClose, title, description, children, actions, closeLabe
       document.body.style.overflow = previousOverflow
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus()
     }
-  }, [open, initialFocusRef])
+  }, [open, initialFocusRef, returnFocusRef])
 
   return <dialog ref={ref} className={`ui-dialog${drawer ? ' ui-drawer' : ''}`} aria-labelledby={`${id}-title`} aria-describedby={description ? `${id}-description` : undefined}
-    onCancel={(event) => { event.preventDefault(); onClose() }}>
+    onKeyDown={(event) => {
+      if (event.key !== 'Tab' || event.defaultPrevented) return
+      const dialog = event.currentTarget
+      if (document.activeElement?.closest('dialog') !== dialog) return
+      const controls = [...dialog.querySelectorAll<HTMLElement>('button, a[href], input, select, textarea, [tabindex]')]
+        .filter((element) => element.tabIndex >= 0 && !element.matches(':disabled') && element.getClientRects().length > 0 && element.closest('dialog') === dialog)
+      const first = controls[0], last = controls.at(-1)
+      if (first && last && (event.shiftKey && document.activeElement === first || !event.shiftKey && document.activeElement === last)) {
+        event.preventDefault(); event.stopPropagation(); (event.shiftKey ? last : first).focus()
+      }
+    }}
+    onCancel={(event) => { event.preventDefault(); event.stopPropagation(); onClose() }}>
     <div className="ui-dialog-header"><h2 id={`${id}-title`}>{title}</h2><Button variant="ghost" aria-label={closeLabel} onClick={onClose}><Icon name="close" /></Button></div>
     {description && <p id={`${id}-description`} className="text-muted">{description}</p>}
     <div className="ui-dialog-content">{children}</div>

@@ -1,4 +1,6 @@
 export const mockScenarios = [
+  { value: 'category-validation-error', label: 'Категории · Отказ 422' },
+  { value: 'category-not-found', label: 'Категории · Отказ 404 при изменении' },
   { value: 'categories-empty', label: 'Категории · Пустой каталог' },
   { value: 'category-save-slow', label: 'Категории · Сохранение' },
   { value: 'category-revision-conflict', label: 'Категории · Конфликт ревизии' },

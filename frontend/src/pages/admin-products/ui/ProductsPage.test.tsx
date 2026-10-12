@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { StrictMode } from 'react'
 import { configureStore } from '@reduxjs/toolkit'
 import { Provider } from 'react-redux'
 import { createMemoryRouter, RouterProvider } from 'react-router'
@@ -37,7 +38,7 @@ function mount(path = '/admin/products', role: Role = 'admin') {
     { path: '/admin/products/:id', element: guard('products', <ProductEntryPage />) },
     { path: '*', element: <h1>Склад</h1> },
   ], { initialEntries: [path] })
-  render(<Provider store={store}><RouterProvider router={router} /></Provider>)
+  render(<StrictMode><Provider store={store}><RouterProvider router={router} /></Provider></StrictMode>)
   return { store, router, user: userEvent.setup() }
 }
 const ready = () => screen.findByRole('article', { name: 'Продукт: Молоко' })
@@ -142,8 +143,9 @@ describe('category management', () => {
     await screen.findByText(/Категория изменена другим пользователем/); expect((screen.getByRole('button', { name: 'Сохранить категорию' }) as HTMLButtonElement).disabled).toBe(true)
     expect((field as HTMLInputElement).value).toBe('Крупы')
     await user.click(screen.getByRole('button', { name: 'Загрузить актуальную категорию' })); const fresh = await screen.findByLabelText(/Название категории/)
-    expect((fresh as HTMLInputElement).value).toBe('Бакалея (обновлено)'); expect((screen.getByRole('button', { name: 'Сохранить категорию' }) as HTMLButtonElement).disabled).toBe(true)
-    await user.clear(fresh); await user.type(fresh, 'Крупы'); await user.click(screen.getByRole('button', { name: 'Сохранить категорию' })); await screen.findByText('Сохранена категория: Крупы.')
+    expect((fresh as HTMLInputElement).value).toBe('Крупы');
+    expect(screen.getByText(/Актуальное название: Бакалея/)).toBeTruthy(); expect((screen.getByRole('button', { name: 'Сохранить категорию' }) as HTMLButtonElement).disabled).toBe(true)
+    await user.click(screen.getByRole('button', { name: 'Подтвердить актуальную ревизию' })); await user.click(screen.getByRole('button', { name: 'Сохранить категорию' })); await screen.findByText('Сохранена категория: Крупы.')
     const writes = requests.filter((request) => request.method === 'PATCH'); expect(await writes[0].json()).toEqual({ name: 'Крупы', expected_revision: 1 }); expect(await writes[1].json()).toEqual({ name: 'Крупы', expected_revision: 2 })
   })
   it('preserves dirty editor and expected revision on focus, reconnect and list invalidation', async () => {
@@ -162,7 +164,7 @@ describe('category management', () => {
     const { user } = mount('/admin/categories'); await user.click(screen.getByRole('button', { name: 'Создать категорию' })); await user.type(screen.getByLabelText(/Название категории/), 'Новое имя')
     await user.click(screen.getByRole('button', { name: 'Отмена' })); await screen.findByRole('dialog', { name: 'Отменить изменения категории?' })
     await user.click(screen.getByRole('button', { name: 'Продолжить редактирование' })); expect((screen.getByLabelText(/Название категории/) as HTMLInputElement).value).toBe('Новое имя')
-    await user.click(screen.getByRole('link', { name: 'В каталог продуктов' })); await screen.findByRole('dialog', { name: 'Уйти без сохранения?' }); await user.click(screen.getByRole('button', { name: 'Остаться' }))
+    await user.click(screen.getAllByRole('link', { name: 'В каталог продуктов' }).at(-1)!); await screen.findByRole('dialog', { name: 'Уйти без сохранения?' }); await user.click(screen.getByRole('button', { name: 'Остаться' }))
     await user.click(screen.getByRole('button', { name: 'Отмена' })); await user.click(screen.getByRole('button', { name: 'Отменить изменения' })); expect(screen.queryByLabelText(/Название категории/)).toBeNull()
   })
   it('records an indeterminate write without auto-retrying it', async () => {
@@ -184,5 +186,58 @@ describe('catalogue URL allowlist', () => {
     expect(readProductSearch(productSearchParams(values))).toEqual(values)
     expect(changeProductSearch(values, { category_id: mockId(1) }).page).toBe(1)
     expect(safeReturnUrl('/admin/products?search=Молоко&is_active=false&token=secret')).toBe(`/admin/products?${new URLSearchParams({ search: 'Молоко', is_active: 'false' })}`)
+  })
+})
+
+describe('F18 category review and product draft integration', () => {
+  for (const status of [422, 404]) it(`retains proposed rename after ${status}, distinguishes refusal and locks missing writes`, async () => {
+    const { user } = mount('/admin/categories'); await screen.findByRole('article', { name: 'Категория: Бакалея' })
+    await user.click(screen.getByRole('button', { name: 'Переименовать: Бакалея' })); const field = await screen.findByLabelText(/Название категории/)
+    await user.clear(field); await user.type(field, 'Мой черновик'); setMockScenario(status === 422 ? 'category-validation-error' : 'category-not-found')
+    await user.click(screen.getByRole('button', { name: 'Сохранить категорию' }))
+    await screen.findByText(status === 422 ? /Сервер отклонил название/ : /Категория больше не найдена/)
+    expect((field as HTMLInputElement).value).toBe('Мой черновик')
+    expect((screen.getByRole('button', { name: 'Сохранить категорию' }) as HTMLButtonElement).disabled).toBe(status === 404)
+    if (status === 404) { field.focus(); await user.keyboard('{Enter}'); expect(requests.filter((request) => request.method === 'PATCH')).toHaveLength(1) }
+  })
+  it('retains proposal and old revision lock after a failed conflict reload, never uses stale cached data', async () => {
+    setMockScenario('category-revision-conflict'); const { user } = mount('/admin/categories')
+    await screen.findByRole('article', { name: 'Категория: Бакалея' }); await user.click(screen.getByRole('button', { name: 'Переименовать: Бакалея' }))
+    const field = await screen.findByLabelText(/Название категории/); await user.clear(field); await user.type(field, 'Предложенное имя'); await user.click(screen.getByRole('button', { name: 'Сохранить категорию' }))
+    await screen.findByText(/Категория изменена другим пользователем/); setMockScenario('categories-error')
+    await user.click(screen.getByRole('button', { name: 'Загрузить актуальную категорию' })); await screen.findByText(/Не удалось загрузить актуальную категорию/)
+    expect((field as HTMLInputElement).value).toBe('Предложенное имя'); expect(screen.queryByRole('button', { name: 'Подтвердить актуальную ревизию' })).toBeNull()
+    setMockScenario('success'); await user.click(screen.getByRole('button', { name: 'Загрузить актуальную категорию' })); await screen.findByText(/Актуальное название: Бакалея \(обновлено\)/)
+    field.focus(); await user.keyboard('{Enter}'); expect(requests.filter((request) => request.method === 'PATCH')).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: 'Подтвердить актуальную ревизию' })); await user.click(screen.getByRole('button', { name: 'Сохранить категорию' })); await screen.findByText('Сохранена категория: Предложенное имя.')
+    expect(await requests.filter((request) => request.method === 'PATCH')[1].json()).toEqual({ name: 'Предложенное имя', expected_revision: 2 })
+  })
+  it('returns focus after create and rename and obtains a fresh revision when reopening', async () => {
+    const { user } = mount('/admin/categories'); await screen.findByRole('article', { name: 'Категория: Бакалея' })
+    const opener = screen.getByRole('button', { name: 'Создать категорию' }); await user.click(opener); await user.click(screen.getByRole('button', { name: 'Отмена' })); await waitFor(() => expect(document.activeElement).toBe(opener))
+    const rename = screen.getByRole('button', { name: 'Переименовать: Бакалея' }); await user.click(rename); const field = await screen.findByLabelText(/Название категории/)
+    await user.clear(field); await user.type(field, 'Крупы'); await user.click(screen.getByRole('button', { name: 'Сохранить категорию' })); await screen.findByText('Сохранена категория: Крупы.')
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Переименовать: Крупы' })))
+    await user.click(screen.getByRole('button', { name: 'Переименовать: Крупы' })); await screen.findByLabelText(/Название категории/); expect(screen.getByText(/уникальность проверяет сервер. Ревизия: 2/)).toBeTruthy()
+  })
+  it('creates and selects a category without losing local product name or sending any product write', async () => {
+    const { user, store } = mount('/admin/products/new'); await screen.findByRole('option', { name: 'Бакалея' })
+    await user.type(screen.getByLabelText('Название продукта'), 'Новый продукт'); await user.selectOptions(screen.getByLabelText('Категория продукта'), mockId(2))
+    const choices = store.dispatch(categoryApi.endpoints.categories.initiate({ search: '', sort: 'name', page: 1, page_size: 50 })); await choices
+    const opener = screen.getByRole('button', { name: 'Создать категорию для продукта' }); await user.click(opener)
+    await screen.findByRole('dialog', { name: 'Создание категории' }); await user.type(screen.getByLabelText(/Название категории/), '  Овощи из продукта  '); await user.click(screen.getByRole('button', { name: 'Сохранить категорию' }))
+    await screen.findByRole('option', { name: 'Овощи из продукта' }); expect((screen.getByLabelText('Название продукта') as HTMLInputElement).value).toBe('Новый продукт')
+    const saved = await requests.find((request) => request.method === 'POST')!.json(); expect(saved).toEqual({ name: 'Овощи из продукта' })
+    expect((screen.getByLabelText('Категория продукта') as HTMLSelectElement).selectedOptions[0].text).toBe('Овощи из продукта')
+    await waitFor(() => expect(document.activeElement).toBe(opener)); expect(requests.filter((request) => request.method !== 'GET' && !request.url.includes('/product-categories'))).toHaveLength(0)
+    const refreshed = await store.dispatch(categoryApi.endpoints.categories.initiate({ search: '', sort: 'name', page: 1, page_size: 50 }, { subscribe: false })).unwrap(); expect(refreshed.items.some((category) => category.name === 'Овощи из продукта')).toBe(true); choices.unsubscribe()
+  })
+  it('protects dirty modal cancellation and retains product category on discard', async () => {
+    const { user } = mount('/admin/products/new'); await screen.findByRole('option', { name: 'Бакалея' }); await user.type(screen.getByLabelText('Название продукта'), 'Сохранить имя'); await user.selectOptions(screen.getByLabelText('Категория продукта'), mockId(2))
+    const opener = screen.getByRole('button', { name: 'Создать категорию для продукта' }); await user.click(opener); await user.type(screen.getByLabelText(/Название категории/), 'Не сохранять')
+    await user.click(within(screen.getByRole('dialog', { name: 'Создание категории' })).getByRole('button', { name: 'Закрыть' })); await screen.findByRole('dialog', { name: 'Отменить изменения категории?' })
+    await user.click(screen.getByRole('button', { name: 'Продолжить редактирование' })); expect((screen.getByLabelText(/Название категории/) as HTMLInputElement).value).toBe('Не сохранять')
+    await user.click(screen.getByRole('button', { name: 'Отмена' })); await user.click(screen.getByRole('button', { name: 'Отменить изменения' }))
+    expect((screen.getByLabelText('Категория продукта') as HTMLSelectElement).value).toBe(mockId(2)); expect((screen.getByLabelText('Название продукта') as HTMLInputElement).value).toBe('Сохранить имя'); await waitFor(() => expect(document.activeElement).toBe(opener))
   })
 })

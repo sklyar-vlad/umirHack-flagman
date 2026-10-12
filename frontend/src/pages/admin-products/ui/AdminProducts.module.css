@@ -14,3 +14,4 @@
 .card a:focus-visible { outline: 2px solid var(--color-focus); outline-offset: var(--space-4); }
 @media (max-width: 1100px) { .list { grid-template-columns: 1fr; } }
 @media (max-width: 700px) { .filters { grid-template-columns: 1fr; } .filters form { grid-column: auto; } .card, .form { padding: var(--space-16); } .settings { grid-template-columns: 1fr; } }
+.draft { display: grid; gap: var(--space-16); margin-block: var(--space-24); }
