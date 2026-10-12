@@ -36,7 +36,7 @@ for (const role of ['manager', 'storekeeper', 'order_operator']) {
   test(`${role} cannot mount admin catalogue, forms or category queries`, async ({ page }) => {
     await login(page, role, '/'); await expect(page.getByRole('heading', { name: 'Требуют внимания' })).toBeVisible()
     const reads: string[] = []; page.on('request', (request) => { if (/\/api\/v1\/(products|product-categories)/.test(request.url())) reads.push(request.url()) })
-    for (const path of ['/admin/products', '/admin/products/new', '/admin/products/00000000-0000-4000-8000-000000000010', '/admin/categories']) {
+    for (const path of ['/admin/products', '/admin/products/new', '/admin/products/00000000-0000-4000-8000-000000000010', '/admin/products/00000000-0000-4000-8000-000000000010/edit', '/admin/categories']) {
       await page.goto(path); await expect(page.getByRole('heading', { name: 'Недостаточно прав' })).toBeVisible()
       await expect(page.getByRole('article')).toHaveCount(0)
     }

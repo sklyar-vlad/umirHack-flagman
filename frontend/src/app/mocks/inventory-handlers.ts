@@ -1,4 +1,4 @@
-import { catalogCategories } from './catalog-fixtures'
+import { catalogCategories, catalogInventoryItems } from './catalog-fixtures'
 import { consumedCompositionAmounts } from './order-composition-fixtures'
 import { orderDemoInventory, orderDemoSupplies } from './order-detail-warehouse-fixtures'
 import type { Batch } from '@/entities/inventory'
@@ -35,7 +35,7 @@ function currentInventoryBatches(): Batch[] {
 function receivedInventory() {
   const batches = receivedSupplies().flatMap((supply) => supply.items.map((line) => line.batch))
   const consumed = consumedCompositionAmounts()
-  return inventoryItems.map((original) => {
+  return catalogInventoryItems().map((original) => {
     const removed = inventoryBatches.filter((batch) => batch.product_id === original.product.id).reduce((sum, batch) => sum + BigInt(consumed[batch.id] ?? 0) * 1000n, 0n)
     const expiringRemoved = inventoryBatches.filter((batch) => batch.product_id === original.product.id && batch.status === 'expiring').reduce((sum, batch) => sum + BigInt(consumed[batch.id] ?? 0) * 1000n, 0n)
     const current = currentInventoryBatches().filter((batch) => batch.product_id === original.product.id && batch.status !== 'depleted')

@@ -2,6 +2,7 @@ import { replaceSession } from '@/entities/session'
 import { createSessionController, draftAuthAdapter } from '@/features/auth'
 import { baseApi } from '@/shared/api'
 import { store } from './store'
+import { persistProducts } from './product-persistence'
 import { persistOrder } from './order-persistence'
 import { persistReception } from './reception-persistence'
 import { apiTransport, setCsrfToken } from './session-transport'
@@ -21,7 +22,7 @@ apiTransport.onUnauthorized = authController.expire
 apiTransport.getSessionVersion = authController.getVersion
 apiTransport.hasSessionAccess = authController.hasAccess
 
-// Only the reception allowlist is persisted; session tokens and CSRF stay in memory.
+// Only non-secret work draft allowlists are persisted; session tokens and CSRF stay in memory.
 if (typeof window !== 'undefined') {
-  try { persistReception(store, window.sessionStorage); persistOrder(store, window.sessionStorage) } catch { /* Browser storage disabled. */ }
+  try { persistReception(store, window.sessionStorage); persistOrder(store, window.sessionStorage); persistProducts(store, window.sessionStorage) } catch { /* Browser storage disabled. */ }
 }

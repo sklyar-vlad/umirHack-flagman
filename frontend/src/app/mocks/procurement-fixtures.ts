@@ -1,6 +1,6 @@
 import type { ProcurementItem } from '@/entities/procurement'
 import { parseQuantity } from '@/shared/lib/quantity'
-import { inventoryItems } from './inventory-fixtures'
+import { catalogInventoryItems, changedCatalogProducts } from './catalog-fixtures'
 import { consumedCompositionAmounts } from './order-composition-fixtures'
 import { receivedSupplies } from './reception-fixtures'
 import { stopListDishes } from './stop-list-fixtures'
@@ -11,9 +11,10 @@ export function procurementItems(): ProcurementItem[] {
   if (getMockScenario() === 'procurement-empty') return []
   const now = new Date().toISOString(), dishes = stopListDishes()
   const consumed = Object.values(consumedCompositionAmounts()).reduce((sum, raw) => sum + parseQuantity(String(raw))!, 0n)
-  const candidates = inventoryItems.map((item, index) => {
+  const changed = changedCatalogProducts()
+  const candidates = catalogInventoryItems().map((item, index) => {
     // Dedicated demo targets exercise pagination and an inactive product with a goal.
-    const target = index === 1 ? '3000.000' : index >= 5 ? '1000.001' : item.target_stock
+    const target = changed.some((product) => product.id === item.product.id) ? item.target_stock : index === 1 ? '3000.000' : index >= 5 ? '1000.001' : item.target_stock
     if (target === null || parseQuantity(target) === 0n) return null
     const receipts = receivedSupplies().flatMap((supply) => supply.items).filter((line) => line.product.id === item.product.id && line.batch.expires_at > now).reduce((sum, line) => sum + parseQuantity(line.batch.remaining_quantity)!, 0n)
     const base = getMockScenario() === 'procurement-expired' && index === 0 ? 0n : parseQuantity(item.available_quantity)!

@@ -15,7 +15,7 @@ export function safeReturnUrl(value: string | null | undefined): string {
     const params = productSearchParams(readProductSearch(url.searchParams))
     return url.pathname + (params.size ? `?${params}` : '')
   }
-  if (/^\/admin\/products\/(?:new|[0-9a-f-]{36})$/i.test(url.pathname) && url.searchParams.has('returnTo')) {
+  if (/^\/admin\/products\/(?:new|[0-9a-f-]{36}(?:\/edit)?)$/i.test(url.pathname) && url.searchParams.has('returnTo')) {
     return `${url.pathname}?${new URLSearchParams({ returnTo: safeProductListUrl(url.searchParams.get('returnTo')) })}`
   }
   // Published warehouse filters and F07 UI-only product/supply selection.

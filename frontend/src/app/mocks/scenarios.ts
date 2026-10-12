@@ -1,4 +1,12 @@
 export const mockScenarios = [
+  { value: 'product-save-slow', label: 'Продукт · Сохранение' },
+  { value: 'product-lost-response', label: 'Продукт · Ответ потерян после записи' },
+  { value: 'product-revision-conflict', label: 'Продукт · Конфликт ревизии' },
+  { value: 'product-validation-error', label: 'Продукт · Поля 422' },
+  { value: 'product-unit-locked', label: 'Продукт · UNIT_LOCKED' },
+  { value: 'product-in-use', label: 'Продукт · PRODUCT_IN_USE' },
+  { value: 'product-not-found', label: 'Продукт · Не найден' },
+
   { value: 'category-validation-error', label: 'Категории · Отказ 422' },
   { value: 'category-not-found', label: 'Категории · Отказ 404 при изменении' },
   { value: 'categories-empty', label: 'Категории · Пустой каталог' },

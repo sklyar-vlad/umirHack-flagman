@@ -1,9 +1,10 @@
+import { catalogProducts } from './catalog-fixtures'
 import { catalogProductHandlers } from './catalog-handlers'
 import { delay } from 'msw'
 import { http } from 'msw/http'
 import { z } from 'zod'
 import { createSupplyRequestSchema } from '@/shared/api'
-import { acceptReception, receptionProducts, savedReception } from './reception-fixtures'
+import { acceptReception, savedReception } from './reception-fixtures'
 import { createMockError, createHealthcheckResponse } from './responses'
 import { getMockScenario } from './scenarios'
 
@@ -27,7 +28,7 @@ export const receptionHandlers = [
     if (scenario === 'reception-conflict') return createMockError(409, 'CONFLICT', 'Номер уже занят')
     if (scenario === 'reception-validation') return createMockError(422, 'VALIDATION_ERROR', 'Проверьте строки', { fields: [{ path: `items[${body.items.length - 1}].expires_at`, code: 'expired', message: 'Срок этой партии уже истёк на сервере.' }] })
     for (const [index, line] of body.items.entries()) {
-      if (!receptionProducts.some((item) => item.id === line.product_id) || Date.parse(line.expires_at) <= Date.now()) return createMockError(422, 'VALIDATION_ERROR', 'Строка отклонена', { fields: [{ path: `items[${index}].expires_at`, code: 'expired', message: 'Проверьте активность продукта и актуальный срок.' }] })
+      if (!catalogProducts().some((item) => item.id === line.product_id && item.is_active) || Date.parse(line.expires_at) <= Date.now()) return createMockError(422, 'VALIDATION_ERROR', 'Строка отклонена', { fields: [{ path: `items[${index}].expires_at`, code: 'expired', message: 'Проверьте активность продукта и актуальный срок.' }] })
     }
     const supply = acceptReception(key, body)
     if (scenario === 'reception-lost-response') return Response.error()

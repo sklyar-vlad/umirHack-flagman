@@ -33,6 +33,7 @@ const protectedRoutes: RouteObject[] = [
   { path: '/dashboard', element: guarded(sections.find((section) => section.id === 'overview')!, <DashboardPage />) },
   { path: '/admin/products/new', element: guarded(sections.find((section) => section.id === 'products')!, <ProductEntryPage />) },
   { path: '/admin/products/:id', element: guarded(sections.find((section) => section.id === 'products')!, <ProductEntryPage />) },
+  { path: '/admin/products/:id/edit', element: guarded(sections.find((section) => section.id === 'products')!, <ProductEntryPage />) },
   { path: '/admin', element: guarded(administration, <SectionLanding group="admin" />) },
   { path: '/dishes/:id', element: guarded(dishes) },
   { path: '/supplies/new', element: guarded(supplies, <SupplyEntryPage />) },

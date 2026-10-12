@@ -10,17 +10,22 @@ import { setupServer } from 'msw/node'
 import { http } from 'msw/http'
 import { productApi, productSchema, defaultProductSearch, readProductSearch, productSearchParams, changeProductSearch } from '@/entities/product'
 import { categoryApi, createCategorySchema, updateCategorySchema } from '@/entities/product-category'
-import { initialSessionState, sessionReducer, sections, type Role } from '@/entities/session'
+import { initialSessionState, sessionReducer, sections, saveWorkDraft, type Role } from '@/entities/session'
 import { RoleGate } from '@/features/access'
 import { safeReturnUrl } from '@/features/auth/model/return-url'
 import { catalogHandlers, catalogProductHandlers } from '@/app/mocks/catalog-handlers'
 import { catalogProducts, resetCatalogFixtures } from '@/app/mocks/catalog-fixtures'
 import { setMockScenario } from '@/app/mocks/scenarios'
 import { mockId } from '@/app/mocks/inventory-fixtures'
+import { productFields, productToValues } from '@/features/manage-product'
+import { inventoryHandlers } from '@/app/mocks/inventory-handlers'
+import { procurementHandlers } from '@/app/mocks/procurement-handlers'
+import { inventoryApi } from '@/entities/inventory'
+import { procurementApi } from '@/entities/procurement'
 import { ProductsPage } from './ProductsPage'
 import { CategoriesPage } from './CategoriesPage'
 import { ProductEntryPage } from './ProductEntryPage'
-const server = setupServer(...catalogHandlers, ...catalogProductHandlers), NativeRequest = globalThis.Request
+const server = setupServer(...catalogHandlers, ...catalogProductHandlers, ...inventoryHandlers, ...procurementHandlers), NativeRequest = globalThis.Request
 const requests: Request[] = []
 function makeStore(role: Role) {
   return configureStore({ reducer: { session: sessionReducer, [productApi.reducerPath]: productApi.reducer },
@@ -35,6 +40,7 @@ function mount(path = '/admin/products', role: Role = 'admin') {
     { path: '/admin/products', element: guard('products', <ProductsPage />) },
     { path: '/admin/categories', element: guard('categories', <CategoriesPage />) },
     { path: '/admin/products/new', element: guard('products', <ProductEntryPage />) },
+    { path: '/admin/products/:id/edit', element: guard('products', <ProductEntryPage />) },
     { path: '/admin/products/:id', element: guard('products', <ProductEntryPage />) },
     { path: '*', element: <h1>Склад</h1> },
   ], { initialEntries: [path] })
@@ -103,7 +109,7 @@ describe('published admin catalogue', () => {
   it('preserves keyboard links to product entry and warehouse identity', async () => {
     const { user, router } = mount('/admin/products?search=Молоко'); await ready()
     screen.getByRole('link', { name: 'Редактировать: Молоко' }).focus(); await user.keyboard('{Enter}')
-    await screen.findByRole('heading', { name: 'Редактирование продукта' }); expect(router.state.location.pathname).toBe(`/admin/products/${mockId(10)}`)
+    await screen.findByRole('heading', { name: 'Редактирование продукта' }); expect(router.state.location.pathname).toBe(`/admin/products/${mockId(10)}/edit`)
     await user.click(screen.getByRole('link', { name: 'В каталог продуктов' })); await ready(); expect(new URLSearchParams(router.state.location.search).get('search')).toBe('Молоко')
     await user.click(screen.getByRole('link', { name: 'На склад: Молоко' })); expect(new URLSearchParams(router.state.location.search).get('product_id')).toBe(mockId(10))
   })
@@ -239,5 +245,105 @@ describe('F18 category review and product draft integration', () => {
     await user.click(screen.getByRole('button', { name: 'Продолжить редактирование' })); expect((screen.getByLabelText(/Название категории/) as HTMLInputElement).value).toBe('Не сохранять')
     await user.click(screen.getByRole('button', { name: 'Отмена' })); await user.click(screen.getByRole('button', { name: 'Отменить изменения' }))
     expect((screen.getByLabelText('Категория продукта') as HTMLSelectElement).value).toBe(mockId(2)); expect((screen.getByLabelText('Название продукта') as HTMLInputElement).value).toBe('Сохранить имя'); await waitFor(() => expect(document.activeElement).toBe(opener))
+  })
+})
+
+describe('F17 product creation and revision editing', () => {
+  const milkId = mockId(10), edit = `/admin/products/${milkId}/edit`
+  const name = () => screen.getByLabelText('Название продукта') as HTMLInputElement
+  const target = () => screen.getByLabelText('Целевой запас') as HTMLInputElement
+  const save = () => screen.getByRole('button', { name: 'Сохранить продукт' })
+  const reload = () => screen.getByRole('button', { name: 'Загрузить актуальный продукт' })
+  const writes = () => requests.filter((request) => request.method !== 'GET' && new URL(request.url).pathname.startsWith('/api/v1/products'))
+  it('validates names/category/lifetime/exact targets before any write, with field focus', async () => {
+    const { user } = mount('/admin/products/new'); await screen.findByRole('option', { name: 'Бакалея' }); await user.click(save())
+    await screen.findByText(/Название: от 1 до 200/); expect(document.activeElement).toBe(name()); expect(writes()).toHaveLength(0)
+    await user.type(name(), 'Черновик'); await user.selectOptions(screen.getByLabelText('Категория продукта'), mockId(2)); await user.type(screen.getByLabelText('Стандартный срок хранения, часы'), '0'); await user.type(target(), '-1')
+    await user.click(save()); await screen.findByText(/Срок: целое число от 1/); expect(target().getAttribute('aria-invalid')).toBe('true'); expect(writes()).toHaveLength(0)
+  })
+  it('creates trimmed Unicode product with exact zero, clears draft and preserves return filters', async () => {
+    const { user, store, router } = mount('/admin/products/new?returnTo=%2Fadmin%2Fproducts%3Fis_active%3Dfalse'); await screen.findByRole('option', { name: 'Бакалея' })
+    await user.type(name(), '  Свежая зелень 😀  '); await user.selectOptions(screen.getByLabelText('Категория продукта'), mockId(2)); await user.type(target(), '0'); await user.click(screen.getByLabelText('Продукт активен')); await user.click(save())
+    await screen.findByRole('heading', { name: 'Продукт сохранён: Свежая зелень 😀' }); expect(store.getState().session.drafts['product:new']).toBeUndefined()
+    expect(await writes()[0].json()).toEqual({ name: 'Свежая зелень 😀', category_id: mockId(2), unit: 'g', display_unit: 'g', standard_shelf_life_hours: null, target_stock: '0.000', is_active: false })
+    await user.click(screen.getByRole('link', { name: 'Вернуться в каталог' })); await screen.findByRole('article', { name: 'Продукт: Свежая зелень 😀' }); expect(router.state.location.search).toBe('?is_active=false')
+  })
+  it('sends only changed PATCH fields and refreshes catalogue/inventory/procurement without changing batches', async () => {
+    const { user, store } = mount(edit); await screen.findByDisplayValue('Молоко')
+    const catalogue = store.dispatch(productApi.endpoints.products.initiate(defaultProductSearch)); await catalogue
+    const inventory = store.dispatch(inventoryApi.endpoints.inventory.initiate({ search: '', category_id: '', filter: 'all', sort: 'name', page: 1, page_size: 50 })); await inventory
+    const procurement = store.dispatch(procurementApi.endpoints.procurement.initiate({ search: '', category_id: '', page: 1, page_size: 50 })); await procurement
+    const batches = await store.dispatch(inventoryApi.endpoints.productBatches.initiate({ productId: milkId, page: 1, page_size: 50, status: 'all', sort: 'expires_at' }, { subscribe: false })).unwrap()
+    const counts = () => requests.filter((request) => /\/api\/v1\/(inventory|procurement-recommendations|products)$/.test(new URL(request.url).pathname)).length
+    const count = counts(); await user.clear(target()); await user.type(target(), '9999,999'); await user.clear(screen.getByLabelText('Стандартный срок хранения, часы')); await user.type(screen.getByLabelText('Стандартный срок хранения, часы'), '72'); await user.click(save())
+    await screen.findByRole('heading', { name: 'Продукт сохранён: Молоко' }); expect(await writes()[0].json()).toEqual({ expected_revision: 1, target_stock: '9999.999', standard_shelf_life_hours: 72 })
+    await waitFor(() => expect(counts()).toBeGreaterThan(count + 2))
+    const after = await store.dispatch(inventoryApi.endpoints.productBatches.initiate({ productId: milkId, page: 1, page_size: 50, status: 'all', sort: 'expires_at' }, { subscribe: false, forceRefetch: true })).unwrap(); expect(after).toEqual(batches)
+    const current = await store.dispatch(productApi.endpoints.products.initiate(defaultProductSearch, { subscribe: false })).unwrap(); expect(current.items.find((product) => product.id === milkId)?.standard_shelf_life_hours).toBe(72)
+    catalogue.unsubscribe(); inventory.unsubscribe(); procurement.unsubscribe()
+  })
+  it('sends explicit null without including unrelated fields', async () => {
+    const { user } = mount(edit); await screen.findByDisplayValue('Молоко'); await user.clear(target()); await user.clear(screen.getByLabelText('Стандартный срок хранения, часы')); await user.click(save())
+    await screen.findByRole('heading', { name: 'Продукт сохранён: Молоко' }); expect(await writes()[0].json()).toEqual({ expected_revision: 1, target_stock: null, standard_shelf_life_hours: null })
+  })
+  it('preserves all proposal fields on conflict/failed reload, requires review and uses the fresh revision', async () => {
+    setMockScenario('product-revision-conflict'); const { user, store } = mount(edit); await screen.findByDisplayValue('Молоко')
+    await user.clear(name()); await user.type(name(), 'Моё молоко'); await user.clear(target()); await user.type(target(), '7000.001'); await user.click(save()); await screen.findByText(/Продукт изменён другим пользователем/)
+    expect((save() as HTMLButtonElement).disabled).toBe(true); setMockScenario('products-error'); await user.click(reload()); await screen.findByText(/Не удалось загрузить актуальный продукт/); expect(name().value).toBe('Моё молоко'); expect(target().value).toBe('7000.001')
+    setMockScenario('success'); await user.click(reload()); await screen.findByRole('heading', { name: /Актуальный продукт: Молоко \(обновлено\). Ревизия: 2/ }); expect(target().value).toBe('7000.001')
+    const reads = () => requests.filter((request) => new URL(request.url).pathname === `/api/v1/products/${milkId}` && request.method === 'GET').length
+    const count = reads(); await act(async () => { store.dispatch(productApi.internalActions.onFocus()); store.dispatch(productApi.internalActions.onOnline()); store.dispatch(productApi.util.invalidateTags(['Products'])) }); expect(reads()).toBe(count)
+    name().focus(); await user.keyboard('{Enter}'); expect(writes()).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: 'Подтвердить актуальную ревизию' })); await user.click(save()); await screen.findByRole('heading', { name: 'Продукт сохранён: Моё молоко' }); expect(await writes()[1].json()).toEqual({ expected_revision: 2, name: 'Моё молоко', target_stock: '7000.001' })
+  })
+  for (const scenario of ['product-unit-locked', 'product-in-use', 'product-validation-error', 'product-not-found', 'conflict'] as const) it(`retains input on ${scenario}`, async () => {
+    const { user } = mount(edit); await screen.findByDisplayValue('Молоко'); await user.clear(name()); await user.type(name(), 'Сохранить предложение'); await user.clear(target()); await user.type(target(), '4000.001')
+    if (scenario === 'product-unit-locked') await user.selectOptions(screen.getByLabelText('Базовая единица'), 'g')
+    if (scenario === 'product-in-use') await user.click(screen.getByLabelText('Продукт активен'))
+    if (scenario === 'conflict') { await user.clear(name()); await user.type(name(), 'Сахар') } else setMockScenario(scenario)
+    await user.click(save())
+    await screen.findByText(scenario === 'product-unit-locked' ? /Базовую единицу нельзя изменить/ : scenario === 'product-in-use' ? /Продукт нельзя отключить/ : scenario === 'product-validation-error' ? /Сервер отклонил поля/ : scenario === 'product-not-found' ? /Продукт или категория не найдены/ : /Продукт с таким названием уже существует/)
+    expect(name().value).toBe(scenario === 'conflict' ? 'Сахар' : 'Сохранить предложение'); expect(target().value).toBe('4000.001')
+    if (scenario === 'product-validation-error') expect(target().getAttribute('aria-invalid')).toBe('true')
+    if (scenario === 'product-in-use') expect(screen.getByText('Демонстрационное активное блюдо')).toBeTruthy()
+    if (scenario === 'product-not-found') expect((save() as HTMLButtonElement).disabled).toBe(true)
+  })
+  it('retains unknown outcomes, blocks replay, explicitly reloads/reviews a lost PATCH result', async () => {
+    setMockScenario('product-lost-response'); const { user, store } = mount(edit); await screen.findByDisplayValue('Молоко'); await user.clear(name()); await user.type(name(), 'Ответ потерян'); await user.click(save())
+    await screen.findByText(/Результат сохранения неизвестен/); expect((save() as HTMLButtonElement).disabled).toBe(true); expect(store.getState().session.drafts[`product:${milkId}`].product?.uncertain).toBe(true)
+    name().focus(); await user.keyboard('{Enter}'); expect(writes()).toHaveLength(1); setMockScenario('success'); await user.click(reload()); await screen.findByRole('heading', { name: /Актуальный продукт: Ответ потерян. Ревизия: 2/ }); await user.click(screen.getByRole('button', { name: 'Использовать актуальные поля' })); expect(writes()).toHaveLength(1); expect(store.getState().session.drafts[`product:${milkId}`]).toBeUndefined()
+  })
+  it('restores dirty edit against a fresh changed revision and protects departure/discard', async () => {
+    const { user, store, router } = mount('/admin/products')
+    const product = catalogProducts().find((item) => item.id === milkId)!, fields = productFields(productToValues(product))
+    store.dispatch(saveWorkDraft({ key: `product:${milkId}`, draft: { product: { resourceId: milkId, values: { ...productToValues(product), name: 'Мой сохранённый черновик' }, baseline: { fields, revision: 2 }, uncertain: false, review: false } } }))
+    await act(async () => { await router.navigate(edit) }); await screen.findByDisplayValue('Мой сохранённый черновик'); expect((save() as HTMLButtonElement).disabled).toBe(true)
+    await user.click(screen.getByRole('link', { name: 'В каталог продуктов' })); await screen.findByRole('dialog', { name: 'Уйти без сохранения?' }); await user.click(screen.getByRole('button', { name: 'Остаться' })); expect(name().value).toBe('Мой сохранённый черновик')
+    await user.click(screen.getByRole('link', { name: 'В каталог продуктов' })); await user.click(screen.getByRole('button', { name: 'Уйти без сохранения' })); await ready(); expect(store.getState().session.drafts[`product:${milkId}`]).toBeUndefined()
+  })
+  it('accepts a created category at the published 200 Unicode-character boundary', async () => {
+    const { user } = mount('/admin/products/new'); await screen.findByRole('option', { name: 'Бакалея' }); await user.type(name(), 'Юникодный продукт')
+    await user.click(screen.getByRole('button', { name: 'Создать категорию для продукта' })); const categoryName = '😀'.repeat(200)
+    await user.type(screen.getByLabelText(/Название категории/), categoryName); await user.click(screen.getByRole('button', { name: 'Сохранить категорию' })); await screen.findByRole('option', { name: categoryName })
+    await waitFor(() => expect((save() as HTMLButtonElement).disabled).toBe(false)); await user.click(save()); await screen.findByRole('heading', { name: 'Продукт сохранён: Юникодный продукт' }); expect(writes()).toHaveLength(1)
+  })
+  it('shows empty category choices and allows category creation; failed choices preserve the form', async () => {
+    setMockScenario('categories-empty'); const { user, store } = mount('/admin/products/new'); await screen.findByRole('heading', { name: 'Категорий пока нет' })
+    expect((save() as HTMLButtonElement).disabled).toBe(true); expect((screen.getByRole('button', { name: 'Создать категорию для продукта' }) as HTMLButtonElement).disabled).toBe(false)
+    await user.type(name(), 'Сохранить при ошибке категорий'); setMockScenario('categories-error'); await act(async () => { store.dispatch(inventoryApi.util.invalidateTags(['ProductCategories'])) })
+    await screen.findByRole('heading', { name: 'Не удалось загрузить варианты категорий' }); expect(name().value).toBe('Сохранить при ошибке категорий'); expect((save() as HTMLButtonElement).disabled).toBe(true)
+  })
+  it('treats wrong returned fields/revision as unknown, without clearing or retrying the draft', async () => {
+    const product = catalogProducts().find((item) => item.id === milkId)!
+    server.use(http.patch('/api/v1/products/:id', () => Response.json({ ...product, revision: 1 })))
+    const { user, store } = mount(edit); await screen.findByDisplayValue('Молоко'); await user.clear(name()); await user.type(name(), 'Подтвердить на сервере'); await user.click(save())
+    await screen.findByText(/Результат сохранения неизвестен/); expect(name().value).toBe('Подтвердить на сервере'); expect((save() as HTMLButtonElement).disabled).toBe(true); expect(writes()).toHaveLength(1); expect(store.getState().session.drafts[`product:${milkId}`].product?.uncertain).toBe(true)
+  })
+  for (const status of [404, 403]) it(`hides a previously cached product on a fresh ${status} read`, async () => {
+    const { store, router } = mount('/admin/products'); await ready()
+    await store.dispatch(productApi.endpoints.product.initiate(milkId, { subscribe: false })).unwrap()
+    setMockScenario(status === 404 ? 'product-not-found' : 'forbidden')
+    await act(async () => { await router.navigate(edit) })
+    await screen.findByRole('heading', { name: status === 404 ? 'Продукт не найден' : 'Недостаточно прав' }); expect(screen.queryByLabelText('Название продукта')).toBeNull()
   })
 })

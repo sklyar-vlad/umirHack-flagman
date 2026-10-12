@@ -1,11 +1,51 @@
+import { parseQuantity } from '@/shared/lib/quantity'
 import { baseApi, type ApiError } from '@/shared/api'
-import { productListSchema, type Product, type ProductList } from '../model/contracts'
+import { productListSchema, productSchema, createProductSchema, updateProductSchema, type CreateProduct, type UpdateProduct, type Product, type ProductList } from '../model/contracts'
 
 import type { ProductSearch } from '../model/product-search'
 
 const invalid: ApiError = { status: 'INVALID_RESPONSE', code: 'INVALID_RESPONSE', message: 'Некорректный ответ каталога продуктов.', details: {} }
-export const productApi = baseApi.enhanceEndpoints({ addTagTypes: ['Products'] }).injectEndpoints({
+function matchesFields(product: Product, body: CreateProduct | UpdateProduct) {
+  return Object.entries(body).every(([field, value]) => {
+    if (field === 'expected_revision') return product.revision === Number(value) + 1
+    if (field === 'category_id') return product.category.id.toLowerCase() === String(value).toLowerCase()
+    if (field === 'target_stock') return parseQuantity(product.target_stock) === parseQuantity(value as string | null)
+    return product[field as keyof Product] === value
+  })
+}
+export const productApi = baseApi.enhanceEndpoints({ addTagTypes: ['Products', 'Inventory', 'Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard'] }).injectEndpoints({
   endpoints: (build) => ({
+    product: build.query<Product, string>({
+      // Editor revisions are fresh explicit reads, never silently invalidated by list refresh.
+      queryFn: async (id, _api, _options, query) => {
+        const result = await query(`/products/${encodeURIComponent(id)}`)
+        if (result.error) return { error: result.error }
+        const parsed = productSchema.safeParse(result.data)
+        return parsed.success && parsed.data.id.toLowerCase() === id.toLowerCase() ? { data: parsed.data } : { error: invalid }
+      },
+    }),
+    createProduct: build.mutation<Product, CreateProduct>({
+      invalidatesTags: ['Products', 'Inventory', 'Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard'],
+      queryFn: async (body, _api, _options, query) => {
+        const request = createProductSchema.safeParse(body)
+        if (!request.success) return { error: { ...invalid, status: 422, code: 'VALIDATION_ERROR' } }
+        const result = await query({ url: '/products', method: 'POST', body: request.data })
+        if (result.error) return { error: result.error }
+        const parsed = productSchema.safeParse(result.data)
+        return parsed.success && matchesFields(parsed.data, request.data) ? { data: parsed.data } : { error: invalid }
+      },
+    }),
+    updateProduct: build.mutation<Product, { id: string; body: UpdateProduct }>({
+      invalidatesTags: ['Products', 'Inventory', 'Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard'],
+      queryFn: async ({ id, body }, _api, _options, query) => {
+        const request = updateProductSchema.safeParse(body)
+        if (!request.success) return { error: { ...invalid, status: 422, code: 'VALIDATION_ERROR' } }
+        const result = await query({ url: `/products/${encodeURIComponent(id)}`, method: 'PATCH', body: request.data })
+        if (result.error) return { error: result.error }
+        const parsed = productSchema.safeParse(result.data)
+        return parsed.success && parsed.data.id.toLowerCase() === id.toLowerCase() && matchesFields(parsed.data, request.data) ? { data: parsed.data } : { error: invalid }
+      },
+    }),
     products: build.query<ProductList, ProductSearch>({
       providesTags: ['Products'],
       queryFn: async ({ search, category_id, ...params }, _api, _options, query) => {
@@ -35,4 +75,4 @@ export const productApi = baseApi.enhanceEndpoints({ addTagTypes: ['Products'] }
     }),
   }),
 })
-export const { useActiveProductsQuery, useProductsQuery } = productApi
+export const { useActiveProductsQuery, useProductsQuery, useLazyProductQuery, useCreateProductMutation, useUpdateProductMutation } = productApi

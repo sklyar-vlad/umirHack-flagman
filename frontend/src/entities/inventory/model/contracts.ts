@@ -37,7 +37,7 @@ export const inventoryResponseSchema = z.object({
 export const batchesResponseSchema = z.object({ ...envelope, items: z.array(batchSchema) })
 export const categoriesResponseSchema = z.object({
   ...envelope, meta: z.object({}).passthrough(),
-  items: z.array(category.extend({ name: z.string().min(1).max(200), revision: integer.min(1) })),
+  items: z.array(category.extend({ name: z.string().refine((value) => [...value].length >= 1 && [...value].length <= 200, 'Ожидается название категории от 1 до 200 Unicode-символов'), revision: integer.min(1) })),
 })
 export type InventoryItem = z.infer<typeof inventoryItemSchema>
 export type InventoryResponse = z.infer<typeof inventoryResponseSchema>

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { productBriefSchema } from '@/shared/api'
+import { productFieldsSchema, compatibleProductFields } from '@/shared/api/product-work'
 import { parseApiDateTime } from '@/shared/lib/restaurant-time'
 
 export const productSchema = productBriefSchema.extend({
@@ -15,3 +16,8 @@ export const productListSchema = z.object({
 export type Product = z.infer<typeof productSchema>
 
 export type ProductList = z.infer<typeof productListSchema>
+
+export const createProductSchema = productFieldsSchema.partial({ standard_shelf_life_hours: true, target_stock: true, is_active: true }).strict().refine(compatibleProductFields, 'Несовместимые единицы или дробные штуки')
+export const updateProductSchema = productFieldsSchema.partial().extend({ expected_revision: z.number().int().min(1).max(2147483646) }).strict().refine((value) => Object.keys(value).length > 1, 'Передайте изменённые поля').refine((value) => !(value.unit && value.display_unit) || compatibleProductFields({ ...value, unit: value.unit!, display_unit: value.display_unit! }), 'Несовместимые единицы или дробные штуки')
+export type CreateProduct = z.infer<typeof createProductSchema>
+export type UpdateProduct = z.infer<typeof updateProductSchema>

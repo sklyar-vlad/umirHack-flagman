@@ -1,7 +1,8 @@
+import { catalogInventoryItems } from './catalog-fixtures'
 import type { Dashboard } from '@/entities/dashboard'
 import type { Role } from '@/entities/session'
 import { parseQuantity, serializeQuantity } from '@/shared/lib/quantity'
-import { inventoryBatches, inventoryItems, mockId } from './inventory-fixtures'
+import { inventoryBatches, mockId } from './inventory-fixtures'
 import { consumedCompositionAmounts } from './order-composition-fixtures'
 import { receivedSupplies } from './reception-fixtures'
 import { hotOfferItems } from './hot-offer-fixtures'
@@ -23,7 +24,7 @@ export function dashboardSnapshot(role: Role = 'manager'): Dashboard {
     .filter((batch) => parseQuantity(batch.remaining_quantity)! > 0n)
   const attention: Dashboard['attention_batches'] = batches.filter((batch) => Date.parse(batch.expires_at) <= now + 86400000)
     .sort((a, b) => a.expires_at.localeCompare(b.expires_at) || a.id.localeCompare(b.id)).map((batch) => ({
-      batch_id: batch.id, product_id: batch.product_id, product_name: inventoryItems.find((item) => item.product.id === batch.product_id)!.product.name,
+      batch_id: batch.id, product_id: batch.product_id, product_name: catalogInventoryItems().find((item) => item.product.id === batch.product_id)!.product.name,
       supply_id: batch.supply.id, supply_number: batch.supply.number, line_number: batch.line_number,
       remaining_quantity: batch.remaining_quantity, unit: batch.unit, status: Date.parse(batch.expires_at) <= now ? 'expired' : 'expiring',
       expires_at: batch.expires_at, remaining_seconds: Math.floor((Date.parse(batch.expires_at) - now) / 1000),
@@ -31,7 +32,7 @@ export function dashboardSnapshot(role: Role = 'manager'): Dashboard {
   if (scenario === 'dashboard-preview') attention.push(...Array.from({ length: 22 }, (_, i) => ({ ...attention[1], batch_id: mockId(950 + i), line_number: i + 30 })))
   attention.sort((a, b) => a.expires_at.localeCompare(b.expires_at) || a.batch_id.localeCompare(b.batch_id))
   const expiring = attention.filter((batch) => batch.status === 'expiring').length, expired = attention.length - expiring
-  const missing = inventoryItems.filter((item) => !batches.some((batch) => batch.product_id === item.product.id && Date.parse(batch.expires_at) > now)).length
+  const missing = catalogInventoryItems().filter((item) => !batches.some((batch) => batch.product_id === item.product.id && Date.parse(batch.expires_at) > now)).length
   return { expiring_batches_count: expiring, expired_batches_count: expired, stop_list_dishes_count: stopListDishes().length, out_of_stock_products_count: missing,
     attention_total: attention.length, attention_batches: attention.slice(0, 20),
     hot_offers: role === 'storekeeper' ? [] : hotOfferItems().slice(0, 3), procurement_recommendations: role === 'order_operator' ? [] : procurementItems().slice(0, 3), settings, meta: { server_time } }
