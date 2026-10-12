@@ -1,3 +1,4 @@
+import { lossApi } from '@/entities/write-off-report'
 import { movementApi } from '@/entities/stock-movement'
 import { auditApi } from '@/entities/audit-log'
 import { userApi } from '@/entities/user'
@@ -26,6 +27,7 @@ export function MockModeBanner() {
     dispatch(baseApi.util.invalidateTags(['Healthcheck']))
     dispatch(auditApi.util.invalidateTags(['AuditLog']))
     dispatch(movementApi.util.invalidateTags(['StockMovements']))
+    dispatch(lossApi.util.invalidateTags(['WriteOffReport']))
     dispatch(inventoryApi.util.invalidateTags(['Inventory', 'Batches', 'ProductCategories']))
     dispatch(invalidateSupplies())
     dispatch(invalidateOrders())

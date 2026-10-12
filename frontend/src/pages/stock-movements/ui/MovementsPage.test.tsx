@@ -29,7 +29,7 @@ function mount(path = '/stock-movements', role: Role = 'admin') {
   render(<Provider store={store}><AuthContext.Provider value={auth}><RouterProvider router={router} /></AuthContext.Provider></Provider>)
   return { router, user: userEvent.setup(), store }
 }
-const ready = () => screen.findByText('Найдено движений: 65. Страница 1.')
+const ready = () => screen.findByText('Найдено движений: 92. Страница 1.')
 beforeAll(() => {
   vi.stubGlobal('Request', class extends NativeRequest { constructor(input: RequestInfo | URL, init?: RequestInit) { super(typeof input === 'string' && input.startsWith('/') ? `${window.location.origin}${input}` : input, init) } })
   server.listen({ onUnhandledFrame: 'error' }); server.events.on('request:start', ({ request }) => requests.push(request))
@@ -66,12 +66,12 @@ describe('F26 historical stock movements', () => {
   })
   it('filters, keeps URL, resets pagination and restores the same filter on back', async () => {
     const { user, router } = mount(); await ready()
-    await user.click(screen.getByRole('button', { name: 'Страница 2' })); await screen.findByText('Найдено движений: 65. Страница 2.')
+    await user.click(screen.getByRole('button', { name: 'Страница 2' })); await screen.findByText('Найдено движений: 92. Страница 2.')
     await user.selectOptions(screen.getByLabelText('Тип движения'), 'expiration'); await user.click(screen.getByRole('button', { name: 'Найти' }))
-    await screen.findByText('Найдено движений: 16. Страница 1.'); expect(router.state.location.search).toBe('?type=expiration')
+    await screen.findByText('Найдено движений: 17. Страница 1.'); expect(router.state.location.search).toBe('?type=expiration')
     await user.click(screen.getAllByRole('button', { name: 'Движения этой партии' })[0]); await screen.findByText('Найдено движений: 6. Страница 1.')
     expect(router.state.location.search).toContain(`batch_id=${mockId(201)}`)
-    await router.navigate(-1); await screen.findByText('Найдено движений: 16. Страница 1.')
+    await router.navigate(-1); await screen.findByText('Найдено движений: 17. Страница 1.')
   })
   it.each(['manager', 'storekeeper'] as const)('allows %s and displays order links according to that role', async (role) => {
     mount('/stock-movements', role); await ready()
@@ -100,7 +100,7 @@ describe('F26 historical stock movements', () => {
     setMockScenario('movements-error'); await user.click(screen.getByRole('button', { name: 'Обновить историю' })); await screen.findByText(/Данные могут быть устаревшими/)
     expect(screen.getAllByText('Молоко · название при операции').length).toBeGreaterThan(0)
     setMockScenario('movements-forbidden'); await user.click(screen.getByRole('button', { name: 'Обновить историю' })); await screen.findByRole('heading', { name: 'Недостаточно прав' })
-    await waitFor(() => expect(screen.queryByText('Найдено движений: 65. Страница 1.')).toBeNull())
+    await waitFor(() => expect(screen.queryByText('Найдено движений: 92. Страница 1.')).toBeNull())
   })
   it('rejects duplicate records without caching or rendering them', async () => {
     server.use(http.get('/api/v1/stock-movements', () => Response.json({ items: [mockMovements[0], mockMovements[0]], total: 2, page: 1, page_size: 50, meta: {} })))

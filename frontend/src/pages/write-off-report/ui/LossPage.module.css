@@ -1,0 +1,10 @@
+.page { display: grid; gap: var(--space-24); min-width: 0; }
+.header, .actions { display: flex; justify-content: space-between; align-items: center; gap: var(--space-12); flex-wrap: wrap; }
+.header h1 { margin: 0; }
+.filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-16); align-items: end; }
+.wide { grid-column: 1 / -1; }
+.filters p { margin: 0; font-size: var(--font-size-caption); color: var(--color-text-muted); }
+.filters summary { padding: var(--space-12) 0; min-height: var(--control-height); color: var(--color-brand); cursor: pointer; }
+.filters summary:focus-visible { outline: 2px solid var(--color-focus); }
+.record { display: grid; gap: var(--space-8); overflow-wrap: anywhere; }
+@media (max-width: 700px) { .filters { grid-template-columns: 1fr; } }

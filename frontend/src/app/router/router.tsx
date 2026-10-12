@@ -1,3 +1,4 @@
+import { LossPage } from '@/pages/write-off-report'
 import { MovementsPage } from '@/pages/stock-movements'
 import { AuditPage } from '@/pages/audit-log'
 import { AdminNavigation } from '@/widgets/admin-navigation'
@@ -31,11 +32,12 @@ const users = sections.find((section) => section.id === 'users')!
 const supplies = sections.find((section) => section.id === 'supplies')!
 const orders = sections.find((section) => section.id === 'orders')!
 const protectedRoutes: RouteObject[] = [
+  { path: '/analytics/write-offs', element: guarded(sections.find((section) => section.id === 'analytics')!, <LossPage />) },
   { path: '/movements', element: guarded(sections.find((section) => section.id === 'movements')!, <MovementsPage />) },
   { path: '/admin/audit', element: guarded(sections.find((section) => section.id === 'audit')!, <><AdminNavigation /><AuditPage /></>) },
   ...sections.map((section): RouteObject => ({
     path: section.path,
-    element: guarded(section, <>{section.group === 'admin' && <AdminNavigation />}{section.id === 'movements' ? <MovementsPage /> : section.id === 'audit' ? <AuditPage /> : section.id === 'settings' ? <SettingsPage /> : section.id === 'users' ? <UsersPage /> : section.id === 'recipes' ? <DishesPage /> : section.id === 'products' ? <ProductsPage /> : section.id === 'categories' ? <CategoriesPage /> : section.id === 'overview' ? <DashboardPage /> : section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'offers' ? <HotOffersPage /> : section.id === 'procurement' ? <ProcurementPage /> : section.id === 'recommendations'
+    element: guarded(section, <>{section.group === 'admin' && <AdminNavigation />}{section.id === 'analytics' ? <LossPage /> : section.id === 'movements' ? <MovementsPage /> : section.id === 'audit' ? <AuditPage /> : section.id === 'settings' ? <SettingsPage /> : section.id === 'users' ? <UsersPage /> : section.id === 'recipes' ? <DishesPage /> : section.id === 'products' ? <ProductsPage /> : section.id === 'categories' ? <CategoriesPage /> : section.id === 'overview' ? <DashboardPage /> : section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'offers' ? <HotOffersPage /> : section.id === 'procurement' ? <ProcurementPage /> : section.id === 'recommendations'
       ? <RecommendationsLanding />
       : <SectionPage section={section} />}</>),
   })),

@@ -1,3 +1,4 @@
+import { readLossSearch, lossSearchParams, lossSearchError, defaultLossSearch } from '@/entities/write-off-report'
 import { readMovementSearch, movementSearchParams, movementSearchError, defaultMovementSearch } from '@/entities/stock-movement'
 import { readAuditSearch, auditSearchParams, auditSearchError, defaultAuditSearch } from '@/entities/audit-log'
 import { readUserSearch, userSearchParams, safeUserListUrl } from '@/entities/user'
@@ -14,6 +15,11 @@ export function safeReturnUrl(value: string | null | undefined): string {
   if (!value || !value.startsWith('/') || value.startsWith('//') || /[\\\s%]/u.test(value.split(/[?#]/)[0])) return '/'
   const url = new URL(value, 'https://internal.invalid')
   if (url.origin !== 'https://internal.invalid' || /^\/login(?:\/|$)/i.test(url.pathname)) return '/'
+  if (url.pathname === '/analytics' || url.pathname === '/analytics/write-offs') {
+    const values = readLossSearch(url.searchParams)
+    const params = lossSearchParams(lossSearchError(values) ? defaultLossSearch : values)
+    return '/analytics/write-offs' + (params.size ? `?${params}` : '')
+  }
   if (url.pathname === '/stock-movements' || url.pathname === '/movements') {
     const values = readMovementSearch(url.searchParams)
     const params = movementSearchParams(movementSearchError(values) ? defaultMovementSearch : values)

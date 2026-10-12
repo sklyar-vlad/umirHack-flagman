@@ -1,3 +1,4 @@
+import { lossHandlers } from './loss-handlers'
 import { movementHandlers } from './movement-handlers'
 import { auditHandlers } from './audit-handlers'
 import { userHandlers } from './user-handlers'
@@ -27,6 +28,7 @@ export const handlers = [
   ...authHandlers,
   ...auditHandlers,
   ...movementHandlers,
+  ...lossHandlers,
   ...settingsHandlers,
   ...userHandlers,
   ...dashboardHandlers,
