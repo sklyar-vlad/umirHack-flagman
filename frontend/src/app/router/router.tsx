@@ -1,3 +1,4 @@
+import { AuditPage } from '@/pages/audit-log'
 import { AdminNavigation } from '@/widgets/admin-navigation'
 import { SettingsPage } from '@/pages/admin-settings'
 import { UsersPage, UserEntryPage } from '@/pages/admin-users'
@@ -29,9 +30,10 @@ const users = sections.find((section) => section.id === 'users')!
 const supplies = sections.find((section) => section.id === 'supplies')!
 const orders = sections.find((section) => section.id === 'orders')!
 const protectedRoutes: RouteObject[] = [
+  { path: '/admin/audit', element: guarded(sections.find((section) => section.id === 'audit')!, <><AdminNavigation /><AuditPage /></>) },
   ...sections.map((section): RouteObject => ({
     path: section.path,
-    element: guarded(section, <>{section.group === 'admin' && section.id !== 'audit' && <AdminNavigation />}{section.id === 'settings' ? <SettingsPage /> : section.id === 'users' ? <UsersPage /> : section.id === 'recipes' ? <DishesPage /> : section.id === 'products' ? <ProductsPage /> : section.id === 'categories' ? <CategoriesPage /> : section.id === 'overview' ? <DashboardPage /> : section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'offers' ? <HotOffersPage /> : section.id === 'procurement' ? <ProcurementPage /> : section.id === 'recommendations'
+    element: guarded(section, <>{section.group === 'admin' && <AdminNavigation />}{section.id === 'audit' ? <AuditPage /> : section.id === 'settings' ? <SettingsPage /> : section.id === 'users' ? <UsersPage /> : section.id === 'recipes' ? <DishesPage /> : section.id === 'products' ? <ProductsPage /> : section.id === 'categories' ? <CategoriesPage /> : section.id === 'overview' ? <DashboardPage /> : section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'offers' ? <HotOffersPage /> : section.id === 'procurement' ? <ProcurementPage /> : section.id === 'recommendations'
       ? <RecommendationsLanding />
       : <SectionPage section={section} />}</>),
   })),

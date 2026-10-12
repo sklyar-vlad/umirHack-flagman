@@ -1,3 +1,4 @@
+import { auditApi } from '@/entities/audit-log'
 import { userApi } from '@/entities/user'
 import { dashboardApi } from '@/entities/dashboard'
 import { procurementApi } from '@/entities/procurement'
@@ -22,6 +23,7 @@ export function MockModeBanner() {
     setScenario(getMockScenario())
     // Обновляются только активные подписки, последний ответ не очищается.
     dispatch(baseApi.util.invalidateTags(['Healthcheck']))
+    dispatch(auditApi.util.invalidateTags(['AuditLog']))
     dispatch(inventoryApi.util.invalidateTags(['Inventory', 'Batches', 'ProductCategories']))
     dispatch(invalidateSupplies())
     dispatch(invalidateOrders())

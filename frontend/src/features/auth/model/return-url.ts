@@ -1,3 +1,4 @@
+import { readAuditSearch, auditSearchParams, auditSearchError, defaultAuditSearch } from '@/entities/audit-log'
 import { readUserSearch, userSearchParams, safeUserListUrl } from '@/entities/user'
 import { readProductSearch, productSearchParams, safeProductListUrl } from '@/entities/product'
 import { z } from 'zod'
@@ -12,6 +13,11 @@ export function safeReturnUrl(value: string | null | undefined): string {
   if (!value || !value.startsWith('/') || value.startsWith('//') || /[\\\s%]/u.test(value.split(/[?#]/)[0])) return '/'
   const url = new URL(value, 'https://internal.invalid')
   if (url.origin !== 'https://internal.invalid' || /^\/login(?:\/|$)/i.test(url.pathname)) return '/'
+  if (url.pathname === '/admin/audit' || url.pathname === '/admin/audit-log') {
+    const values = readAuditSearch(url.searchParams)
+    const params = auditSearchParams(auditSearchError(values) ? defaultAuditSearch : values)
+    return '/admin/audit-log' + (params.size ? `?${params}` : '')
+  }
   if (url.pathname === '/admin/users') {
     const params = userSearchParams(readUserSearch(url.searchParams))
     return url.pathname + (params.size ? `?${params}` : '')
