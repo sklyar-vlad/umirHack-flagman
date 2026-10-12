@@ -1,3 +1,4 @@
+import { forecastApi } from '@/entities/stop-list-forecast'
 import { shortageApi } from '@/entities/ingredient-shortage'
 import { lossApi } from '@/entities/write-off-report'
 import { movementApi } from '@/entities/stock-movement'
@@ -29,6 +30,7 @@ export function MockModeBanner() {
     dispatch(auditApi.util.invalidateTags(['AuditLog']))
     dispatch(movementApi.util.invalidateTags(['StockMovements']))
     dispatch(shortageApi.util.invalidateTags(['IngredientShortages']))
+    dispatch(forecastApi.util.invalidateTags(['StopListForecast']))
     dispatch(lossApi.util.invalidateTags(['WriteOffReport']))
     dispatch(inventoryApi.util.invalidateTags(['Inventory', 'Batches', 'ProductCategories']))
     dispatch(invalidateSupplies())

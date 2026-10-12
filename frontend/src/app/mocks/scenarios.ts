@@ -1,4 +1,10 @@
 export const mockScenarios = [
+  { value: 'forecast-demo', label: 'Прогноз · Причины, история и страницы' },
+  { value: 'forecast-empty', label: 'Прогноз · Нет активных блюд' },
+  { value: 'forecast-slow', label: 'Прогноз · Загрузка' },
+  { value: 'forecast-error', label: 'Прогноз · Ошибка чтения' },
+  { value: 'forecast-forbidden', label: 'Прогноз · Нет доступа' },
+  { value: 'forecast-invalid', label: 'Прогноз · Некорректный ответ' },
   { value: 'shortages-demo', label: 'Недостача · Исторические единицы и страницы' },
   { value: 'shortages-empty', label: 'Недостача · Пустой отчёт' },
   { value: 'shortages-slow', label: 'Недостача · Загрузка' },

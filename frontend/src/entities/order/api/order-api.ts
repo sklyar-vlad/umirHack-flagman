@@ -17,7 +17,7 @@ function requestParams(values: HistorySearch | AttemptSearch, attempts = false) 
 function validEnvelope(data: OrderList | OrderAttemptList, values: HistorySearch) {
   return data.page === values.page && data.page_size === values.page_size && data.items.length <= values.page_size && data.items.length <= data.total && new Set(data.items.map((item) => item.id)).size === data.items.length
 }
-export const orderApi = baseApi.enhanceEndpoints({ addTagTypes: ['Orders', 'OrderAttempts', 'IngredientShortages', 'Dishes', 'Inventory', 'Batches', 'Procurement', 'StopList', 'HotOffers', 'Dashboard'] }).injectEndpoints({
+export const orderApi = baseApi.enhanceEndpoints({ addTagTypes: ['Orders', 'OrderAttempts', 'IngredientShortages', 'Dishes', 'Inventory', 'Batches', 'Procurement', 'StopList', 'HotOffers', 'Dashboard', 'StopListForecast'] }).injectEndpoints({
   endpoints: (build) => ({
     order: build.query<OrderDetail, string>({
       providesTags: ['Orders'],
@@ -40,7 +40,7 @@ export const orderApi = baseApi.enhanceEndpoints({ addTagTypes: ['Orders', 'Orde
       },
     }),
     createOrder: build.mutation<OrderDetail, { key: string; body: OrderRequest }>({
-      invalidatesTags: (_result, error) => error?.status === 422 ? [] : ['Orders', 'OrderAttempts', 'IngredientShortages', 'Inventory', 'Batches', 'Dishes', 'Procurement', 'StopList', 'HotOffers', 'Dashboard'],
+      invalidatesTags: (_result, error) => error?.status === 422 ? [] : ['Orders', 'OrderAttempts', 'IngredientShortages', 'Inventory', 'Batches', 'Dishes', 'Procurement', 'StopList', 'HotOffers', 'Dashboard', 'StopListForecast'],
       queryFn: async ({ key, body }, _api, _options, query) => {
         if (!z.uuid().safeParse(key).success || !orderRequestSchema.safeParse(body).success) return { error: { status: 422, code: 'VALIDATION_ERROR', message: 'Проверьте корзину и ключ попытки.', details: {} } }
         const result = await query({ url: '/orders', method: 'POST', body, headers: { 'Idempotency-Key': key } })

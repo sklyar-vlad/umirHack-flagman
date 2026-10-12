@@ -1,3 +1,4 @@
+import { readForecastSearch, forecastSearchParams, forecastSearchError, defaultForecastSearch } from '@/entities/stop-list-forecast'
 import { readShortageSearch, shortageSearchParams, shortageSearchError, defaultShortageSearch } from '@/entities/ingredient-shortage'
 import { readLossSearch, lossSearchParams, lossSearchError, defaultLossSearch } from '@/entities/write-off-report'
 import { readMovementSearch, movementSearchParams, movementSearchError, defaultMovementSearch } from '@/entities/stock-movement'
@@ -16,6 +17,11 @@ export function safeReturnUrl(value: string | null | undefined): string {
   if (!value || !value.startsWith('/') || value.startsWith('//') || /[\\\s%]/u.test(value.split(/[?#]/)[0])) return '/'
   const url = new URL(value, 'https://internal.invalid')
   if (url.origin !== 'https://internal.invalid' || /^\/login(?:\/|$)/i.test(url.pathname)) return '/'
+  if (url.pathname === '/analytics/stop-list-forecast' || url.pathname === '/forecast') {
+    const values = readForecastSearch(url.searchParams)
+    const params = forecastSearchParams(forecastSearchError(values) ? defaultForecastSearch : values)
+    return '/analytics/stop-list-forecast' + (params.size ? `?${params}` : '')
+  }
   if (url.pathname === '/analytics/ingredient-shortages') {
     const values = readShortageSearch(url.searchParams)
     const params = shortageSearchParams(shortageSearchError(values) ? defaultShortageSearch : values)

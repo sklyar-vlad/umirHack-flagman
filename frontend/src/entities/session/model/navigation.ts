@@ -21,7 +21,7 @@ export const sections: readonly Section[] = [
   { id: 'write-offs', path: '/write-offs', title: 'Списания', icon: 'box', roles: stock, group: 'extra' },
   { id: 'movements', path: '/stock-movements', title: 'История движений', icon: 'adminHistory', roles: stock, group: 'extra' },
   { id: 'analytics', path: '/analytics', title: 'Аналитика', icon: 'grid', roles: management, group: 'extra' },
-  { id: 'forecast', path: '/forecast', title: 'Прогноз', icon: 'grid', roles: management, group: 'extra' },
+  { id: 'forecast', path: '/analytics/stop-list-forecast', title: 'Прогноз', icon: 'grid', roles: management, group: 'extra' },
   { id: 'dishes', path: '/dishes', title: 'Рецепты', icon: 'adminBook', roles: sales, group: 'extra' },
   { id: 'products', path: '/admin/products', title: 'Продукты', icon: 'box', roles: admin, group: 'admin' },
   { id: 'categories', path: '/admin/categories', title: 'Категории', icon: 'adminBook', roles: admin, group: 'admin' },
@@ -34,6 +34,7 @@ export const roleNames: Record<Role, string> = { admin: 'Администрат�
 export function canAccess(role: Role, section: Section) { return section.roles.includes(role) }
 export function visibleSections(role: Role, group: Section['group']) { return sections.filter((section) => section.group === group && canAccess(role, section)) }
 export function sectionForPath(path: string) {
+  if (path === '/forecast') return sections.find((section) => section.id === 'forecast')
   if (path === '/movements') return sections.find((section) => section.id === 'movements')
   if (path === '/admin/audit') return sections.find((section) => section.id === 'audit')
   if (path === '/admin/recipes') return sections.find((section) => section.id === 'recipes')

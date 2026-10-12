@@ -1,3 +1,4 @@
+import { forecastHandlers } from './forecast-handlers'
 import { shortageHandlers } from './shortage-handlers'
 import { writeOffHandlers } from './write-off-handlers'
 import { lossHandlers } from './loss-handlers'
@@ -33,6 +34,7 @@ export const handlers = [
   ...movementHandlers,
   ...lossHandlers,
   ...shortageHandlers,
+  ...forecastHandlers,
   ...settingsHandlers,
   ...userHandlers,
   ...dashboardHandlers,

@@ -13,7 +13,7 @@ function matchesFields(product: Product, body: CreateProduct | UpdateProduct) {
     return product[field as keyof Product] === value
   })
 }
-export const productApi = baseApi.enhanceEndpoints({ addTagTypes: ['Products', 'Inventory', 'Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard'] }).injectEndpoints({
+export const productApi = baseApi.enhanceEndpoints({ addTagTypes: ['Products', 'Inventory', 'Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard', 'StopListForecast'] }).injectEndpoints({
   endpoints: (build) => ({
     product: build.query<Product, string>({
       // Editor revisions are fresh explicit reads, never silently invalidated by list refresh.
@@ -25,7 +25,7 @@ export const productApi = baseApi.enhanceEndpoints({ addTagTypes: ['Products', '
       },
     }),
     createProduct: build.mutation<Product, CreateProduct>({
-      invalidatesTags: ['Products', 'Inventory', 'Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard'],
+      invalidatesTags: ['Products', 'Inventory', 'Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard', 'StopListForecast'],
       queryFn: async (body, _api, _options, query) => {
         const request = createProductSchema.safeParse(body)
         if (!request.success) return { error: { ...invalid, status: 422, code: 'VALIDATION_ERROR' } }
@@ -36,7 +36,7 @@ export const productApi = baseApi.enhanceEndpoints({ addTagTypes: ['Products', '
       },
     }),
     updateProduct: build.mutation<Product, { id: string; body: UpdateProduct }>({
-      invalidatesTags: ['Products', 'Inventory', 'Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard'],
+      invalidatesTags: ['Products', 'Inventory', 'Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard', 'StopListForecast'],
       queryFn: async ({ id, body }, _api, _options, query) => {
         const request = updateProductSchema.safeParse(body)
         if (!request.success) return { error: { ...invalid, status: 422, code: 'VALIDATION_ERROR' } }
