@@ -1,3 +1,4 @@
+import { applyBatchWriteOff, removedWriteOffQuantity } from './write-off-fixtures'
 import { catalogInventoryItems } from './catalog-fixtures'
 import { parseQuantity, serializeQuantity } from '@/shared/lib/quantity'
 import { applyEditorDishes } from './dish-editor-fixtures'
@@ -42,7 +43,7 @@ export function compositionCheck(body: OrderRequest, changed = false, inactive =
   const requirements = [...required.values()].map(({ ingredient, amount }) => {
     const stock = stocks.find((item) => item.product.id === ingredient.product_id)
     const consumed = composedOrders().flatMap((order) => order.items.flatMap((item) => item.allocations)).filter((line) => line.product_id === ingredient.product_id).reduce((sum, line) => sum + parseQuantity(line.quantity)!, 0n)
-    const remaining = aggregate(stock?.available_quantity ?? '0') - consumed
+    const remaining = aggregate(stock?.available_quantity ?? '0') - consumed - removedWriteOffQuantity(ingredient.product_id, false)
     const available = shortage || remaining < 0n ? 0n : remaining
     return { product_id: ingredient.product_id, product_name: ingredient.product_name, unit: ingredient.unit, required_quantity: decimal(amount), available_quantity: decimal(available), missing_quantity: decimal(amount > available ? amount - available : 0n) }
   })
@@ -65,7 +66,7 @@ export const composedAttempts = () => read().flatMap((value) => value.attempt ? 
 export function acceptOrder(key: string, body: OrderRequest, check: OrderCheck): OrderDetail {
   const consumed = new Map<string, bigint>()
   for (const order of composedOrders()) for (const item of order.items) for (const line of item.allocations) consumed.set(line.batch_id, (consumed.get(line.batch_id) ?? 0n) + parseQuantity(line.quantity)!)
-  const balances = inventoryBatches.filter((batch) => ['valid', 'expiring'].includes(batch.status)).sort((a, b) => a.expires_at.localeCompare(b.expires_at) || a.id.localeCompare(b.id)).map((batch) => ({ ...batch, remaining: parseQuantity(batch.remaining_quantity)! - (consumed.get(batch.id) ?? 0n) }))
+  const balances = inventoryBatches.map(applyBatchWriteOff).filter((batch) => ['valid', 'expiring'].includes(batch.status)).sort((a, b) => a.expires_at.localeCompare(b.expires_at) || a.id.localeCompare(b.id)).map((batch) => ({ ...batch, remaining: parseQuantity(batch.remaining_quantity)! - (consumed.get(batch.id) ?? 0n) }))
   const order: OrderDetail = { id: crypto.randomUUID(), number: String(1001 + composedOrders().length), status: 'completed', created_at: new Date().toISOString(), created_by: { id: mockId(900), name: 'Тестовый оператор' },
     items: check.items.map((item) => {
       const recipe = compositionDishes(item.recipe_version === 2).find((dish) => dish.id === item.dish_id)!.recipe
@@ -101,7 +102,7 @@ export function consumedCompositionAmounts() {
 }
 function remainingCompositionBatches() {
   const consumed = consumedCompositionAmounts()
-  return inventoryBatches.filter((batch) => batch.product_id === product.id && ['valid', 'expiring'].includes(batch.status))
+  return inventoryBatches.map(applyBatchWriteOff).filter((batch) => batch.product_id === product.id && ['valid', 'expiring'].includes(batch.status))
     .sort((a, b) => a.expires_at.localeCompare(b.expires_at) || a.id.localeCompare(b.id))
     .map((batch) => ({ ...batch, remaining: Number(batch.remaining_quantity) - (consumed[batch.id] ?? 0) }))
 }

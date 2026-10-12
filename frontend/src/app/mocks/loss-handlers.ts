@@ -1,3 +1,4 @@
+import { writtenOffMovements } from './write-off-fixtures'
 import { delay } from 'msw'
 import { http } from 'msw/http'
 import { lossQuantity, lossSearchError, readLossSearch, type LossRow } from '@/entities/write-off-report'
@@ -18,7 +19,7 @@ export const lossHandlers = [http.get('/api/v1/analytics/write-offs', async ({ r
   const values = readLossSearch(new URL(request.url).searchParams)
   if (lossSearchError(values)) return createMockError(422, 'VALIDATION_ERROR', 'Проверьте фильтры')
   const groups = new Map<string, LossRow>()
-  const operations = scenario === 'losses-order' ? [...lossOperations, mockExtraOrder] : lossOperations
+  const operations = scenario === 'losses-order' ? [...lossOperations, mockExtraOrder] : [...lossOperations, ...writtenOffMovements()]
   for (const op of scenario === 'losses-empty' ? [] : operations) {
     if (!['expiration', 'manual_writeoff'].includes(op.type) || values.reason !== 'all' && op.type !== values.reason || values.product_id && op.product_id !== values.product_id || values.from && compareHistoryInstants(op.occurred_at, values.from) < 0 || values.to && compareHistoryInstants(op.occurred_at, values.to) >= 0) continue
     const key = `${op.product_id}:${op.unit}`, quantity = lossQuantity(op.delta_quantity.slice(1))

@@ -1,3 +1,4 @@
+import { writtenOffMovements } from './write-off-fixtures'
 import { delay } from 'msw'
 import { http } from 'msw/http'
 import { movementSearchError, readMovementSearch } from '@/entities/stock-movement'
@@ -18,7 +19,7 @@ export const movementHandlers = [http.get('/api/v1/stock-movements', async ({ re
   const values = readMovementSearch(new URL(request.url).searchParams)
   if (movementSearchError(values)) return createMockError(422, 'VALIDATION_ERROR', 'Проверьте фильтры')
   const ledger = scenario === 'losses-order' ? [...mockStockLedger, mockExtraOrder] : mockStockLedger
-  const items = (scenario === 'movements-empty' ? [] : [...ledger].sort((a, b) => compareHistoryInstants(b.occurred_at, a.occurred_at))).filter((item) =>
+  const items = (scenario === 'movements-empty' ? [] : [...ledger, ...writtenOffMovements()].sort((a, b) => compareHistoryInstants(b.occurred_at, a.occurred_at))).filter((item) =>
     (!values.product_id || item.product_id === values.product_id) && (!values.batch_id || item.batch_id === values.batch_id) &&
     (!values.order_id || item.order_id === values.order_id) && (!values.type || item.type === values.type) &&
     (!values.from || compareHistoryInstants(item.occurred_at, values.from) >= 0) && (!values.to || compareHistoryInstants(item.occurred_at, values.to) < 0))

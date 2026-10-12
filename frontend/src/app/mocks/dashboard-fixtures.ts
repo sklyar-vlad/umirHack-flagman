@@ -1,3 +1,4 @@
+import { applyBatchWriteOff } from './write-off-fixtures'
 import { catalogInventoryItems } from './catalog-fixtures'
 import type { Dashboard } from '@/entities/dashboard'
 import type { Role } from '@/entities/session'
@@ -22,7 +23,7 @@ export function dashboardSnapshot(role: Role = 'manager'): Dashboard {
   // to this single synthetic server_time without mixing browser-derived UI counts.
   const base = inventoryBatches.map((batch) => ({ ...batch, expires_at: new Date(now + (scenario === 'dashboard-expired' && batch.id === mockId(202) ? -1 : batch.remaining_seconds) * 1000).toISOString() }))
   const receipts = receivedSupplies().flatMap((supply) => supply.items.map((line) => line.batch))
-  const batches = [...base, ...receipts].map((batch) => ({ ...batch, remaining_quantity: serializeQuantity(parseQuantity(batch.remaining_quantity)! - parseQuantity(String(consumed[batch.id] ?? 0))!)! }))
+  const batches = [...base, ...receipts].map(applyBatchWriteOff).map((batch) => ({ ...batch, remaining_quantity: serializeQuantity(parseQuantity(batch.remaining_quantity)! - parseQuantity(String(consumed[batch.id] ?? 0))!)! }))
     .filter((batch) => parseQuantity(batch.remaining_quantity)! > 0n)
   const attention: Dashboard['attention_batches'] = batches.filter((batch) => Date.parse(batch.expires_at) <= now + expiring_threshold_hours * 3600000)
     .sort((a, b) => a.expires_at.localeCompare(b.expires_at) || a.id.localeCompare(b.id)).map((batch) => ({

@@ -1,3 +1,4 @@
+import { writeOffDraftSchema, type WriteOffDraft } from '@/shared/api/write-off-work'
 import { dishDraftSchema, type DishDraft } from '@/shared/api/dish-work'
 import { productDraftSchema, type ProductDraft } from '@/shared/api/product-work'
 import { orderDraftSchema, type OrderDraft } from '@/shared/api/order-work'
@@ -13,7 +14,7 @@ export interface SessionUser {
 export interface SessionSettings { timezone: string; restaurantName: string; expiringThresholdHours: number; autoWriteoffExpired: boolean; revision: number }
 export interface SessionSnapshot { user: SessionUser; settings: SessionSettings; csrfToken: string; expiresAt: string }
 /** Only these non-secret fields may survive expiration; never store arbitrary form values. */
-export interface WorkDraft { title?: string; note?: string; reception?: ReceptionDraft; order?: OrderDraft; product?: ProductDraft; dish?: DishDraft }
+export interface WorkDraft { title?: string; note?: string; reception?: ReceptionDraft; order?: OrderDraft; product?: ProductDraft; dish?: DishDraft; writeOff?: WriteOffDraft }
 export interface BasketLine { dishId: string; portions: number }
 export interface SessionState {
   status: 'unknown' | 'restoring' | 'authenticated' | 'anonymous' | 'error' | 'signing-out'
@@ -44,12 +45,14 @@ const slice = createSlice({
       if (state.status !== 'authenticated' || !state.user) return
       state.draftOwner = state.user.id
       // Explicit allowlist also strips unexpected keys supplied by JS callers.
+      const writeOff = writeOffDraftSchema.safeParse(payload.draft.writeOff)
       const reception = receptionDraftSchema.safeParse(payload.draft.reception)
       const order = orderDraftSchema.safeParse(payload.draft.order)
       const dish = dishDraftSchema.safeParse(payload.draft.dish)
       const product = productDraftSchema.safeParse(payload.draft.product)
       if (payload.key === 'order' && order.success) state.basket = order.data.lines.filter((line) => /^\d+$/.test(line.portions) && Number(line.portions) >= 1 && Number(line.portions) <= 1000).map((line) => ({ dishId: line.dish.id, portions: Number(line.portions) }))
       state.drafts[payload.key] = {
+        ...(writeOff.success ? { writeOff: writeOff.data } : {}),
         ...(reception.success ? { reception: reception.data } : {}),
         ...(order.success ? { order: order.data } : {}),
         ...(dish.success ? { dish: dish.data } : {}),

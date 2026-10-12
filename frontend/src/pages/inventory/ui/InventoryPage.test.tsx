@@ -86,7 +86,7 @@ describe('inventory screen against explicit MSW', () => {
     expect(requests.find((url) => url.pathname.endsWith('/batches'))?.searchParams.has('status')).toBe(false)
     await user.selectOptions(within(panel).getByLabelText('Показать партии'), 'depleted')
     await within(panel).findByText('Израсходована')
-    expect(within(panel).queryByRole('link', { name: /Списать партию/ })).toBeNull()
+    expect(within(panel).queryByRole('button', { name: /Списать партию/ })).toBeNull()
     expect(requests.at(-1)?.searchParams.get('status')).toBe('depleted')
   })
   it('clearly distinguishes expired-only stock and null expiry/target from zero', async () => {
@@ -153,10 +153,10 @@ describe('inventory screen against explicit MSW', () => {
     await user.click(screen.getByRole('button', { name: 'Раскрыть партии Молоко' }))
     await screen.findByText('ТЕСТ-101 · строка 1')
     const link = screen.queryByRole('link', { name: 'К поставке ТЕСТ-101, строка 1' })
-    if (role === 'order_operator') { expect(link).toBeNull(); expect(screen.queryAllByRole('link', { name: /Списать партию/ })).toHaveLength(0) }
+    if (role === 'order_operator') { expect(link).toBeNull(); expect(screen.queryAllByRole('button', { name: /Списать партию/ })).toHaveLength(0) }
     else {
       expect(link?.getAttribute('href')).toBe(`/supplies/${mockId(100)}`)
-      expect(screen.getByRole('link', { name: 'Списать партию · строка 1' }).getAttribute('href')).toContain(`batch_id=${mockId(201)}`)
+      expect(screen.getByRole('button', { name: 'Списать партию · строка 1' }).getAttribute('data-writeoff-batch')).toBe(mockId(201))
     }
   })
   it('never renders another product batches from a malformed backend response', async () => {

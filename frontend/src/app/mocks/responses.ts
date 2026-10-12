@@ -29,6 +29,15 @@ export function createMockError(
 /** Ошибки здесь намеренно форсируются для проверки транспорта, не прав healthcheck. */
 export function createHealthcheckResponse(scenario: MockScenario): Response {
   switch (scenario) {
+    case 'writeoff-slow':
+    case 'writeoff-network':
+    case 'writeoff-lost-response':
+    case 'writeoff-in-progress':
+    case 'writeoff-stock-changed':
+    case 'writeoff-validation':
+    case 'writeoff-forbidden':
+    case 'writeoff-not-found':
+    case 'writeoff-invalid':
     case 'losses-empty':
     case 'losses-slow':
     case 'losses-error':

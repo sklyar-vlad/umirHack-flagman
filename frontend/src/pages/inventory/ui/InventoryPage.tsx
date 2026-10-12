@@ -1,3 +1,4 @@
+import { WriteOffWorkspace } from '@/widgets/batch-write-off'
 import { useSelector } from 'react-redux'
 import { canAccess, sectionForPath, selectSession } from '@/entities/session'
 import { useSearchParams } from 'react-router'
@@ -10,7 +11,9 @@ import { InventoryCard } from './InventoryCard'
 import styles from './InventoryPage.module.css'
 
 const filterLabels: Record<InventoryFilter, string> = { all: 'Все', expiring: 'Скоро истекают', expired: 'С просрочкой', out_of_stock: 'Нет годного остатка', deficit: 'Дефицит' }
-export function InventoryPage() {
+export function InventoryPage() { return <WriteOffWorkspace><InventoryContents /></WriteOffWorkspace> }
+
+function InventoryContents() {
   const [params, setParams] = useSearchParams()
   const values = readInventorySearch(params)
   const selection = readInventorySelection(params)

@@ -1,4 +1,13 @@
 export const mockScenarios = [
+  { value: 'writeoff-slow', label: 'Списание · Отправка' },
+  { value: 'writeoff-network', label: 'Списание · Обрыв сети' },
+  { value: 'writeoff-lost-response', label: 'Списание · Ответ потерян после записи' },
+  { value: 'writeoff-in-progress', label: 'Списание · Запрос выполняется' },
+  { value: 'writeoff-stock-changed', label: 'Списание · Конкурентный заказ' },
+  { value: 'writeoff-validation', label: 'Списание · Поля 422' },
+  { value: 'writeoff-forbidden', label: 'Списание · Нет доступа' },
+  { value: 'writeoff-not-found', label: 'Списание · Партия не найдена' },
+  { value: 'writeoff-invalid', label: 'Списание · Некорректный результат' },
   { value: 'losses-empty', label: 'Потери · Пустой отчёт' },
   { value: 'losses-slow', label: 'Потери · Загрузка' },
   { value: 'losses-error', label: 'Потери · Ошибка чтения' },

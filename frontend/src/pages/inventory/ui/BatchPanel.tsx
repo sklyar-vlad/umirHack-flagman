@@ -1,3 +1,4 @@
+import { useWriteOff } from '@/widgets/batch-write-off'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useSelector } from 'react-redux'
@@ -11,6 +12,7 @@ import { batchStatuses, remainingTime } from './inventory-format'
 import styles from './InventoryPage.module.css'
 
 export function BatchPanel({ item, supplyId = '' }: { item: { product: Pick<InventoryItem['product'], 'id' | 'name' | 'unit' | 'display_unit'> }; supplyId?: string }) {
+  const openWriteOff = useWriteOff()
   const [params, setParams] = useState<Omit<BatchSearch, 'productId'>>({ sort: 'expires_at', page: 1, page_size: 20, ...(supplyId && { status: 'all' }) })
   const query = useProductBatchesQuery({ productId: item.product.id, ...params })
   const session = useSelector(selectSession)
@@ -45,7 +47,7 @@ export function BatchPanel({ item, supplyId = '' }: { item: { product: Pick<Inve
           <div className={styles.actions}>
             {permitted('movements') && <Link to={`/stock-movements?${new URLSearchParams({ product_id: batch.product_id, batch_id: batch.id })}`}>История партии · строка {batch.line_number}</Link>}
             {permitted('supplies') && <Link to={`/supplies/${batch.supply.id}`}>К поставке {batch.supply.number}, строка {batch.line_number}</Link>}
-            {permitted('write-offs') && batch.status !== 'depleted' && <Link to={`/write-offs?${new URLSearchParams({ product_id: batch.product_id, batch_id: batch.id })}`}>Списать партию · строка {batch.line_number}</Link>}
+            {permitted('write-offs') && batch.status !== 'depleted' && <Button variant="ghost" data-writeoff-batch={batch.id} onClick={(event) => openWriteOff({ batch, product: item.product }, event.currentTarget)}>Списать партию · строка {batch.line_number}</Button>}
           </div>
         </li>)}</ul>}
         {data.total > data.page_size && <Pagination page={params.page} pageCount={Math.max(params.page, Math.ceil(data.total / data.page_size))} onPageChange={(page) => setParams({ ...params, page })} />}

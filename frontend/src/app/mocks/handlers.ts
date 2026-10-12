@@ -1,3 +1,4 @@
+import { writeOffHandlers } from './write-off-handlers'
 import { lossHandlers } from './loss-handlers'
 import { movementHandlers } from './movement-handlers'
 import { auditHandlers } from './audit-handlers'
@@ -26,6 +27,7 @@ function missingHandler() {
 
 export const handlers = [
   ...authHandlers,
+  ...writeOffHandlers,
   ...auditHandlers,
   ...movementHandlers,
   ...lossHandlers,

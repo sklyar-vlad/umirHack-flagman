@@ -1,3 +1,4 @@
+import { applyBatchWriteOff } from './write-off-fixtures'
 import type { HotOffer } from '@/entities/dish'
 import { compositionDishes, consumedCompositionAmounts } from './order-composition-fixtures'
 import { inventoryBatches, inventoryItems } from './inventory-fixtures'
@@ -10,7 +11,7 @@ export function hotOfferItems(): HotOffer[] {
   const scenario = getMockScenario(), now = Date.now()
   if (scenario === 'hot-offers-empty' || scenario === 'hot-offers-expired') return []
   if (scenario === 'hot-offers-expiring') { expiry ??= now + 1000; if (now >= expiry) return [] }
-  const batch = inventoryBatches[1], remaining = Number(batch.remaining_quantity) - (consumedCompositionAmounts()[batch.id] ?? 0)
+  const batch = applyBatchWriteOff(inventoryBatches[1]), remaining = Number(batch.remaining_quantity) - (consumedCompositionAmounts()[batch.id] ?? 0)
   if (remaining <= 0) return []
   return compositionDishes(scenario === 'order-recipe-changed', scenario === 'order-inactive').filter((dish) => dish.is_active && dish.is_available && dish.recipe.some((line) => line.product_id === batch.product_id)).map((dish, i): HotOffer => {
     const seconds = scenario === 'hot-offers-expiring' ? Math.max(0, Math.floor((expiry! - now) / 1000)) : scenario === 'hot-offers-high' && i === 0 ? 3600 : i === 0 ? 64800 : 36000

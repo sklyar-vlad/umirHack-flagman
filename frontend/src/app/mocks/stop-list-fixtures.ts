@@ -1,3 +1,4 @@
+import { removedWriteOffQuantity } from './write-off-fixtures'
 import { applyEditorDishes } from './dish-editor-fixtures'
 import type { Dish } from '@/entities/dish'
 import { parseQuantity } from '@/shared/lib/quantity'
@@ -14,9 +15,9 @@ export function stopListDishes(): Dish[] {
   const milk = inventoryItems[0].product, sugar = inventoryItems[2].product
   const consumed = Object.values(consumedCompositionAmounts()).reduce((sum, amount) => sum + parseQuantity(String(amount))!, 0n)
   const received = receivedSupplies().flatMap((supply) => supply.items).filter((line) => line.product.id === milk.id && line.batch.expires_at > now).reduce((sum, line) => sum + parseQuantity(line.batch.remaining_quantity)!, 0n)
-  const available = scenario === 'stop-list-expired' ? 0n : 1_500_000n + received - consumed
+  const available = scenario === 'stop-list-expired' ? 0n : 1_500_000n + received - consumed - removedWriteOffQuantity(milk.id, false)
   const required = scenario === 'stop-list-recipe' ? 100_000n : 1_500_001n
-  const make = (id: number, name: string, product = milk, amount = required, stock = available, expired = 200_000n): Dish => {
+  const make = (id: number, name: string, product = milk, amount = required, stock = available, expired = 200_000n - removedWriteOffQuantity(milk.id, true)): Dish => {
     const missing = amount > stock ? amount - stock : 0n
     const reason = stock === 0n && expired > 0n ? 'only_expired_stock' : 'ingredient_shortage'
     return { id: mockId(id), name, description: 'Тестовый снимок потребности на одну порцию', is_active: true, revision: 1, recipe_version: scenario === 'stop-list-recipe' ? 2 : 1,
