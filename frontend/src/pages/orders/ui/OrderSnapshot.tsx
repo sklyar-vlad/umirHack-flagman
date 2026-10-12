@@ -21,6 +21,7 @@ export function OrderSnapshot({ order, loading = false }: { order: OrderDetail; 
         <div><dt>Позиций</dt><dd>{order.items.length}</dd></div>
         <div><dt>Порций</dt><dd>{order.items.reduce((sum, item) => sum + item.portions, 0)}</dd></div>
       </dl>
+      {allowed('/stock-movements') && <Link to={`/stock-movements?${new URLSearchParams({ order_id: order.id })}`}>История движений заказа</Link>}
       <p className="text-caption text-muted">Состав и списания сохранены на момент заказа. Остаток после движения не является текущим остатком на складе.</p>
     </div>
     {order.items.map((item) => <section className={styles.item} key={item.id} aria-label={`Позиция: ${item.dish_name}`}>

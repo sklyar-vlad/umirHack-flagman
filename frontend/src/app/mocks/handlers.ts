@@ -1,3 +1,4 @@
+import { movementHandlers } from './movement-handlers'
 import { auditHandlers } from './audit-handlers'
 import { userHandlers } from './user-handlers'
 import { settingsHandlers } from './settings-handlers'
@@ -25,6 +26,7 @@ function missingHandler() {
 export const handlers = [
   ...authHandlers,
   ...auditHandlers,
+  ...movementHandlers,
   ...settingsHandlers,
   ...userHandlers,
   ...dashboardHandlers,

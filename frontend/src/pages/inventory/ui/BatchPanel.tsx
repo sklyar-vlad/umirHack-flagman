@@ -43,6 +43,7 @@ export function BatchPanel({ item, supplyId = '' }: { item: { product: Pick<Inve
           </dl>
           <p className="text-caption text-muted">ID партии: {batch.id}</p>
           <div className={styles.actions}>
+            {permitted('movements') && <Link to={`/stock-movements?${new URLSearchParams({ product_id: batch.product_id, batch_id: batch.id })}`}>История партии · строка {batch.line_number}</Link>}
             {permitted('supplies') && <Link to={`/supplies/${batch.supply.id}`}>К поставке {batch.supply.number}, строка {batch.line_number}</Link>}
             {permitted('write-offs') && batch.status !== 'depleted' && <Link to={`/write-offs?${new URLSearchParams({ product_id: batch.product_id, batch_id: batch.id })}`}>Списать партию · строка {batch.line_number}</Link>}
           </div>

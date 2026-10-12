@@ -1,3 +1,4 @@
+import { movementApi } from '@/entities/stock-movement'
 import { auditApi } from '@/entities/audit-log'
 import { userApi } from '@/entities/user'
 import { dashboardApi } from '@/entities/dashboard'
@@ -24,6 +25,7 @@ export function MockModeBanner() {
     // Обновляются только активные подписки, последний ответ не очищается.
     dispatch(baseApi.util.invalidateTags(['Healthcheck']))
     dispatch(auditApi.util.invalidateTags(['AuditLog']))
+    dispatch(movementApi.util.invalidateTags(['StockMovements']))
     dispatch(inventoryApi.util.invalidateTags(['Inventory', 'Batches', 'ProductCategories']))
     dispatch(invalidateSupplies())
     dispatch(invalidateOrders())
