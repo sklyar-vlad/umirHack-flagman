@@ -78,6 +78,9 @@ for (const role of ['admin', 'manager', 'storekeeper', 'order_operator']) for (c
     page.on('request', (request) => { if (request.url().includes('/api/v1/')) api.push(new URL(request.url()).pathname) })
     await page.goto(role === 'storekeeper' ? '/orders' : role === 'order_operator' ? '/supplies' : '/admin/users')
     if (role === 'admin') {
+      await expect(page.getByRole('heading', { name: 'Пользователи и роли', exact: true })).toBeVisible()
+      await expect(page.getByRole('article', { name: 'Пользователь: Анна Администратор' })).toContainText('anna@example.test')
+      await page.goto('/admin/settings')
       await expect(page.getByRole('heading', { name: 'Админ-панель', exact: true })).toBeVisible()
       await expect(page.getByRole('navigation', { name: 'Административные разделы' }).getByRole('link')).toHaveCount(6)
       await (await navigation(page, width)).getByRole('link', { name: 'Админ-панель', exact: true }).click()

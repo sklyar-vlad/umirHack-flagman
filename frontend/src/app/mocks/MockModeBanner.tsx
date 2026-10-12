@@ -1,3 +1,4 @@
+import { userApi } from '@/entities/user'
 import { dashboardApi } from '@/entities/dashboard'
 import { procurementApi } from '@/entities/procurement'
 import { dishApi } from '@/entities/dish'
@@ -25,6 +26,7 @@ export function MockModeBanner() {
     dispatch(invalidateSupplies())
     dispatch(invalidateOrders())
     dispatch(dishApi.util.invalidateTags(['Dishes', 'StopList', 'HotOffers']))
+    dispatch(userApi.util.invalidateTags(['Users', 'Roles']))
     dispatch(productApi.util.invalidateTags(['Products']))
     dispatch(dashboardApi.util.invalidateTags(['Dashboard']))
     dispatch(procurementApi.util.invalidateTags(['Procurement']))

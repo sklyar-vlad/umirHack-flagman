@@ -1,3 +1,4 @@
+import { readUserSearch, userSearchParams, safeUserListUrl } from '@/entities/user'
 import { readProductSearch, productSearchParams, safeProductListUrl } from '@/entities/product'
 import { z } from 'zod'
 import { procurementSearchParams, readProcurementSearch } from '@/entities/procurement'
@@ -11,6 +12,13 @@ export function safeReturnUrl(value: string | null | undefined): string {
   if (!value || !value.startsWith('/') || value.startsWith('//') || /[\\\s%]/u.test(value.split(/[?#]/)[0])) return '/'
   const url = new URL(value, 'https://internal.invalid')
   if (url.origin !== 'https://internal.invalid' || /^\/login(?:\/|$)/i.test(url.pathname)) return '/'
+  if (url.pathname === '/admin/users') {
+    const params = userSearchParams(readUserSearch(url.searchParams))
+    return url.pathname + (params.size ? `?${params}` : '')
+  }
+  if (/^\/admin\/users\/(?:new|[0-9a-f-]{36}(?:\/(?:edit|password))?)$/i.test(url.pathname) && url.searchParams.has('returnTo')) {
+    return `${url.pathname}?${new URLSearchParams({ returnTo: safeUserListUrl(url.searchParams.get('returnTo')) })}`
+  }
   if (url.pathname === '/admin/dishes' || url.pathname === '/admin/recipes') {
     const params = dishSearchParams(readDishSearch(url.searchParams))
     return '/admin/dishes' + (params.size ? `?${params}` : '')

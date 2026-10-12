@@ -1,3 +1,4 @@
+import { userHandlers } from './user-handlers'
 import { dishEditorHandlers } from './dish-editor-handlers'
 import { catalogHandlers } from './catalog-handlers'
 import { dashboardHandlers } from './dashboard-handlers'
@@ -21,6 +22,7 @@ function missingHandler() {
 
 export const handlers = [
   ...authHandlers,
+  ...userHandlers,
   ...dashboardHandlers,
   ...orderHandlers,
   ...stopListHandlers,

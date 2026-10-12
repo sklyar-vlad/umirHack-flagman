@@ -1,4 +1,10 @@
 export const mockScenarios = [
+  { value: 'users-empty', label: 'Пользователи · Пустой список' },
+  { value: 'users-error', label: 'Пользователи · Ошибка списка' },
+  { value: 'users-slow', label: 'Пользователи · Загрузка' },
+  { value: 'roles-error', label: 'Роли · Ошибка справочника' },
+  { value: 'roles-slow', label: 'Роли · Загрузка' },
+  { value: 'roles-forbidden', label: 'Роли · Нет доступа' },
   { value: 'dish-preview-slow', label: 'Рецептура · Медленный preview' },
   { value: 'dish-preview-error', label: 'Рецептура · Ошибка preview' },
   { value: 'dish-save-slow', label: 'Рецептура · Сохранение' },

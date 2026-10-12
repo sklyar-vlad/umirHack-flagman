@@ -1,3 +1,4 @@
+import { UsersPage, UserEntryPage } from '@/pages/admin-users'
 import { DishesPage, DishEntryPage } from '@/pages/admin-dishes'
 import { createBrowserRouter, type RouteObject } from 'react-router'
 import { sections, type Section } from '@/entities/session'
@@ -22,15 +23,20 @@ function guarded(section: Section, children = <SectionPage section={section} />)
 }
 const dishes = sections.find((section) => section.id === 'dishes')!
 const administration = sections.find((section) => section.group === 'admin')!
+const users = sections.find((section) => section.id === 'users')!
 const supplies = sections.find((section) => section.id === 'supplies')!
 const orders = sections.find((section) => section.id === 'orders')!
 const protectedRoutes: RouteObject[] = [
   ...sections.map((section): RouteObject => ({
     path: section.path,
-    element: guarded(section, section.id === 'recipes' ? <DishesPage /> : section.id === 'products' ? <ProductsPage /> : section.id === 'categories' ? <CategoriesPage /> : section.id === 'overview' ? <DashboardPage /> : section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'offers' ? <HotOffersPage /> : section.id === 'procurement' ? <ProcurementPage /> : section.id === 'recommendations'
+    element: guarded(section, section.id === 'users' ? <UsersPage /> : section.id === 'recipes' ? <DishesPage /> : section.id === 'products' ? <ProductsPage /> : section.id === 'categories' ? <CategoriesPage /> : section.id === 'overview' ? <DashboardPage /> : section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'offers' ? <HotOffersPage /> : section.id === 'procurement' ? <ProcurementPage /> : section.id === 'recommendations'
       ? <RecommendationsLanding />
       : <SectionPage section={section} />),
   })),
+  { path: '/admin/users/new', element: guarded(users, <UserEntryPage />) },
+  { path: '/admin/users/:id', element: guarded(users, <UserEntryPage />) },
+  { path: '/admin/users/:id/edit', element: guarded(users, <UserEntryPage />) },
+  { path: '/admin/users/:id/password', element: guarded(users, <UserEntryPage password />) },
   { path: '/dashboard', element: guarded(sections.find((section) => section.id === 'overview')!, <DashboardPage />) },
   { path: '/admin/products/new', element: guarded(sections.find((section) => section.id === 'products')!, <ProductEntryPage />) },
   { path: '/admin/products/:id', element: guarded(sections.find((section) => section.id === 'products')!, <ProductEntryPage />) },
