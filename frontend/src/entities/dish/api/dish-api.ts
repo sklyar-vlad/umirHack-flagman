@@ -1,12 +1,49 @@
+import { createDishSchema, updateDishSchema, previewDishSchema, recipeInputSchema, type CreateDish, type UpdateDish, type PreviewDish } from '@/shared/api/dish-work'
+import { parseQuantity } from '@/shared/lib/quantity'
+import { dishReadsChanged } from '../model/dish-changes'
 import type { DishSearch } from '../model/dish-search'
 import { baseApi, type ApiError } from '@/shared/api'
-import { dishSchema, dishListSchema, stopListSchema, type Dish, type DishList, type StopList } from '../model/contracts'
+import { dishSchema, dishListSchema, stopListSchema, type Dish, type DishList, type StopList, dishPreviewSchema, type DishPreview } from '../model/contracts'
 import { hotOffersListSchema, type HotOffersList } from '../model/hot-offer-contracts'
 import type { HotOfferSearch } from '../model/hot-offer-search'
 import type { StopListSearch } from '../model/stop-list-search'
 
 const invalid = (message = 'Некорректный ответ каталога блюд.'): ApiError => ({ status: 'INVALID_RESPONSE', code: 'INVALID_RESPONSE', message, details: {} })
-export const dishApi = baseApi.enhanceEndpoints({ addTagTypes: ['Dishes', 'StopList', 'HotOffers'] }).injectEndpoints({ endpoints: (build) => ({
+export const dishApi = baseApi.enhanceEndpoints({ addTagTypes: ['Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard'] }).injectEndpoints({ endpoints: (build) => ({
+  previewDish: build.mutation<DishPreview, PreviewDish>({
+    queryFn: async (body, _api, _options, query) => {
+      const request = previewDishSchema.safeParse(body)
+      if (!request.success) return { error: { ...invalid(), status: 422, code: 'VALIDATION_ERROR' } }
+      const result = await query({ url: '/dishes/preview', method: 'POST', body: request.data })
+      if (result.error) return { error: result.error }
+      const parsed = dishPreviewSchema.safeParse(result.data)
+      return parsed.success && parsed.data.requirements.length === body.recipe.length && body.recipe.every((line) => parsed.data.requirements.some((item) => item.product_id.toLowerCase() === line.product_id.toLowerCase() && recipeInputSchema.shape.quantity_per_portion.safeParse(item.required_quantity).success && parseQuantity(item.required_quantity) === parseQuantity(line.quantity_per_portion))) ? { data: parsed.data } : { error: invalid('Некорректный ответ проверки рецептуры.') }
+    },
+  }),
+  createDish: build.mutation<Dish, CreateDish>({
+    invalidatesTags: ['Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard'],
+    onQueryStarted: async (_body, { dispatch, queryFulfilled }) => { try { await queryFulfilled } catch { /* Unknown writes invalidate checks too. */ } finally { dispatch(dishReadsChanged()) } },
+    queryFn: async (body, _api, _options, query) => {
+      const request = createDishSchema.safeParse(body)
+      if (!request.success) return { error: { ...invalid(), status: 422, code: 'VALIDATION_ERROR' } }
+      const result = await query({ url: '/dishes', method: 'POST', body: request.data })
+      if (result.error) return { error: result.error }
+      const parsed = dishSchema.safeParse(result.data)
+      return parsed.success && matchesDish(parsed.data, request.data) && parsed.data.recipe_version !== null ? { data: parsed.data } : { error: invalid() }
+    },
+  }),
+  updateDish: build.mutation<Dish, { id: string; body: UpdateDish; previousVersion?: number | null }>({
+    invalidatesTags: ['Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard'],
+    onQueryStarted: async (_body, { dispatch, queryFulfilled }) => { try { await queryFulfilled } catch { /* Unknown writes invalidate checks too. */ } finally { dispatch(dishReadsChanged()) } },
+    queryFn: async ({ id, body, previousVersion }, _api, _options, query) => {
+      const request = updateDishSchema.safeParse(body)
+      if (!request.success) return { error: { ...invalid(), status: 422, code: 'VALIDATION_ERROR' } }
+      const result = await query({ url: `/dishes/${encodeURIComponent(id)}`, method: 'PATCH', body: request.data })
+      if (result.error) return { error: result.error }
+      const parsed = dishSchema.safeParse(result.data)
+      return parsed.success && parsed.data.id.toLowerCase() === id.toLowerCase() && parsed.data.revision > body.expected_revision && matchesDish(parsed.data, request.data) && (previousVersion === undefined || (body.recipe ? parsed.data.recipe_version !== null && parsed.data.recipe_version > (previousVersion ?? 0) : parsed.data.recipe_version === previousVersion)) ? { data: parsed.data } : { error: invalid() }
+    },
+  }),
   hotOffers: build.query<HotOffersList, HotOfferSearch>({
     providesTags: ['HotOffers', 'Dishes'],
     queryFn: async (args, _api, _options, query) => {
@@ -56,4 +93,8 @@ export const dishApi = baseApi.enhanceEndpoints({ addTagTypes: ['Dishes', 'StopL
     },
   }),
 }) })
-export const { useAdminDishesQuery, useDishesQuery, useLazyDishQuery, useDishQuery, useStopListQuery, useHotOffersQuery } = dishApi
+export const { usePreviewDishMutation, useCreateDishMutation, useUpdateDishMutation, useAdminDishesQuery, useDishesQuery, useLazyDishQuery, useDishQuery, useStopListQuery, useHotOffersQuery } = dishApi
+
+function matchesDish(dish: Dish, body: Partial<CreateDish>) {
+  return (body.name === undefined || dish.name === body.name) && (body.description === undefined || dish.description === body.description) && (body.is_active === undefined || dish.is_active === body.is_active) && (!body.recipe || body.recipe.length === dish.recipe.length && body.recipe.every((line) => dish.recipe.some((item) => item.product_id.toLowerCase() === line.product_id.toLowerCase() && parseQuantity(item.quantity_per_portion) === parseQuantity(line.quantity_per_portion))))
+}

@@ -1,4 +1,4 @@
-export { dishApi, useAdminDishesQuery, useDishesQuery, useLazyDishQuery, useDishQuery, useStopListQuery, useHotOffersQuery } from './api/dish-api'
+export { dishApi, usePreviewDishMutation, useCreateDishMutation, useUpdateDishMutation, useAdminDishesQuery, useDishesQuery, useLazyDishQuery, useDishQuery, useStopListQuery, useHotOffersQuery } from './api/dish-api'
 export { dishSchema, stopListSchema } from './model/contracts'
 export type { Dish, DishList, StopList } from './model/contracts'
 export { defaultStopListSearch, readStopListSearch, stopListSearchParams, changeStopListSearch } from './model/stop-list-search'
@@ -10,3 +10,7 @@ export type { HotOfferSearch } from './model/hot-offer-search'
 
 export { defaultDishSearch, readDishSearch, dishSearchParams, changeDishSearch, safeDishListUrl } from './model/dish-search'
 export type { DishSearch } from './model/dish-search'
+
+export { dishPreviewSchema } from './model/contracts'
+export type { DishPreview } from './model/contracts'
+export { dishChangesReducer, selectDishChanges } from './model/dish-changes'

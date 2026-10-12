@@ -11,10 +11,10 @@ export function hotOfferItems(): HotOffer[] {
   if (scenario === 'hot-offers-expiring') { expiry ??= now + 1000; if (now >= expiry) return [] }
   const batch = inventoryBatches[1], remaining = Number(batch.remaining_quantity) - (consumedCompositionAmounts()[batch.id] ?? 0)
   if (remaining <= 0) return []
-  return compositionDishes(scenario === 'order-recipe-changed', scenario === 'order-inactive').filter((dish) => dish.is_active && dish.is_available && dish.recipe.length).map((dish, i) => {
+  return compositionDishes(scenario === 'order-recipe-changed', scenario === 'order-inactive').filter((dish) => dish.is_active && dish.is_available && dish.recipe.some((line) => line.product_id === batch.product_id)).map((dish, i) => {
     const seconds = scenario === 'hot-offers-expiring' ? Math.max(0, Math.floor((expiry! - now) / 1000)) : scenario === 'hot-offers-high' && i === 0 ? 3600 : i === 0 ? 64800 : 36000
     const expires = scenario === 'hot-offers-expiring' ? new Date(expiry!).toISOString() : new Date(now + seconds * 1000).toISOString()
-    const used = Math.min(Number(dish.recipe[0].quantity_per_portion), remaining).toFixed(3)
+    const used = Math.min(Number(dish.recipe.find((line) => line.product_id === batch.product_id)!.quantity_per_portion), remaining).toFixed(3)
     return { dish: { id: dish.id, name: dish.name, recipe_version: dish.recipe_version! }, rank: i + 1,
       priority_score: scenario === 'hot-offers-high' && i === 0 ? '95.0000' : '1.6667', priority_level: scenario === 'hot-offers-high' && i === 0 ? 'high' : i === 0 ? 'low' : 'medium',
       available_portions: dish.available_portions, reason: `Одна порция использует ${used} мл молока из истекающей партии поставки №${batch.supply.number}.`,

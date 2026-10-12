@@ -1,3 +1,4 @@
+import { persistDishes } from './dish-persistence'
 import { replaceSession } from '@/entities/session'
 import { createSessionController, draftAuthAdapter } from '@/features/auth'
 import { baseApi } from '@/shared/api'
@@ -24,5 +25,5 @@ apiTransport.hasSessionAccess = authController.hasAccess
 
 // Only non-secret work draft allowlists are persisted; session tokens and CSRF stay in memory.
 if (typeof window !== 'undefined') {
-  try { persistReception(store, window.sessionStorage); persistOrder(store, window.sessionStorage); persistProducts(store, window.sessionStorage) } catch { /* Browser storage disabled. */ }
+  try { persistReception(store, window.sessionStorage); persistOrder(store, window.sessionStorage); persistProducts(store, window.sessionStorage); persistDishes(store, window.sessionStorage) } catch { /* Browser storage disabled. */ }
 }

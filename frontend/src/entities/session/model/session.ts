@@ -1,3 +1,4 @@
+import { dishDraftSchema, type DishDraft } from '@/shared/api/dish-work'
 import { productDraftSchema, type ProductDraft } from '@/shared/api/product-work'
 import { orderDraftSchema, type OrderDraft } from '@/shared/api/order-work'
 import { receptionDraftSchema, type ReceptionDraft } from '@/shared/api/supply-request'
@@ -12,7 +13,7 @@ export interface SessionUser {
 export interface SessionSettings { timezone: string; restaurantName: string; expiringThresholdHours: number; autoWriteoffExpired: boolean; revision: number }
 export interface SessionSnapshot { user: SessionUser; settings: SessionSettings; csrfToken: string; expiresAt: string }
 /** Only these non-secret fields may survive expiration; never store arbitrary form values. */
-export interface WorkDraft { title?: string; note?: string; reception?: ReceptionDraft; order?: OrderDraft; product?: ProductDraft }
+export interface WorkDraft { title?: string; note?: string; reception?: ReceptionDraft; order?: OrderDraft; product?: ProductDraft; dish?: DishDraft }
 export interface BasketLine { dishId: string; portions: number }
 export interface SessionState {
   status: 'unknown' | 'restoring' | 'authenticated' | 'anonymous' | 'error' | 'signing-out'
@@ -42,11 +43,13 @@ const slice = createSlice({
       // Explicit allowlist also strips unexpected keys supplied by JS callers.
       const reception = receptionDraftSchema.safeParse(payload.draft.reception)
       const order = orderDraftSchema.safeParse(payload.draft.order)
+      const dish = dishDraftSchema.safeParse(payload.draft.dish)
       const product = productDraftSchema.safeParse(payload.draft.product)
       if (payload.key === 'order' && order.success) state.basket = order.data.lines.filter((line) => /^\d+$/.test(line.portions) && Number(line.portions) >= 1 && Number(line.portions) <= 1000).map((line) => ({ dishId: line.dish.id, portions: Number(line.portions) }))
       state.drafts[payload.key] = {
         ...(reception.success ? { reception: reception.data } : {}),
         ...(order.success ? { order: order.data } : {}),
+        ...(dish.success ? { dish: dish.data } : {}),
         ...(product.success ? { product: product.data } : {}),
         ...(typeof payload.draft.title === 'string' ? { title: payload.draft.title } : {}),
         ...(typeof payload.draft.note === 'string' ? { note: payload.draft.note } : {}),

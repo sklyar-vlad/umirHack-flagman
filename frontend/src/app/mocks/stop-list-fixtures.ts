@@ -1,3 +1,4 @@
+import { applyEditorDishes } from './dish-editor-fixtures'
 import type { Dish } from '@/entities/dish'
 import { parseQuantity } from '@/shared/lib/quantity'
 import { compositionDishes, consumedCompositionAmounts } from './order-composition-fixtures'
@@ -32,5 +33,5 @@ export function stopListDishes(): Dish[] {
       id: dish.id, is_active: dish.is_active, recipe_version: dish.recipe_version,
     })),
   ]
-  return dishes.filter((dish) => dish.is_active && !dish.is_available).sort((a, b) => a.name.localeCompare(b.name, 'ru') || a.id.localeCompare(b.id))
+  return applyEditorDishes(dishes).filter((dish) => dish.is_active && !dish.is_available).sort((a, b) => a.name.localeCompare(b.name, 'ru') || a.id.localeCompare(b.id))
 }

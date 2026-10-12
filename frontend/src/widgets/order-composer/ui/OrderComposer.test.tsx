@@ -1,8 +1,9 @@
+import { dishApi, dishChangesReducer } from '@/entities/dish'
 // @vitest-environment jsdom
 import { configureStore } from '@reduxjs/toolkit'
 import { Provider } from 'react-redux'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setupServer } from 'msw/node'
@@ -11,7 +12,7 @@ import { delay } from 'msw'
 import { initialSessionState, sessionReducer, saveWorkDraft } from '@/entities/session'
 import { orderApi, orderDetailSchema, orderCheckSchema } from '@/entities/order'
 import { orderCompositionHandlers } from '@/app/mocks/order-composition-handlers'
-import { compositionCheck, compositionDishes, composedOrders, composedAttempts, resetCompositionFixtures } from '@/app/mocks/order-composition-fixtures'
+import { compositionCheck, compositionDishes, composedOrders, composedAttempts, resetCompositionFixtures, changeCompositionRecipe } from '@/app/mocks/order-composition-fixtures'
 import { setMockScenario } from '@/app/mocks/scenarios'
 import { basketDishSchema, type OrderRequest } from '@/shared/api/order-work'
 import { createMockError } from '@/app/mocks/responses'
@@ -20,7 +21,7 @@ import { OrderComposer } from './OrderComposer'
 const server = setupServer(...orderCompositionHandlers), NativeRequest = globalThis.Request
 const stores: ReturnType<typeof makeStore>[] = [], requests: { path: string; method: string; key: string | null; body: string }[] = []
 function makeStore() {
-  return configureStore({ reducer: { session: sessionReducer, [orderApi.reducerPath]: orderApi.reducer },
+  return configureStore({ reducer: { session: sessionReducer, dishChanges: dishChangesReducer, [orderApi.reducerPath]: orderApi.reducer },
     preloadedState: { session: { ...initialSessionState, status: 'authenticated' as const, draftOwner: '11111111-1111-4111-8111-111111111111', user: { id: '11111111-1111-4111-8111-111111111111', role: 'manager' as const, name: 'Тест', email: 'test@example.test' } } },
     middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(orderApi.middleware) })
 }
@@ -44,6 +45,24 @@ const checked = async () => waitFor(() => expect((screen.getByRole('button', { n
 const posts = () => requests.filter((r) => r.path === '/api/v1/orders' && r.method === 'POST')
 
 describe('order composer in explicit MSW test mode', () => {
+  it('F20 recipe writes invalidate a checked mounted basket and require recheck after recipe review', async () => {
+    const { store, user } = mount(); await add(user); await checked()
+    const dish = compositionDishes()[0]
+    server.use(http.patch('/api/v1/dishes/:id', async ({ request }) => {
+      const body = await request.json() as { name?: string; recipe?: unknown }
+      if (body.recipe) { changeCompositionRecipe(); return Response.json(compositionDishes()[0]) }
+      return Response.json({ ...dish, name: body.name, revision: 2 })
+    }))
+    await act(async () => { await store.dispatch(dishApi.endpoints.updateDish.initiate({ id: dish.id, body: { expected_revision: 1, name: 'Суп обновлён' }, previousVersion: 1 })) })
+    await checked(); expect(requests.filter((request) => request.path.endsWith('/orders/check'))).toHaveLength(2)
+    await act(async () => { await store.dispatch(dishApi.endpoints.updateDish.initiate({ id: dish.id, body: { expected_revision: 1, recipe: [{ product_id: dish.recipe[0].product_id, quantity_per_portion: '150.000' }] }, previousVersion: 1 })) })
+    await screen.findByRole('heading', { name: 'Подтвердите актуальный состав' }); expect((screen.getByRole('button', { name: 'Оформить заказ' }) as HTMLButtonElement).disabled).toBe(true)
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Подтверждаю актуальный состав' }) as HTMLButtonElement).disabled).toBe(false))
+    await user.click(screen.getByRole('button', { name: 'Подтверждаю актуальный состав' })); await checked()
+    expect(requests.filter((request) => request.path.endsWith('/orders/check')).length).toBeGreaterThanOrEqual(3)
+    expect(store.getState().session.drafts.order.order?.lines[0].dish.recipe_version).toBe(2)
+    expect(posts()).toHaveLength(0)
+  })
   it('merges repeated additions, validates portions and uses server total rather than independent availability', async () => {
     const { user, store } = mount()
     await add(user); await add(user)

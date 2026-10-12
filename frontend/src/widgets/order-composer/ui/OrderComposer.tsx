@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useLazyDishQuery, type Dish } from '@/entities/dish'
+import { useLazyDishQuery, selectDishChanges, type Dish } from '@/entities/dish'
 import { clearWorkDraft, replaceBasket, saveWorkDraft, selectSession } from '@/entities/session'
 import { orderRefusalSchema, useCheckOrderMutation, useCreateOrderMutation, type OrderCheck, type OrderDetail, type OrderRefusal } from '@/entities/order'
 import { addBasketDish, basketFingerprint, basketRequest, canRetryOrder, portionsSchema, recipeChanged, uncertainOrder } from '@/features/compose-order'
@@ -34,7 +34,8 @@ export function OrderComposer({ onCreated }: { onCreated: (order: OrderDetail) =
   const owner = useRef(session.user?.id)
   const busy = useRef(false), mounted = useRef(true)
   const attempt = useRef(draft.attempt)
-  const fingerprint = basketFingerprint(draft), marker = `${revision}:${fingerprint}`
+  const dishChanges = useSelector(selectDishChanges)
+  const fingerprint = basketFingerprint(draft), marker = `${dishChanges}:${revision}:${fingerprint}`
   const body = useMemo(() => basketRequest(draft), [draft])
   const changed = draft.lines.filter((line) => latest[line.dish.id] && recipeChanged(line.dish, latest[line.dish.id]))
   const needsReview = reviewRequired || changed.length > 0

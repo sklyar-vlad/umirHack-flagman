@@ -1,3 +1,4 @@
+import { catalogProductHandlers } from '@/app/mocks/catalog-handlers'
 // @vitest-environment jsdom
 import { configureStore } from '@reduxjs/toolkit'
 import { Provider } from 'react-redux'
@@ -17,7 +18,7 @@ import { dishCatalog } from '@/app/mocks/dish-catalog-fixtures'
 import { setMockScenario } from '@/app/mocks/scenarios'
 import { DishesPage } from './DishesPage'
 import { DishEntryPage } from './DishEntryPage'
-const server = setupServer(...orderCompositionHandlers), NativeRequest = globalThis.Request
+const server = setupServer(...catalogProductHandlers, ...orderCompositionHandlers), NativeRequest = globalThis.Request
 const requests: Request[] = []
 function makeStore(role: Role) {
   return configureStore({ reducer: { session: sessionReducer, [dishApi.reducerPath]: dishApi.reducer },

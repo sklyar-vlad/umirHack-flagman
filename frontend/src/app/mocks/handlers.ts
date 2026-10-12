@@ -1,3 +1,4 @@
+import { dishEditorHandlers } from './dish-editor-handlers'
 import { catalogHandlers } from './catalog-handlers'
 import { dashboardHandlers } from './dashboard-handlers'
 import { hotOfferHandlers } from './hot-offer-handlers'
@@ -25,6 +26,7 @@ export const handlers = [
   ...stopListHandlers,
   ...procurementHandlers,
   ...hotOfferHandlers,
+  ...dishEditorHandlers,
   ...orderCompositionHandlers,
   ...catalogHandlers,
   ...inventoryHandlers,

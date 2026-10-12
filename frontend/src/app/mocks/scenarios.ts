@@ -1,4 +1,11 @@
 export const mockScenarios = [
+  { value: 'dish-preview-slow', label: 'Рецептура · Медленный preview' },
+  { value: 'dish-preview-error', label: 'Рецептура · Ошибка preview' },
+  { value: 'dish-save-slow', label: 'Рецептура · Сохранение' },
+  { value: 'dish-revision-conflict', label: 'Рецептура · Конфликт ревизии' },
+  { value: 'dish-validation', label: 'Рецептура · Ошибка поля 422' },
+  { value: 'dish-duplicate', label: 'Рецептура · Дубли 422' },
+  { value: 'dish-lost-response', label: 'Рецептура · Ответ потерян после записи' },
   { value: 'dish-catalog-new-version', label: 'Блюда · Новая версия рецептуры' },
   { value: 'product-save-slow', label: 'Продукт · Сохранение' },
   { value: 'product-lost-response', label: 'Продукт · Ответ потерян после записи' },

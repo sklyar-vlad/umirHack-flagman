@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { basketDishSchema, shortageSchema } from '@/shared/api/order-work'
+import { basketDishSchema, shortageSchema, requirementSchema } from '@/shared/api/order-work'
 import { parseApiDateTime } from '@/shared/lib/restaurant-time'
 
 // Published Dish. Quantity strings and server availability are preserved verbatim.
@@ -18,3 +18,9 @@ export const stopListSchema = dishListSchema.extend({ meta: dishSchema.shape.met
   'Стоп-лист содержит только активные недоступные блюда.',
 )
 export type StopList = z.infer<typeof stopListSchema>
+
+export const dishPreviewSchema = z.object({
+  is_available: z.boolean(), available_portions: z.string().regex(/^\d+$/),
+  requirements: z.array(requirementSchema).min(1).max(100), shortages: z.array(shortageSchema).max(100), meta: dishSchema.shape.meta,
+}).refine(({ requirements, shortages }) => new Set(requirements.map((line) => line.product_id.toLowerCase())).size === requirements.length && new Set(shortages.map((line) => line.product_id.toLowerCase())).size === shortages.length && shortages.every((line) => requirements.some((item) => item.product_id.toLowerCase() === line.product_id.toLowerCase())))
+export type DishPreview = z.infer<typeof dishPreviewSchema>

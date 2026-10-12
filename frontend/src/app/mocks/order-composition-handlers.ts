@@ -26,7 +26,7 @@ export const orderCompositionHandlers = [
     if (scenario === 'dish-detail-missing') return createMockError(404, 'NOT_FOUND', 'Блюдо не найдено')
     if (scenario === 'dish-detail-slow') await delay(1500)
     const source = dishCatalog(scenario === 'dish-catalog-new-version')
-    const dish = (scenario === 'dish-catalog-new-version' ? source : [...compositionDishes(scenario === 'order-recipe-changed' || scenario === 'order-final-recipe', scenario === 'order-inactive' || scenario === 'order-final-inactive'), ...source]).find((item) => item.id === params.id)
+    const dish = (source.some((dish) => dish.id === params.id && dish.revision > 1) || scenario === 'dish-catalog-new-version' ? source : [...compositionDishes(scenario === 'order-recipe-changed' || scenario === 'order-final-recipe', scenario === 'order-inactive' || scenario === 'order-final-inactive'), ...source]).find((item) => item.id === params.id)
     return dish ? Response.json(dish) : createMockError(404, 'NOT_FOUND', 'Блюдо не найдено')
   }),
   http.post('/api/v1/orders/check', async ({ request }) => {

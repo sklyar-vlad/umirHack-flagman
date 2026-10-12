@@ -29,6 +29,13 @@ export function createMockError(
 /** Ошибки здесь намеренно форсируются для проверки транспорта, не прав healthcheck. */
 export function createHealthcheckResponse(scenario: MockScenario): Response {
   switch (scenario) {
+    case 'dish-preview-slow':
+    case 'dish-preview-error':
+    case 'dish-save-slow':
+    case 'dish-revision-conflict':
+    case 'dish-validation':
+    case 'dish-duplicate':
+    case 'dish-lost-response':
     case 'dish-catalog-new-version':
     case 'product-save-slow':
     case 'product-lost-response':
