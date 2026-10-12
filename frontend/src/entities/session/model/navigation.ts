@@ -28,12 +28,13 @@ export const sections: readonly Section[] = [
   { id: 'recipes', path: '/admin/dishes', title: 'Рецептуры', icon: 'adminBook', roles: admin, group: 'admin' },
   { id: 'users', path: '/admin/users', title: 'Пользователи', icon: 'adminUsers', roles: admin, group: 'admin' },
   { id: 'settings', path: '/admin/settings', title: 'Настройки', icon: 'adminSettings', roles: admin, group: 'admin' },
-  { id: 'audit', path: '/admin/audit', title: 'Журнал действий', icon: 'adminHistory', roles: admin, group: 'admin' },
+  { id: 'audit', path: '/admin/audit-log', title: 'Журнал действий', icon: 'adminHistory', roles: admin, group: 'admin' },
 ]
 export const roleNames: Record<Role, string> = { admin: 'Администратор', manager: 'Менеджер', storekeeper: 'Кладовщик', order_operator: 'Оператор заказов' }
 export function canAccess(role: Role, section: Section) { return section.roles.includes(role) }
 export function visibleSections(role: Role, group: Section['group']) { return sections.filter((section) => section.group === group && canAccess(role, section)) }
 export function sectionForPath(path: string) {
+  if (path === '/admin/audit') return sections.find((section) => section.id === 'audit')
   if (path === '/admin/recipes') return sections.find((section) => section.id === 'recipes')
   if (path === '/dashboard') return sections.find((section) => section.id === 'overview')
   // More specific records must win over their parent section.

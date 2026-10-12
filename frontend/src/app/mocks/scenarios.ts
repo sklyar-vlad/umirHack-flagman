@@ -1,4 +1,9 @@
 export const mockScenarios = [
+  { value: 'audit-empty', label: 'Журнал · Пустой список' },
+  { value: 'audit-slow', label: 'Журнал · Загрузка' },
+  { value: 'audit-error', label: 'Журнал · Ошибка чтения' },
+  { value: 'audit-forbidden', label: 'Журнал · Нет доступа' },
+  { value: 'audit-invalid', label: 'Журнал · Некорректный ответ' },
   { value: 'settings-read-slow', label: 'Настройки · Загрузка' },
   { value: 'settings-read-error', label: 'Настройки · Ошибка чтения' },
   { value: 'settings-save-slow', label: 'Настройки · Сохранение' },

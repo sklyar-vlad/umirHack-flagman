@@ -29,6 +29,11 @@ export function createMockError(
 /** Ошибки здесь намеренно форсируются для проверки транспорта, не прав healthcheck. */
 export function createHealthcheckResponse(scenario: MockScenario): Response {
   switch (scenario) {
+    case 'audit-empty':
+    case 'audit-slow':
+    case 'audit-error':
+    case 'audit-forbidden':
+    case 'audit-invalid':
     case 'settings-read-slow':
     case 'settings-read-error':
     case 'settings-save-slow':
