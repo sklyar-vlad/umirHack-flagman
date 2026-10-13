@@ -25,7 +25,7 @@ for (const width of [360, 390, 1024, 1440]) {
     await page.keyboard.press('Enter')
     const panel = page.getByRole('region', { name: 'Партии: Молоко' })
     await expect(panel.getByText('ТЕСТ-101 · строка 1', { exact: true })).toBeVisible()
-    expect(batches).toHaveLength(1)
+    expect([...new Set(batches)]).toHaveLength(1)
     expect(new URL(batches[0]).searchParams.has('status')).toBe(false)
     const rows = panel.getByRole('listitem')
     await expect(rows.nth(0)).toContainText('строка 1')

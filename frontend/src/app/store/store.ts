@@ -3,6 +3,7 @@ import { configureStore } from '@reduxjs/toolkit'
 import { sessionReducer } from '@/entities/session'
 import { baseApi } from '@/shared/api'
 import { apiTransport } from './session-transport'
+import { liveMutations } from './live-mutations'
 
 export const store = configureStore({
   reducer: {
@@ -12,7 +13,7 @@ export const store = configureStore({
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware({
     thunk: { extraArgument: apiTransport },
-  }).concat(baseApi.middleware),
+  }).prepend(liveMutations.middleware).concat(baseApi.middleware),
 })
 
 export type RootState = ReturnType<typeof store.getState>

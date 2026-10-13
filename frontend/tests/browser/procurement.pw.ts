@@ -20,6 +20,7 @@ for (const width of [360, 390, 1024, 1440]) {
     for (const value of ['1,5 л', '4 л', '2,5 л', '0,2 л', 'Ниже целевого запаса']) await expect(milk(page)).toContainText(value)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: `test-results/procurement-${width}.png`, fullPage: true })
+    await expect(page.getByRole('button', { name: 'Следующая страница' })).toBeEnabled()
     await page.getByRole('button', { name: 'Следующая страница' }).focus(); await page.keyboard.press('Enter')
     await expect(page.getByText(/Страница 2. Снимок/)).toBeVisible(); await expect(milk(page)).toHaveCount(0)
     await expect(page.getByRole('article', { name: 'Закупить: Яйцо' })).toContainText('10 шт.')
@@ -93,8 +94,8 @@ test('reception reduces procurement and a confirmed order increases it', async (
   const submit = page.getByRole('button', { name: 'Оформить заказ', exact: true }); await expect(submit).toBeEnabled(); await submit.click(); await expect(page.getByRole('heading', { name: 'Заказ №1001' })).toBeVisible()
   await page.goto('/recommendations/procurement?search=Молоко'); await expect(milk(page)).toContainText('К закупке: 1,599999 л')
 })
-test('polling updates expiration without a mutation', async ({ page }) => {
+test('time event updates expiration without a mutation', async ({ page }) => {
   await page.clock.install(); await login(page, '/recommendations/procurement?search=Молоко'); await expect(milk(page)).toContainText('К закупке: 2,5 л')
   await page.evaluate(async () => { const path = '/src/app/mocks/scenarios.ts'; const { setMockScenario } = await import(path); setMockScenario('procurement-expired') })
-  await page.clock.runFor(30_100); await expect(milk(page)).toContainText('К закупке: 4 л'); await expect(milk(page)).toContainText('Нет годного остатка')
+  await page.clock.runFor(30_500); await expect(milk(page)).toContainText('К закупке: 4 л'); await expect(milk(page)).toContainText('Нет годного остатка')
 })

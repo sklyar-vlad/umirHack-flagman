@@ -13,7 +13,7 @@ import styles from './AuditPage.module.css'
 export function AuditPage() {
   const [params, setParams] = useSearchParams(), values = readAuditSearch(params), filterError = auditSearchError(values)
   const { settings, user } = useSelector(selectSession), timezone = settings?.timezone ?? 'Europe/Moscow'
-  const query = useAuditLogQuery(values, { skip: !!filterError || user?.role !== 'admin', refetchOnMountOrArgChange: true, pollingInterval: 10_000, skipPollingIfUnfocused: true })
+  const query = useAuditLogQuery(values, { skip: !!filterError || user?.role !== 'admin', refetchOnMountOrArgChange: true })
   const data = query.currentData, [selected, setSelected] = useState<string | null>(null), [resetEpoch, setResetEpoch] = useState(0)
   const entry = data?.items.find((item) => item.id === selected)
   const change = (patch: Partial<AuditSearch>) => { setSelected(null); setParams(auditSearchParams(changeAuditSearch(values, patch))) }

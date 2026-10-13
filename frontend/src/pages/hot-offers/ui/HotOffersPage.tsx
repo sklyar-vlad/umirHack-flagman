@@ -15,7 +15,7 @@ export function HotOffersPage() {
   const [params, setParams] = useSearchParams(), values = readHotOfferSearch(params), navigate = useNavigate()
   const session = useSelector(selectSession), store = useStore<{ session: SessionState }>()
   const timezone = session.settings?.timezone ?? 'Europe/Moscow'
-  const query = useHotOffersQuery(values, { refetchOnMountOrArgChange: true, pollingInterval: 30_000, skipPollingIfUnfocused: true })
+  const query = useHotOffersQuery(values, { refetchOnMountOrArgChange: true })
   const [loadDish] = useLazyDishQuery(), [selected, setSelected] = useState<{ offer: HotOffer; locationKey: string }>(), [adding, setAdding] = useState<string>(), [notice, setNotice] = useState<string>()
   const busy = useRef(false), mounted = useRef(true)
   const location = useLocation(), locationKey = useRef(location.key)
@@ -50,7 +50,7 @@ export function HotOffersPage() {
     <h1>Рекомендации</h1>
     <nav aria-label="Вкладки рекомендаций" className={styles.actions}>{visibleSections(session.user!.role, 'recommendations').map((section) => <NavLink key={section.id} to={section.path} className={({ isActive }) => `ui-button ui-button--${isActive ? 'primary' : 'secondary'}`}>{section.title}</NavLink>)}</nav>
     <header className={styles.row}><div><h2>Продвигать блюда</h2><p className="text-muted">Помогаем использовать реально затронутые истекающие партии.</p></div><Button variant="secondary" disabled={query.isFetching || !!adding} onClick={() => { void query.refetch() }}>Обновить предложения</Button></header>
-    <p className="text-caption text-muted">Порядок, уровень и балл рассчитаны сервером. Одинаковые отображаемые баллы могут иметь разный ранг. Обновление каждые 30 секунд в активном окне.</p>
+    <p className="text-caption text-muted">Порядок, уровень и балл рассчитаны сервером. Одинаковые отображаемые баллы могут иметь разный ранг. Снимок обновляется при серверных изменениях и восстановлении связи.</p>
     <p className="ui-panel">Доступные порции относятся к каждому блюду отдельно. Предложения с общим ингредиентом не гарантируют возможность приготовить их вместе. Добавление одной порции открывает проверку всей корзины и не резервирует продукты.</p>
     {locked && <p role="status">Корзина заблокирована: сначала выясните результат исходного заказа.</p>}
     <HotOfferFilters key={values.search} values={values} onChange={change} onReset={reset} />

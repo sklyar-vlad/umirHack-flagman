@@ -13,4 +13,4 @@ export type { DishSearch } from './model/dish-search'
 
 export { dishPreviewSchema } from './model/contracts'
 export type { DishPreview } from './model/contracts'
-export { dishChangesReducer, selectDishChanges } from './model/dish-changes'
+export { dishReadsChanged, dishChangesReducer, selectDishChanges } from './model/dish-changes'

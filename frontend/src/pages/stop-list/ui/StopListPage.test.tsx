@@ -20,6 +20,7 @@ import { receptionHandlers } from '@/app/mocks/reception-handlers'
 import { orderCompositionHandlers } from '@/app/mocks/order-composition-handlers'
 import { inventoryItems } from '@/app/mocks/inventory-fixtures'
 import { setMockScenario } from '@/app/mocks/scenarios'
+import { createLiveEvents } from '@/shared/api/live-events'
 import { StopListPage } from './StopListPage'
 
 const server = setupServer(...stopListHandlers, ...receptionHandlers, ...orderCompositionHandlers), NativeRequest = globalThis.Request
@@ -151,15 +152,17 @@ describe('published per-portion stop-list in explicit MSW mode', () => {
     setMockScenario('stop-list-expired'); store.dispatch(dishApi.internalActions.onOnline())
     await waitFor(() => expect(screen.getByRole('article').textContent).toContain('Остались только просроченные партии'))
   })
-  it('polls expiration without a mutation and stops on unmount', async () => {
+  it('refreshes expiration through central fallback without writes, querying only mounted reads', async () => {
     const { store } = mount('/stop-list?search=Молочный'); await card()
     await waitFor(() => expect(screen.queryByRole('status', { name: 'Загрузка стоп-листа' })).toBeNull())
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const live = createLiveEvents({ connect: () => ({ addEventListener: () => {}, close: () => {} }), visible: () => true, online: () => true, confirmSession: async () => true, refresh: () => { store.dispatch(dishApi.util.invalidateTags(['StopList'])) } })
     await act(async () => { store.dispatch(dishApi.util.invalidateTags(['StopList'])); await vi.advanceTimersByTimeAsync(20) })
     setMockScenario('stop-list-expired'); await act(async () => { await vi.advanceTimersByTimeAsync(30_020) }); vi.useRealTimers()
     await waitFor(() => expect(screen.getByRole('article').textContent).toContain('Остались только просроченные партии'))
     cleanup(); const count = readCount()
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }); await act(() => vi.advanceTimersByTimeAsync(30_100)); vi.useRealTimers(); expect(readCount()).toBe(count)
+    live.stop()
   })
   it('validates inactive/available rows, duplicate IDs and server time', () => {
     const items = stopListDishes().slice(0, 2), data = { items, total: 2, page: 1, page_size: 20, meta: { server_time: '2026-10-11T12:00:00Z' } }

@@ -15,12 +15,17 @@ export function createSessionController(adapter: AuthAdapter, ports: SessionPort
   let pending: Promise<boolean> | null = null
   let active: AbortController | null = null
   let csrf: string | null = null
+  let verification: Promise<boolean> | null = null
+  let verifying: AbortController | null = null
   const subscriptions = new Set<() => void>()
   function cleanup() {
     csrf = null
     ports.setCsrf(null)
     active?.abort()
     active = null
+    verifying?.abort()
+    verifying = null
+    verification = null
     ports.clearApi()
     for (const close of subscriptions) {
       try { close() } catch { /* A failed disposer must not prevent other cleanup. */ }
@@ -96,8 +101,29 @@ export function createSessionController(adapter: AuthAdapter, ports: SessionPort
       }
     }
   }
+  function revalidate(): Promise<boolean> {
+    if (verification) return verification
+    if (ports.read().status !== 'authenticated') return Promise.resolve(false)
+    const attempt = version
+    const request = new AbortController()
+    verifying = request
+    verification = adapter.me(request.signal).then((snapshot) => {
+      if (attempt !== version || request.signal.aborted) return false
+      const previous = ports.read()
+      if (previous.user?.id !== snapshot.user.id) { expire(); return false }
+      if (previous.user.role !== snapshot.user.role) { cleanup(); version++ }
+      // A background confirmation updates identity/settings, preserving all current work.
+      csrf = snapshot.csrfToken; ports.setCsrf(csrf)
+      ports.write({ ...ports.read(), user: snapshot.user, settings: snapshot.settings, expiresAt: snapshot.expiresAt })
+      return true
+    }).catch((error: unknown) => {
+      if (attempt === version && !request.signal.aborted && isApiError(error) && (error.status === 401 || error.status === 403)) expire()
+      return false
+    }).finally(() => { if (verifying === request) { verifying = null; verification = null } })
+    return verification
+  }
   return {
-    restore, login, logout, expire,
+    restore, login, logout, expire, revalidate,
     getVersion: () => version,
     hasAccess: () => { const state = ports.read(); return state.status === 'authenticated' && !!state.expiresAt && Date.parse(state.expiresAt) > Date.now() },
     registerSubscription: (close: () => void) => { subscriptions.add(close); return () => subscriptions.delete(close) },

@@ -11,7 +11,7 @@ import styles from './ProcurementPage.module.css'
 export function ProcurementPage() {
   const [params, setParams] = useSearchParams(), values = readProcurementSearch(params)
   const session = useSelector(selectSession), timezone = session.settings?.timezone ?? 'Europe/Moscow'
-  const query = useProcurementQuery(values, { refetchOnMountOrArgChange: true, pollingInterval: 30_000, skipPollingIfUnfocused: true })
+  const query = useProcurementQuery(values, { refetchOnMountOrArgChange: true })
   const data = query.currentData
   const change = (patch: Partial<ProcurementSearch>) => setParams(procurementSearchParams(changeProcurementSearch(values, patch)))
   const reset = () => setParams(procurementSearchParams(defaultProcurementSearch))
@@ -19,7 +19,7 @@ export function ProcurementPage() {
     <h1>Рекомендации</h1>
     <nav aria-label="Вкладки рекомендаций" className={styles.actions}>{visibleSections(session.user!.role, 'recommendations').map((section) => <NavLink key={section.id} to={section.path} className={({ isActive }) => `ui-button ui-button--${isActive ? 'primary' : 'secondary'}`}>{section.title}</NavLink>)}</nav>
     <header className={styles.row}><div><h2>Закупить продукты</h2><p className="text-muted">Положительный дефицит относительно целевого запаса, без прогноза спроса.</p></div><Button variant="secondary" disabled={query.isFetching} onClick={() => { void query.refetch() }}>Обновить закупки</Button></header>
-    <p className="text-caption text-muted">Приоритет сервера: больше блокируемых блюд, затем отсутствие годного остатка, затем название. Просрочка не уменьшает закупку. Обновление каждые 30 секунд в активном окне.</p>
+    <p className="text-caption text-muted">Приоритет сервера: больше блокируемых блюд, затем отсутствие годного остатка, затем название. Просрочка не уменьшает закупку. Снимок обновляется при серверных изменениях и восстановлении связи.</p>
     <ProcurementFilters key={values.search} values={values} onChange={change} onReset={reset} />
     <ApiAccessBoundary error={query.error}>
       {query.isFetching && <Skeleton label="Загрузка закупок" rows={4} />}

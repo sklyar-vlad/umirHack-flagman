@@ -73,13 +73,13 @@ test('composition dialog handles loading, network retry, recipe changes, missing
   await page.evaluate(async () => { const path = '/src/app/mocks/scenarios.ts'; const { setMockScenario } = await import(path); setMockScenario('forbidden') })
   await soup(page).getByRole('button', { name: 'Состав: Суп дня' }).click(); dialog = page.getByRole('dialog', { name: 'Состав: Суп дня' }); await expect(dialog.getByRole('heading', { name: 'Недостаточно прав' })).toBeVisible(); await expect(dialog.getByText('Молоко — 100 мл на порцию')).toHaveCount(0)
 })
-test('expiration disappears on polling and a late addition does not mutate the basket', async ({ page }) => {
+test('time event removes expired offers and a late addition does not mutate the basket', async ({ page }) => {
   await page.clock.install(); await login(page); await expect(soup(page)).toBeVisible()
   await page.evaluate(async () => { const path = '/src/app/mocks/scenarios.ts'; const { setMockScenario } = await import(path); setMockScenario('hot-offers-expired') })
   await soup(page).getByRole('button', { name: 'Добавить в заказ: Суп дня' }).click(); await expect(page.getByText(/Предложение больше не актуально:/)).toBeVisible(); await expect(page).toHaveURL(/recommendations\/offers/)
   await page.getByLabel('Сценарий API').selectOption('hot-offers-expiring'); await expect(soup(page)).toBeVisible()
   await soup(page).getByRole('button', { name: 'Состав: Суп дня' }).click(); await expect(page.getByRole('dialog').getByText('Молоко — 100 мл на порцию')).toBeVisible()
-  await page.clock.runFor(30_100); await expect(page.getByRole('article')).toHaveCount(0); await expect(page.getByRole('dialog').getByText(/Предложение больше не актуально./)).toBeVisible()
+  await page.clock.runFor(30_500); await expect(page.getByRole('article')).toHaveCount(0); await expect(page.getByRole('dialog').getByText(/Предложение больше не актуально./)).toBeVisible()
 })
 test('confirmed consumption refreshes remaining quantity and removes an exhausted batch', async ({ page }) => {
   await login(page); await expect(soup(page)).toContainText('500 мл'); await soup(page).getByRole('button', { name: 'Добавить в заказ: Суп дня' }).click()

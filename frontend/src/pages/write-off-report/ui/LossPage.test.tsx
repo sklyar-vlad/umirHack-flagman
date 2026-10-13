@@ -25,7 +25,7 @@ function makeStore(role: Role) {
 function mount(path = '/analytics/write-offs', role: Role = 'admin') {
   const store = makeStore(role); stores.push(store)
   const router = createMemoryRouter([{ path: '/analytics/write-offs', element: <RoleGate section={sections.find((s) => s.id === 'analytics')!}><LossPage /></RoleGate> }], { initialEntries: [path] })
-  const auth: SessionController = { restore: vi.fn(async () => true), login: vi.fn(), logout: vi.fn(), expire: vi.fn(), hasAccess: () => true, getVersion: () => 0, registerSubscription: () => () => false }
+  const auth: SessionController = { revalidate: vi.fn(async () => true), restore: vi.fn(async () => true), login: vi.fn(), logout: vi.fn(), expire: vi.fn(), hasAccess: () => true, getVersion: () => 0, registerSubscription: () => () => false }
   render(<Provider store={store}><AuthContext.Provider value={auth}><RouterProvider router={router} /></AuthContext.Provider></Provider>)
   return { router, user: userEvent.setup(), store }
 }

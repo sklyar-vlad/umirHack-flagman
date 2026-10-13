@@ -35,7 +35,7 @@ function mount(path = '/admin/users', role: Role = 'admin') {
     { path: '/admin/users/:id/edit', element: guard(<UserEntryPage />) },
     { path: '/admin/users/:id/password', element: guard(<UserEntryPage password />) },
   ], { initialEntries: [path] })
-  const auth: SessionController = { restore: vi.fn(async () => true), login: vi.fn(), logout: vi.fn(), expire: vi.fn(), hasAccess: () => true, getVersion: () => 0, registerSubscription: () => () => false }
+  const auth: SessionController = { revalidate: vi.fn(async () => true), restore: vi.fn(async () => true), login: vi.fn(), logout: vi.fn(), expire: vi.fn(), hasAccess: () => true, getVersion: () => 0, registerSubscription: () => () => false }
   render(<Provider store={store}><AuthContext.Provider value={auth}><RouterProvider router={router} /></AuthContext.Provider></Provider>)
   return { store, router, user: userEvent.setup() }
 }

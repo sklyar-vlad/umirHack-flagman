@@ -9,17 +9,16 @@ import { StopListFilters } from './StopListFilters'
 import { StopListCard } from './StopListCard'
 import styles from './StopListPage.module.css'
 
-const STOP_LIST_REFRESH_MS = 30_000
 export function StopListPage() {
   const [params, setParams] = useSearchParams(), values = readStopListSearch(params)
   const timezone = useSelector(selectSession).settings?.timezone ?? 'Europe/Moscow'
-  const query = useStopListQuery(values, { refetchOnMountOrArgChange: true, pollingInterval: STOP_LIST_REFRESH_MS, skipPollingIfUnfocused: true })
+  const query = useStopListQuery(values, { refetchOnMountOrArgChange: true })
   const data = query.currentData
   const change = (patch: Partial<StopListSearch>) => setParams(stopListSearchParams(changeStopListSearch(values, patch)))
   const reset = () => setParams(stopListSearchParams(defaultStopListSearch))
   return <div className={styles.page}>
     <header className={styles.row}><div><h1>Стоп-лист</h1><p className="text-muted">Активные блюда, для которых сейчас нельзя приготовить одну порцию.</p></div><Button variant="secondary" disabled={query.isFetching} onClick={() => { void query.refetch() }}>Обновить стоп-лист</Button></header>
-    <p className="text-caption text-muted">Отключённые блюда не входят в автоматический стоп-лист. Данные обновляются каждые 30 секунд, пока окно активно.</p>
+    <p className="text-caption text-muted">Отключённые блюда не входят в автоматический стоп-лист. Данные обновляются при серверных изменениях и восстановлении связи.</p>
     <StopListFilters key={values.search} values={values} onChange={change} onReset={reset} />
     <ApiAccessBoundary error={query.error}>
       {query.isFetching && <Skeleton label="Загрузка стоп-листа" rows={4} />}

@@ -13,7 +13,7 @@ import styles from './IngredientShortagesPage.module.css'
 export function IngredientShortagesPage() {
   const [params, setParams] = useSearchParams(), values = readShortageSearch(params), error = shortageSearchError(values)
   const { user, settings } = useSelector(selectSession), timezone = settings?.timezone ?? 'Europe/Moscow'
-  const query = useIngredientShortagesQuery(values, { skip: !!error || !user || !['admin', 'manager'].includes(user.role), refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true, pollingInterval: 30_000, skipPollingIfUnfocused: true })
+  const query = useIngredientShortagesQuery(values, { skip: !!error || !user || !['admin', 'manager'].includes(user.role), refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true })
   const data = query.currentData, [resetEpoch, setResetEpoch] = useState(0)
   const change = (patch: Partial<ShortageSearch>) => setParams(shortageSearchParams(changeShortageSearch(values, patch)))
   const reset = () => { setResetEpoch((value) => value + 1); setParams(new URLSearchParams()) }

@@ -1,4 +1,5 @@
 import { forecastHandlers } from './forecast-handlers'
+import { eventHandlers } from './event-handlers'
 import { shortageHandlers } from './shortage-handlers'
 import { writeOffHandlers } from './write-off-handlers'
 import { lossHandlers } from './loss-handlers'
@@ -28,6 +29,7 @@ function missingHandler() {
 }
 
 export const handlers = [
+  ...eventHandlers,
   ...authHandlers,
   ...writeOffHandlers,
   ...auditHandlers,

@@ -70,7 +70,7 @@ test('storekeeper cannot mount stop-list or request its API', async ({ page }) =
   await login(page, '/stop-list', 'storekeeper'); await expect(page.getByRole('heading', { name: 'Обзор' })).toBeVisible()
   await page.goto('/stop-list'); await expect(page.getByRole('heading', { name: 'Недостаточно прав' })).toBeVisible(); expect(reads).toEqual([])
 })
-test('polling reads expiration without a write or scenario invalidation', async ({ page }) => {
+test('time event reads expiration without a write or scenario invalidation', async ({ page }) => {
   await page.clock.install()
   await login(page, '/stop-list?search=Молочный'); await expect(soup(page)).toBeVisible()
   await soup(page).locator('summary').click()
@@ -80,7 +80,7 @@ test('polling reads expiration without a write or scenario invalidation', async 
     const { setMockScenario } = await import(path)
     setMockScenario('stop-list-expired')
   })
-  await page.clock.runFor(30_100)
+  await page.clock.runFor(30_500)
   await expect(soup(page).getByRole('region')).toContainText('Остались только просроченные партии')
   await expect(soup(page).getByRole('region')).toContainText('0 мл')
 })

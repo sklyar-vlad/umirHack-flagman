@@ -12,7 +12,7 @@ const priorities = { high: 'Высокий приоритет', medium: 'Сре�
 export function DashboardPage() {
   const session = useSelector(selectSession)
   const allowed = (id: string) => !!session.user && canAccess(session.user.role, sections.find((section) => section.id === id)!)
-  const query = useDashboardQuery(undefined, { refetchOnMountOrArgChange: true, pollingInterval: 30_000, skipPollingIfUnfocused: true })
+  const query = useDashboardQuery(undefined, { refetchOnMountOrArgChange: true })
   const data = query.currentData
   return <div className={styles.page}>
     <header className={styles.row}><div><h1>Обзор</h1><p className="text-muted">Состояние склада и рекомендации на один момент времени.</p></div><Button variant="secondary" disabled={query.isFetching} onClick={() => { void query.refetch() }}>Обновить обзор</Button></header>
@@ -20,7 +20,7 @@ export function DashboardPage() {
       {query.isFetching && <Skeleton label="Загрузка обзора" rows={5} />}
       {query.error && <ErrorState title="Не удалось загрузить обзор" description={data ? 'Показан последний успешный снимок. Данные могут быть устаревшими.' : 'Попробуйте ещё раз.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}
       {data && <>
-        <p role="status" className="text-caption text-muted">{data.settings.restaurant_name}. Снимок: <time dateTime={data.meta.server_time}>{formatRestaurantDateTime(data.meta.server_time, data.settings.timezone)}</time>. Часовой пояс: {data.settings.timezone}. Скоро истекает: в течение {data.settings.expiring_threshold_hours} ч. Обновление каждые 30 секунд в активном окне.</p>
+        <p role="status" className="text-caption text-muted">{data.settings.restaurant_name}. Снимок: <time dateTime={data.meta.server_time}>{formatRestaurantDateTime(data.meta.server_time, data.settings.timezone)}</time>. Часовой пояс: {data.settings.timezone}. Скоро истекает: в течение {data.settings.expiring_threshold_hours} ч. Снимок обновляется при серверных изменениях и восстановлении связи.</p>
         <div className={styles.metrics}>
           {[
             { label: 'Истекающие партии', count: data.expiring_batches_count, to: '/inventory?filter=expiring&sort=nearest_expires_at' },

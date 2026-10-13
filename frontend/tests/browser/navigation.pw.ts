@@ -88,7 +88,8 @@ for (const role of ['admin', 'manager', 'storekeeper', 'order_operator']) for (c
     } else {
       await expect(page.getByRole('heading', { name: 'Недостаточно прав' })).toBeVisible()
       await expect(page.getByText('Содержимое этого раздела появится на следующем этапе разработки.')).toHaveCount(0)
-      expect(api).toEqual(['/api/v1/auth/me'])
+      expect(api).toContain('/api/v1/auth/me')
+      expect(api.filter((path) => !['/api/v1/auth/me', '/api/v1/events'].includes(path))).toEqual([])
       await page.reload()
       await expect(page.getByRole('heading', { name: 'Недостаточно прав' })).toBeVisible()
       await page.getByRole('link', { name: 'К обзору' }).click()

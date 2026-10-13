@@ -14,7 +14,7 @@ afterEach(cleanup)
 function setup(login: SessionController['login'] = vi.fn(async () => {}), path = '/login') {
   const store = configureStore({ reducer: { session: sessionReducer } })
   store.dispatch(replaceSession({ ...initialSessionState, status: 'anonymous' }))
-  const auth: SessionController = { login, logout: vi.fn(async () => {}), restore: vi.fn(async () => false), expire: vi.fn(), getVersion: () => 0, hasAccess: () => false, registerSubscription: () => () => false }
+  const auth: SessionController = { revalidate: vi.fn(async () => true), login, logout: vi.fn(async () => {}), restore: vi.fn(async () => false), expire: vi.fn(), getVersion: () => 0, hasAccess: () => false, registerSubscription: () => () => false }
   const router = createMemoryRouter([{ path: '/login', element: <LoginForm /> }, { path: '/', element: <h1>Home</h1> }], { initialEntries: [path] })
   render(<Provider store={store}><AuthContext value={auth}><RouterProvider router={router} /></AuthContext></Provider>)
   return { user: userEvent.setup(), login, store, router }

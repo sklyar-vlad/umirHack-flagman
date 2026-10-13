@@ -85,10 +85,14 @@ test('restoration failure keeps protected content closed and supports explicit r
 })
 
 test('expired cookie sends a restored session to login once and permits login again', async ({ page, context }) => {
+  const confirmed: string[] = []
+  page.on('response', (response) => { if (new URL(response.url()).pathname === '/api/v1/auth/me' && response.ok()) confirmed.push(response.url()) })
   await page.goto('/login?returnTo=%2Flogin')
   await fillLogin(page)
   await page.getByRole('button', { name: 'Войти', exact: true }).click()
   await expect(page).toHaveURL('/')
+  // Finish login and the SSE-open confirmation before removing this session.
+  await expect.poll(() => confirmed.length).toBe(2)
   await context.clearCookies()
   const me: string[] = []
   page.on('request', (request) => { if (new URL(request.url()).pathname === '/api/v1/auth/me') me.push(request.url()) })

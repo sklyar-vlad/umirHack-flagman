@@ -14,7 +14,7 @@ import styles from './MovementsPage.module.css'
 export function MovementsPage() {
   const [params, setParams] = useSearchParams(), values = readMovementSearch(params), error = movementSearchError(values)
   const { user, settings } = useSelector(selectSession), timezone = settings?.timezone ?? 'Europe/Moscow'
-  const query = useStockMovementsQuery(values, { skip: !!error || !user || user.role === 'order_operator', refetchOnMountOrArgChange: true, pollingInterval: 10_000, skipPollingIfUnfocused: true })
+  const query = useStockMovementsQuery(values, { skip: !!error || !user || user.role === 'order_operator', refetchOnMountOrArgChange: true })
   const data = query.currentData, [resetEpoch, setResetEpoch] = useState(0)
   const change = (patch: Partial<MovementSearch>) => setParams(movementSearchParams(changeMovementSearch(values, patch)))
   const reset = () => { setResetEpoch((value) => value + 1); setParams(new URLSearchParams()) }

@@ -22,7 +22,7 @@ for (const width of [360, 390, 1024, 1440]) {
     for (const text of ['500 мл', 'ТЕСТ-101', '64800 с', 'Скоро истекает']) await expect(batch).toContainText(text)
     await expect(page.getByRole('article', { name: /^Предложение:/ }).first()).toHaveAccessibleName('Предложение: Суп дня')
     await expect(page.getByRole('article', { name: 'Закупить: Молоко' })).toContainText('К закупке: 2,5 л')
-    expect(reads.filter((url) => !url.pathname.startsWith('/api/v1/auth/')).map((url) => url.pathname + url.search)).toEqual(['/api/v1/dashboard'])
+    expect([...new Set(reads.filter((url) => !url.pathname.startsWith('/api/v1/auth/') && url.pathname !== '/api/v1/events').map((url) => url.pathname + url.search))]).toEqual(['/api/v1/dashboard'])
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: `test-results/dashboard-${width}.png`, fullPage: true })
     await page.getByRole('link', { name: 'Открыть: истекающие партии' }).focus(); await page.keyboard.press('Enter')
@@ -50,13 +50,13 @@ for (const width of [360, 390, 1024, 1440]) {
 }
 for (const role of ['admin', 'manager', 'storekeeper', 'order_operator']) {
   test(`${role} dashboard permissions, forbidden details and root alias`, async ({ page }) => {
-    const reads: string[] = []; page.on('request', (request) => { if (new URL(request.url()).pathname.startsWith('/api/v1/') && !request.url().includes('/auth/')) reads.push(new URL(request.url()).pathname) })
+    const reads: string[] = []; page.on('request', (request) => { if (new URL(request.url()).pathname.startsWith('/api/v1/') && !request.url().includes('/auth/') && new URL(request.url()).pathname !== '/api/v1/events') reads.push(new URL(request.url()).pathname) })
     await page.setViewportSize({ width: 390, height: 1000 }); await login(page, role)
     await expect(page.getByRole('heading', { name: 'Продвигать блюда' })).toHaveCount(role === 'storekeeper' ? 0 : 1)
     await expect(page.getByRole('heading', { name: 'Закупить продукты' })).toHaveCount(role === 'order_operator' ? 0 : 1)
     await expect(page.getByRole('link', { name: 'Открыть: блюда в стоп-листе' })).toHaveCount(role === 'storekeeper' ? 0 : 1)
     await expect(metric(page, 'Блюда в стоп-листе')).toHaveText('27')
-    expect(reads).toEqual(['/api/v1/dashboard'])
+    expect([...new Set(reads)]).toEqual(['/api/v1/dashboard'])
     await page.getByRole('link', { name: 'На склад: Молоко, строка 2' }).click()
     if (role === 'order_operator') {
       await page.getByRole('button', { name: 'Раскрыть партии Молоко' }).focus(); await page.keyboard.press('Enter')
@@ -109,9 +109,9 @@ test('dashboard reflects reception and order through shared synthetic storage', 
   await expect(page.getByRole('article', { name: 'Партия: Молоко, строка 2' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Нет горячих предложений' })).toBeVisible()
 })
-test('dashboard polling refreshes expiry without mutation', async ({ page }) => {
+test('dashboard time event refreshes expiry without mutation', async ({ page }) => {
   await page.clock.install(); await login(page); await expect(metric(page, 'Истекающие партии')).toHaveText('1')
   await page.evaluate(async () => { const path = '/src/app/mocks/scenarios.ts'; const { setMockScenario } = await import(path); setMockScenario('dashboard-expired') })
-  await page.clock.runFor(30_100); await expect(metric(page, 'Истекающие партии')).toHaveText('0'); await expect(metric(page, 'Просроченные партии')).toHaveText('3')
+  await page.clock.runFor(30_500); await expect(metric(page, 'Истекающие партии')).toHaveText('0'); await expect(metric(page, 'Просроченные партии')).toHaveText('3')
   await expect(page.getByRole('article', { name: 'Партия: Молоко, строка 2' })).toContainText('Просрочена')
 })

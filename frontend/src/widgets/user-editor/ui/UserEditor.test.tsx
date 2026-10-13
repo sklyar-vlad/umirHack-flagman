@@ -18,7 +18,7 @@ import { UserEntryPage } from '@/pages/admin-users'
 const server = setupServer(...userHandlers), NativeRequest = globalThis.Request, requests: Request[] = []
 const secret = 'local-new-secret-only', actions: unknown[] = []
 function mount(id?: string, password = false, own = false) {
-  const auth: SessionController = { restore: vi.fn(async () => true), login: vi.fn(), logout: vi.fn(), expire: vi.fn(), getVersion: () => 0, hasAccess: () => true, registerSubscription: () => () => false }
+  const auth: SessionController = { revalidate: vi.fn(async () => true), restore: vi.fn(async () => true), login: vi.fn(), logout: vi.fn(), expire: vi.fn(), getVersion: () => 0, hasAccess: () => true, registerSubscription: () => () => false }
   const recorder: Middleware = () => (next) => (action) => { if (typeof action !== 'function') actions.push(action); return next(action) }
   const store = configureStore({ reducer: { session: sessionReducer, [userApi.reducerPath]: userApi.reducer }, preloadedState: { session: { ...initialSessionState, status: 'authenticated' as const, expiresAt: '2099-01-01T00:00:00Z', user: { id: own ? mockActorId : '22222222-2222-4222-8222-222222222222', name: 'Тест', email: 'test@example.test', role: 'admin' as const } } }, middleware: (getDefaultMiddleware) => getDefaultMiddleware({ thunk: { extraArgument: { getCsrfToken: () => 'mock-csrf-for-local-tests', onUnauthorized: auth.expire } } }).concat(recorder, userApi.middleware) })
   const path = id ? `/admin/users/${id}/${password ? 'password' : 'edit'}` : '/admin/users/new'

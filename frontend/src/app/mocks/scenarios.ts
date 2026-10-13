@@ -1,4 +1,8 @@
 export const mockScenarios = [
+  { value: 'events-replay', label: 'События · Replay и повтор cursor' },
+  { value: 'events-reconnect', label: 'События · Native reconnect' },
+  { value: 'events-resync', label: 'События · Полный resync' },
+  { value: 'events-disconnect', label: 'События · Обрыв потока' },
   { value: 'forecast-demo', label: 'Прогноз · Причины, история и страницы' },
   { value: 'forecast-empty', label: 'Прогноз · Нет активных блюд' },
   { value: 'forecast-slow', label: 'Прогноз · Загрузка' },
