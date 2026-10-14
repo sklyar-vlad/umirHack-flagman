@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { test, expect, type Page } from '@playwright/test'
 async function login(page: Page, target = '/recommendations/procurement', role = 'manager') {
   await page.goto(`/login?returnTo=${encodeURIComponent(target)}`)
@@ -50,8 +51,7 @@ for (const width of [360, 390, 1024, 1440]) {
 }
 test('loading, stale/error, category retry, empty and denial states', async ({ page }) => {
   await login(page); await expect(milk(page)).toBeVisible()
-  await page.getByLabel('Сценарий API').selectOption('slow'); await expect(page.getByRole('status', { name: 'Загрузка закупок' })).toBeVisible(); await expect(page.getByRole('button', { name: 'Обновить закупки' })).toBeDisabled()
-  await expect(page.getByRole('status', { name: 'Загрузка закупок' })).toHaveCount(0)
+  await backgroundRefresh(page, 'slow', '/api/v1/procurement-recommendations', 'Загрузка закупок', page.getByRole('article').first(), page.getByRole('button', { name: 'Обновить закупки' }))
   await page.getByLabel('Сценарий API').selectOption('categories-error'); await expect(page.getByRole('heading', { name: 'Не удалось загрузить категории' })).toBeVisible(); await expect(milk(page)).toBeVisible()
   await page.getByLabel('Сценарий API').selectOption('success'); await expect(page.getByLabel('Категория', { exact: true })).toBeEnabled()
   await page.getByLabel('Сценарий API').selectOption('network-error'); await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible(); await expect(milk(page)).toBeVisible()
@@ -95,7 +95,22 @@ test('reception reduces procurement and a confirmed order increases it', async (
   await page.goto('/recommendations/procurement?search=Молоко'); await expect(milk(page)).toContainText('К закупке: 1,599999 л')
 })
 test('time event updates expiration without a mutation', async ({ page }) => {
-  await page.clock.install(); await login(page, '/recommendations/procurement?search=Молоко'); await expect(milk(page)).toContainText('К закупке: 2,5 л')
+  await page.clock.install(); await login(page, '/inventory?search=Молоко')
+  await expect(page.getByRole('article', { name: 'Молоко' })).toBeVisible()
+  // The warehouse snapshot supplies the known expiry boundary for this time event.
+  await page.evaluate(async () => {
+    const path = '/src/app/mocks/inventory-fixtures.ts'
+    const { inventoryItems } = await import(path)
+    inventoryItems[0].nearest_expires_at = new Date(Date.now() + 20_000).toISOString()
+    inventoryItems[0].remaining_seconds = 20
+  })
+  const refreshed = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/inventory')
+  await page.getByRole('button', { name: 'Обновить склад' }).click()
+  await refreshed
+  await expect(page.getByRole('button', { name: 'Обновить склад' })).toBeEnabled()
+  await page.getByRole('navigation', { name: 'Разделы приложения', exact: true }).getByRole('link', { name: 'Рекомендации', exact: true }).click()
+  await page.getByRole('navigation', { name: 'Вкладки рекомендаций' }).getByRole('link', { name: 'Закупить продукты', exact: true }).click()
+  await expect(milk(page)).toContainText('К закупке: 2,5 л')
   await page.evaluate(async () => { const path = '/src/app/mocks/scenarios.ts'; const { setMockScenario } = await import(path); setMockScenario('procurement-expired') })
   await page.clock.runFor(30_500); await expect(milk(page)).toContainText('К закупке: 4 л'); await expect(milk(page)).toContainText('Нет годного остатка')
 })

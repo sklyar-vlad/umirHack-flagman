@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { expect, test, type Page } from '@playwright/test'
 
 async function login(page: Page) {
@@ -104,8 +105,7 @@ test('local quantity/date validation, empty catalogue, error retry and loading',
   await expect(page.getByRole('heading', { name: 'Нет активных продуктов' })).toBeVisible()
   await page.getByLabel('Сценарий API').selectOption('products-error')
   await expect(page.getByRole('heading', { name: 'Не удалось загрузить продукты' })).toBeVisible()
-  await page.getByLabel('Сценарий API').selectOption('products-slow')
-  await expect(page.getByRole('status', { name: 'Загрузка продуктов' })).toBeVisible()
+  await backgroundRefresh(page, 'products-slow', '/api/v1/products', 'Загрузка продуктов', page.getByLabel(/^Номер поставки/))
   await expect(page.getByRole('heading', { name: 'Не удалось загрузить продукты' })).toBeHidden()
   await expect(page.getByLabel('Продукт, строка 1', { exact: false })).toBeEnabled()
 })

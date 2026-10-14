@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { test, expect, type Page } from '@playwright/test'
 async function login(page: Page, role = 'admin', target = '/admin/dishes') {
   await page.goto(`/login?returnTo=${encodeURIComponent(target)}`)
@@ -43,7 +44,7 @@ test('F19 URL filters, pagination, literal search, back/forward and alias', asyn
 })
 test('F19 loading, stale/retry, empty, isolated filters and access denial', async ({ page }) => {
   await login(page); await expect(page.getByRole('article')).toHaveCount(25)
-  await page.getByLabel('Сценарий API').selectOption('dishes-slow'); await expect(page.getByRole('status', { name: 'Загрузка каталога блюд' })).toBeVisible(); await expect(page.getByRole('button', { name: 'Обновить каталог' })).toBeDisabled(); await expect(page.getByRole('status', { name: 'Загрузка каталога блюд' })).toHaveCount(0)
+  await backgroundRefresh(page, 'dishes-slow', '/api/v1/dishes', 'Загрузка каталога блюд', page.getByRole('button', { name: 'Состав: Суп дня', exact: true }), page.getByRole('button', { name: 'Обновить каталог' }))
   await page.getByLabel('Сценарий API').selectOption('dishes-error'); await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible(); await expect(page.getByRole('article')).toHaveCount(25)
   await page.evaluate(async () => { const path = '/src/app/mocks/scenarios.ts'; const { setMockScenario } = await import(path); setMockScenario('success') })
   await page.getByRole('button', { name: 'Попробовать снова' }).focus(); await page.keyboard.press('Enter'); await expect(page.getByRole('heading', { name: 'Не удалось загрузить каталог блюд' })).toHaveCount(0)

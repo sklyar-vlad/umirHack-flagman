@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { test, expect, type Page } from '@playwright/test'
 const soupId = '00000000-0000-4000-8000-000000000800', milk = '00000000-0000-4000-8000-000000000010', sugar = '00000000-0000-4000-8000-000000000012', eggs = '00000000-0000-4000-8000-000000000014'
 async function login(page: Page, path = '/admin/dishes/new') {
@@ -6,7 +7,12 @@ async function login(page: Page, path = '/admin/dishes/new') {
 }
 const preview = (page: Page) => page.getByRole('button', { name: 'Проверить без сохранения', exact: true })
 const save = (page: Page, edit = false) => page.getByRole('button', { name: edit ? 'Сохранить изменения блюда' : 'Создать блюдо', exact: true })
-async function scenario(page: Page, value: string) { await page.getByLabel('Сценарий API').selectOption(value); await expect(page.getByLabel(/^Продукт 1(?:$|\s)/)).toBeEnabled() }
+async function scenario(page: Page, value: string) {
+  const refreshedProducts = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/products' && response.ok())
+  await page.getByLabel('Сценарий API').selectOption(value)
+  await refreshedProducts
+  await expect(page.getByLabel(/^Продукт 1(?:$|\s)/)).toBeEnabled()
+}
 async function recipe(page: Page, product = milk, quantity = '100') { await expect(page.getByLabel(/^Продукт 1(?:$|\s)/)).toContainText('Молоко'); await page.getByLabel(/^Продукт 1(?:$|\s)/).selectOption(product); await page.getByLabel(/^Расход 1(?:$|\s)/).fill(quantity) }
 for (const width of [360, 390, 1024, 1440]) {
   test(`F20 creation, exact validation, preview and keyboard ${width}px`, async ({ page }) => {
@@ -66,7 +72,7 @@ test('F20 active product options handle empty/error/loading/retry and resource d
   await login(page); await expect(page.getByLabel(/^Продукт 1/)).toContainText('Молоко'); await scenario(page, 'products-empty'); await expect(page.getByRole('heading', { name: 'Активных продуктов пока нет' })).toBeVisible()
   await page.getByLabel('Сценарий API').selectOption('products-error'); await expect(page.getByRole('heading', { name: 'Не удалось загрузить активные продукты' })).toBeVisible(); await expect(preview(page)).toBeDisabled()
   await page.evaluate(async () => { const path = '/src/app/mocks/scenarios.ts'; const { setMockScenario } = await import(path); setMockScenario('success') }); await page.getByRole('button', { name: 'Попробовать снова' }).click(); await expect(page.getByLabel(/^Продукт 1/)).toContainText('Молоко')
-  await page.getByLabel('Сценарий API').selectOption('products-slow'); await expect(page.getByRole('status', { name: 'Загрузка активных продуктов' })).toBeVisible(); await expect(page.getByLabel(/^Продукт 1/)).toBeDisabled(); await expect(page.getByLabel(/^Продукт 1/)).toBeEnabled()
+  await backgroundRefresh(page, 'products-slow', '/api/v1/products', 'Загрузка активных продуктов', page.getByLabel(/^Продукт 1/))
   await page.getByLabel('Сценарий API').selectOption('success'); await page.getByRole('link', { name: 'В каталог блюд', exact: true }).click(); await page.getByLabel('Сценарий API').selectOption('dish-detail-slow'); await page.getByRole('link', { name: 'Редактировать: Суп дня' }).click(); await expect(page.getByRole('status', { name: 'Загрузка блюда для изменения' })).toBeVisible(); await expect(page.getByLabel(/^Название блюда/)).toHaveValue('Суп дня')
   await page.getByRole('link', { name: 'В каталог блюд', exact: true }).click(); await page.getByLabel('Сценарий API').selectOption('dish-detail-error'); await page.getByRole('link', { name: 'Редактировать: Суп дня' }).click(); await expect(page.getByRole('heading', { name: 'Не удалось прочитать блюдо' })).toBeVisible(); await expect(page.getByLabel(/^Название блюда/)).toHaveCount(0)
   await page.getByLabel('Сценарий API').selectOption('success'); await page.getByRole('button', { name: 'Попробовать снова' }).click(); await expect(page.getByLabel(/^Название блюда/)).toHaveValue('Суп дня')

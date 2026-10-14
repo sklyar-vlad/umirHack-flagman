@@ -24,6 +24,9 @@ export const receptionHandlers = [
       return Response.json(prior.supply, { status: 201 })
     }
     if (scenario === 'reception-in-progress') return createMockError(409, 'REQUEST_IN_PROGRESS', 'Запрос ещё выполняется', {}, '1')
+    if (scenario === 'reception-too-large') return createMockError(413, 'REQUEST_TOO_LARGE', 'Размер запроса превышает допустимый.')
+    if (scenario === 'reception-rate-limit') return createMockError(429, 'RATE_LIMIT_EXCEEDED', 'Подождите перед повтором запроса.', {}, '1')
+    if (scenario === 'reception-server-error') return createMockError(500, 'INTERNAL_ERROR', 'Ошибка при сохранении поставки.')
     if (scenario === 'reception-network') return Response.error()
     if (scenario === 'reception-conflict') return createMockError(409, 'CONFLICT', 'Номер уже занят')
     if (scenario === 'reception-validation') return createMockError(422, 'VALIDATION_ERROR', 'Проверьте строки', { fields: [{ path: `items[${body.items.length - 1}].expires_at`, code: 'expired', message: 'Срок этой партии уже истёк на сервере.' }] })

@@ -1,4 +1,7 @@
 export const mockScenarios = [
+  { value: 'reception-too-large', label: 'Приёмка · Запрос слишком большой (413)' },
+  { value: 'reception-rate-limit', label: 'Приёмка · Ограничение запросов (429)' },
+  { value: 'reception-server-error', label: 'Приёмка · Ошибка сервера (500)' },
   { value: 'events-replay', label: 'События · Replay и повтор cursor' },
   { value: 'events-reconnect', label: 'События · Native reconnect' },
   { value: 'events-resync', label: 'События · Полный resync' },

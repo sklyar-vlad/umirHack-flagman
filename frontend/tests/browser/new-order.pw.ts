@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { expect, test, type Page } from '@playwright/test'
 async function login(page: Page, role = 'manager') {
   await page.goto('/login?returnTo=%2Forders%2Fnew')
@@ -93,7 +94,7 @@ test('final stock refusal preserves basket and updates saved attempts, check sho
 })
 test('catalogue loading, empty, errors, retry, no-results and 403 keep basket', async ({ page }) => {
   await login(page); await addSoup(page)
-  await page.getByLabel('Сценарий API').selectOption('dishes-slow'); await expect(page.getByRole('status', { name: 'Загрузка блюд' })).toBeVisible(); await expect(page.getByRole('status', { name: 'Загрузка блюд' })).toHaveCount(0)
+  await backgroundRefresh(page, 'dishes-slow', '/api/v1/dishes', 'Загрузка блюд', page.getByLabel(/^Порции: Суп дня/))
   await page.getByLabel('Сценарий API').selectOption('dishes-error'); await expect(page.getByRole('heading', { name: 'Не удалось загрузить блюда' })).toBeVisible()
   await page.getByLabel('Сценарий API').selectOption('success'); await expect(page.getByRole('button', { name: 'Добавить Суп дня', exact: true })).toBeVisible()
   await page.getByLabel('Сценарий API').selectOption('dishes-empty'); await expect(page.getByRole('heading', { name: 'Каталог пуст' })).toBeVisible()

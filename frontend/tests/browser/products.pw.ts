@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { test, expect, type Page } from '@playwright/test'
 async function scenario(page: Page, value: string) {
   await page.evaluate((value) => { const select = document.querySelector<HTMLSelectElement>('#mock-scenario')!; select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })) }, value)
@@ -56,8 +57,7 @@ test('URL filters, pagination, literal search, history and creation entry', asyn
 })
 test('loading, stale, retry, empty, initial failure and denial', async ({ page }) => {
   await login(page); await expect(page.getByRole('article', { name: 'Продукт: Молоко' })).toBeVisible()
-  await page.getByLabel('Сценарий API').selectOption('products-slow'); await expect(page.getByRole('status', { name: 'Загрузка каталога' })).toBeVisible(); await expect(page.getByRole('button', { name: 'Обновить каталог' })).toBeDisabled()
-  await expect(page.getByRole('status', { name: 'Загрузка каталога' })).toHaveCount(0)
+  await backgroundRefresh(page, 'products-slow', '/api/v1/products', 'Загрузка каталога', page.getByRole('article', { name: 'Продукт: Молоко' }), page.getByRole('button', { name: 'Обновить каталог' }))
   await page.getByLabel('Сценарий API').selectOption('products-error'); await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible()
   await expect(page.getByRole('article', { name: 'Продукт: Молоко' })).toBeVisible()
   await page.evaluate(async () => { const path = '/src/app/mocks/scenarios.ts'; const { setMockScenario } = await import(path); setMockScenario('success') })

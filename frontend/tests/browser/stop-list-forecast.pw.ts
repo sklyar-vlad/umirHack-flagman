@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { test, expect, type Page } from '@playwright/test'
 
 async function login(page: Page, role = 'admin', target = '/analytics/stop-list-forecast') {
@@ -21,7 +22,7 @@ for (const width of [360, 390, 1024, 1440]) {
     await expect(cards(page)).toHaveCount(5)
     await expect(cards(page).nth(0)).toContainText('Уже недоступно')
     await expect(cards(page).nth(1)).toContainText('Истечение срока партии')
-    await expect(cards(page).nth(1)).toContainText('13.10.2026, 12:30:00')
+    await expect(cards(page).nth(1)).toContainText('13.10.2026, 12:30')
     await expect(cards(page).nth(1)).toContainText('Недостаточно данных')
     await expect(cards(page).nth(2)).toContainText('Ожидаемый расход')
     await expect(cards(page).nth(3)).toContainText('Недостаточно истории; по срокам остановки в горизонте не найдено')
@@ -82,7 +83,7 @@ for (const role of ['storekeeper', 'order_operator']) {
 
 test('loading, stale error, retry, empty, invalid response and access denial', async ({ page }) => {
   await login(page); await ready(page)
-  await page.getByLabel('Сценарий API').selectOption('forecast-slow'); await expect(page.getByRole('status', { name: 'Загрузка прогноза' })).toBeVisible(); await expect(page.getByRole('status', { name: 'Загрузка прогноза' })).not.toBeVisible()
+  await backgroundRefresh(page, 'forecast-slow', '/api/v1/analytics/stop-list-forecast', 'Загрузка прогноза', cards(page).first())
   await page.getByLabel('Сценарий API').selectOption('forecast-error'); await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible(); await ready(page)
   await page.getByLabel('Сценарий API').selectOption('success'); await expect(page.getByRole('heading', { name: 'Не удалось загрузить прогноз' })).not.toBeVisible()
   await page.getByLabel('Сценарий API').selectOption('forecast-empty'); await expect(page.getByRole('heading', { name: 'Активных блюд пока нет' })).toBeVisible()

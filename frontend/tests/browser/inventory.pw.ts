@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { expect, test, type Page } from '@playwright/test'
 
 async function login(page: Page, target = '/inventory', role = 'manager') {
@@ -115,10 +116,7 @@ test('independent loading/error/empty panels and list states; 403 retains sessio
   await page.getByLabel('Сценарий API').selectOption('categories-error')
   await expect(page.getByRole('heading', { name: 'Не удалось загрузить категории' })).toBeVisible()
   await expect(page.getByRole('article', { name: 'Молоко' })).toBeVisible()
-  await page.getByLabel('Сценарий API').selectOption('slow')
-  await expect(page.getByRole('status', { name: 'Загрузка склада' })).toBeVisible()
-  await expect(page.getByRole('article', { name: 'Молоко' })).toBeVisible()
-  await expect(page.getByRole('status', { name: 'Загрузка склада' })).toHaveCount(0)
+  await backgroundRefresh(page, 'slow', '/api/v1/inventory', 'Загрузка склада', page.getByRole('article', { name: 'Молоко' }))
   await page.getByLabel('Сценарий API').selectOption('server-error')
   await expect(page.getByRole('heading', { name: 'Не удалось загрузить склад' })).toBeVisible()
   await expect(page.getByRole('article')).toHaveCount(0)
@@ -139,7 +137,8 @@ test('expired-only and zero-stock products; operator has no stock mutation or su
   await expect(expired.getByText('Нет годных партий')).toBeVisible()
   await expect(expired.getByText('Нет годного остатка', { exact: true })).toBeVisible()
   await expired.getByRole('button', { name: 'Раскрыть партии Творог — только просрочка' }).click()
-  await expect(expired.getByText('Срок истёк 0 с назад')).toBeVisible()
+  await expect(expired).not.toContainText('Срок истёк 0 с назад')
+  await expect(expired.getByText('Просрочена', { exact: true })).toBeVisible()
   await expect(expired.getByRole('link', { name: /К поставке|Списать партию/ })).toHaveCount(0)
   const empty = page.getByRole('article', { name: 'Сахар' })
   await expect(empty.getByText('Не задан')).toBeVisible()

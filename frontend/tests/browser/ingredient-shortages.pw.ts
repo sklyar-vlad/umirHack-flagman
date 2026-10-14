@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { test, expect, type Page } from '@playwright/test'
 
 async function login(page: Page, role = 'admin', target = '/analytics/ingredient-shortages') {
@@ -73,7 +74,7 @@ for (const role of ['storekeeper', 'order_operator']) {
 
 test('loading, stale error, retry, empty, invalid response and revoked access', async ({ page }) => {
   await login(page); await ready(page, 1)
-  await page.getByLabel('Сценарий API').selectOption('shortages-slow'); await expect(page.getByRole('status', { name: 'Загрузка недостачи' })).toBeVisible(); await expect(page.getByRole('status', { name: 'Загрузка недостачи' })).not.toBeVisible()
+  await backgroundRefresh(page, 'shortages-slow', '/api/v1/analytics/ingredient-shortages', 'Загрузка недостачи', records(page))
   await page.getByLabel('Сценарий API').selectOption('shortages-error'); await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible(); await ready(page, 1)
   await page.getByLabel('Сценарий API').selectOption('success'); await expect(page.getByRole('heading', { name: 'Не удалось загрузить недостачу' })).not.toBeVisible()
   await page.getByLabel('Сценарий API').selectOption('shortages-empty'); await expect(page.getByRole('heading', { name: 'Отказов из-за недостачи пока нет' })).toBeVisible()

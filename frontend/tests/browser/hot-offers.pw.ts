@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { test, expect, type Page } from '@playwright/test'
 async function login(page: Page, target = '/recommendations/offers', role = 'manager') {
   await page.goto(`/login?returnTo=${encodeURIComponent(target)}`)
@@ -15,7 +16,8 @@ for (const width of [360, 390, 1024, 1440]) {
     })
     await page.setViewportSize({ width, height: 1000 }); await login(page, '/recommendations?tab=hot-offers&page_size=1')
     await expect(soup(page)).toBeVisible(); await expect(soup(page)).toContainText('Низкий приоритет')
-    for (const value of ['Место: 1', '1,6667', '15 порц.', '500 мл', '100 мл', 'ТЕСТ-101', '64800 с.']) await expect(soup(page)).toContainText(value)
+    for (const value of ['Место: 1', '1,6667', '15 порц.', '500 мл', '100 мл', 'ТЕСТ-101']) await expect(soup(page)).toContainText(value)
+    await expect(soup(page)).not.toContainText('64800 с')
     await expect(page.getByText(/не гарантируют возможность приготовить их вместе/)).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: `test-results/hot-offers-${width}.png`, fullPage: true })
@@ -52,7 +54,7 @@ test('one portion preserves the whole basket and rejects the combined shared ing
 })
 test('loading, stale/error, keyboard retry, empty and permission states', async ({ page }) => {
   await login(page); await expect(soup(page)).toBeVisible()
-  await page.getByLabel('Сценарий API').selectOption('slow'); await expect(page.getByRole('status', { name: 'Загрузка предложений' })).toBeVisible(); await expect(page.getByRole('button', { name: 'Обновить предложения' })).toBeDisabled(); await expect(page.getByRole('status', { name: 'Загрузка предложений' })).toHaveCount(0)
+  await backgroundRefresh(page, 'slow', '/api/v1/hot-offers', 'Загрузка предложений', soup(page), page.getByRole('button', { name: 'Обновить предложения' }))
   await page.getByLabel('Сценарий API').selectOption('network-error'); await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible(); await expect(soup(page).getByRole('button', { name: 'Добавить в заказ: Суп дня' })).toBeDisabled()
   await page.evaluate(async () => { const path = '/src/app/mocks/scenarios.ts'; const { setMockScenario } = await import(path); setMockScenario('success') })
   await page.getByRole('button', { name: 'Попробовать снова' }).focus(); await page.keyboard.press('Enter'); await expect(soup(page).getByRole('button', { name: 'Добавить в заказ: Суп дня' })).toBeEnabled()

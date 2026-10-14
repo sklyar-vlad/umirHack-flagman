@@ -1,0 +1,54 @@
+# Dedicated acceptance project; never combine with deployment Compose files.
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: flagman_frontend_test
+      POSTGRES_USER: flagman_frontend
+      POSTGRES_PASSWORD_FILE: /run/secrets/password
+    secrets: [password]
+    tmpfs: [/var/lib/postgresql]
+    ports: ["127.0.0.1::5432"]
+    healthcheck:
+      test: [CMD, pg_isready, -U, flagman_frontend, -d, flagman_frontend_test]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+  backend:
+    image: ${FRONTEND_TEST_PROJECT}:backend
+    environment:
+      ENV: development
+      GIN_MODE: release
+      PORT: "8080"
+      FRONTEND_ORIGIN: ${FRONTEND_TEST_ORIGIN}
+      POSTGRES_URL_FILE: /run/secrets/postgres_url
+    secrets: [postgres_url]
+    depends_on:
+      db:
+        condition: service_healthy
+  frontend:
+    image: ${FRONTEND_TEST_PROJECT}:frontend
+    depends_on: [backend]
+  traefik:
+    image: traefik:v3.7
+    command:
+      - --providers.file.filename=/etc/traefik/frontend.yaml
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.transport.respondingtimeouts.writetimeout=0s
+    volumes: ["./traefik.yaml:/etc/traefik/frontend.yaml:ro"]
+    ports: ["127.0.0.1:${FRONTEND_TEST_WEB_PORT:-0}:80"]
+    depends_on: [frontend]
+  seed-users:
+    profiles: [seed]
+    image: ${FRONTEND_TEST_PROJECT}:seed-users
+    environment:
+      GOOSE_DBSTRING: ${FRONTEND_TEST_SEED_DSN}
+      DEMO_ADMIN_PASSWORD: ${FRONTEND_TEST_PASSWORD}
+      DEMO_MANAGER_PASSWORD: ${FRONTEND_TEST_PASSWORD}
+      DEMO_STOREKEEPER_PASSWORD: ${FRONTEND_TEST_PASSWORD}
+      DEMO_ORDER_OPERATOR_PASSWORD: ${FRONTEND_TEST_PASSWORD}
+secrets:
+  password:
+    file: ${FRONTEND_TEST_DIR}/password
+  postgres_url:
+    file: ${FRONTEND_TEST_DIR}/postgres_url

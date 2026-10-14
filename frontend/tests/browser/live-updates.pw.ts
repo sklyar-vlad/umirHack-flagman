@@ -2,12 +2,17 @@ import { expect, test, type Page } from '@playwright/test'
 import { createServer } from 'node:http'
 
 type Observations = { sources: number; closed: number; opened: number; deliveries: string[] }
-type ObservedWindow = Window & { __liveTest: Observations }
+declare global {
+  interface Window {
+    __liveTest: Observations
+    __transportTest: { sources: number; refreshes: number; cursors: string[]; stop: () => void }
+  }
+}
 async function observe(page: Page) {
   await page.addInitScript(() => {
     const NativeSource = window.EventSource
     const observations = { sources: 0, closed: 0, opened: 0, deliveries: [] as string[] }
-    ;(window as ObservedWindow).__liveTest = observations
+    window.__liveTest = observations
     window.EventSource = class extends NativeSource {
       constructor(url: string | URL, options?: EventSourceInit) {
         super(url, options); observations.sources++
@@ -18,7 +23,7 @@ async function observe(page: Page) {
     }
   })
 }
-const observed = (page: Page) => page.evaluate(() => (window as ObservedWindow).__liveTest)
+const observed = (page: Page) => page.evaluate(() => window.__liveTest)
 async function login(page: Page, target = '/orders/new', admin = false) {
   await page.goto(`/login?returnTo=${encodeURIComponent(target)}`)
   if (admin) await page.getByLabel('Сценарий API').selectOption('role-admin')
@@ -116,6 +121,7 @@ test('F30 native reconnect sends Last-Event-ID and refreshes on the same control
   const headers: string[] = [], urls: string[] = []
   const server = createServer((request, response) => {
     if (request.url === '/native-sse.html') { response.writeHead(200, { 'Content-Type': 'text/html' }); response.end('<!doctype html><title>Local SSE transport fixture</title>'); return }
+    if (request.url === '/favicon.ico') { response.writeHead(204); response.end(); return }
     urls.push(request.url ?? '')
     const cursor = request.headers['last-event-id']
     if (typeof cursor === 'string') headers.push(cursor)
@@ -133,7 +139,7 @@ test('F30 native reconnect sends Last-Event-ID and refreshes on the same control
       const path = 'http://127.0.0.1:5182/src/shared/api/live-events.ts'
       const { createLiveEvents } = await import(path)
       const state = { sources: 0, refreshes: 0, cursors: [] as string[], stop: () => {} }
-      ;(window as Window & { __transportTest: typeof state }).__transportTest = state
+      window.__transportTest = state
       const live = createLiveEvents({
         connect: () => { state.sources++; return new EventSource('/events', { withCredentials: true }) },
         visible: () => true, online: () => true, confirmSession: async () => true,
@@ -142,8 +148,8 @@ test('F30 native reconnect sends Last-Event-ID and refreshes on the same control
       state.stop = live.stop
     })
     await expect.poll(() => headers, { timeout: 15_000 }).toContain('9007199254740993')
-    await expect.poll(() => page.evaluate(() => (window as Window & { __transportTest: { cursors: string[] } }).__transportTest.cursors)).toContain('9007199254740994')
-    const state = await page.evaluate(() => { const state = (window as Window & { __transportTest: { sources: number; refreshes: number; stop: () => void } }).__transportTest; state.stop(); return { sources: state.sources, refreshes: state.refreshes } })
+    await expect.poll(() => page.evaluate(() => window.__transportTest.cursors)).toContain('9007199254740994')
+    const state = await page.evaluate(() => { const state = window.__transportTest; state.stop(); return { sources: state.sources, refreshes: state.refreshes } })
     expect(state.sources).toBe(1); expect(state.refreshes).toBeGreaterThanOrEqual(2)
     expect(urls.every((url) => url === '/events')).toBe(true)
   } finally { server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())) }

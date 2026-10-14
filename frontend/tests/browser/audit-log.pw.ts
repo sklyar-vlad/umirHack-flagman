@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { test, expect, type Page } from '@playwright/test'
 
 async function login(page: Page, role = 'admin', target = '/admin/audit-log') {
@@ -35,7 +36,7 @@ for (const role of ['manager', 'storekeeper', 'order_operator']) {
 }
 test('loading, stale retry, empty, invalid response and revoked access', async ({ page }) => {
   await login(page); await expect(page.getByText('Найдено записей: 65. Страница 1.')).toBeVisible()
-  await page.getByLabel('Сценарий API').selectOption('audit-slow'); await expect(page.getByRole('status', { name: 'Загрузка журнала' })).toBeVisible(); await expect(page.getByRole('status', { name: 'Загрузка журнала' })).not.toBeVisible()
+  await backgroundRefresh(page, 'audit-slow', '/api/v1/audit-log', 'Загрузка журнала', page.getByText('Найдено записей: 65. Страница 1.'))
   await page.getByLabel('Сценарий API').selectOption('audit-error'); await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible()
   await page.getByLabel('Сценарий API').selectOption('audit-empty'); await expect(page.getByRole('heading', { name: 'Журнал пока пуст' })).toBeVisible()
   await page.getByLabel('Сценарий API').selectOption('audit-invalid'); await expect(page.getByRole('heading', { name: 'Не удалось загрузить журнал' })).toBeVisible()

@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { test, expect, type Page } from '@playwright/test'
 async function login(page: Page, target = '/stop-list', role = 'manager') {
   await page.goto(`/login?returnTo=${encodeURIComponent(target)}`)
@@ -41,9 +42,7 @@ for (const width of [360, 390, 1024, 1440]) {
 }
 test('loading, stale/error states, empty state, literal search and local denial', async ({ page }) => {
   await login(page); await expect(soup(page)).toBeVisible()
-  await page.getByLabel('Сценарий API').selectOption('slow'); await expect(page.getByRole('status', { name: 'Загрузка стоп-листа' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Обновить стоп-лист' })).toBeDisabled()
-  await expect(page.getByRole('status', { name: 'Загрузка стоп-листа' })).toHaveCount(0)
+  await backgroundRefresh(page, 'slow', '/api/v1/stop-list', 'Загрузка стоп-листа', soup(page), page.getByRole('button', { name: 'Обновить стоп-лист' }))
   await page.getByLabel('Сценарий API').selectOption('network-error'); await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible(); await expect(soup(page)).toBeVisible()
   await page.getByLabel('Название блюда').fill('%_\\'); await page.getByLabel('Название блюда').press('Enter')
   await expect(page.getByRole('article')).toHaveCount(0); await expect(page.getByText('Попробуйте ещё раз.', { exact: true })).toBeVisible()
@@ -72,7 +71,20 @@ test('storekeeper cannot mount stop-list or request its API', async ({ page }) =
 })
 test('time event reads expiration without a write or scenario invalidation', async ({ page }) => {
   await page.clock.install()
-  await login(page, '/stop-list?search=Молочный'); await expect(soup(page)).toBeVisible()
+  await login(page, '/inventory?search=Молоко')
+  await expect(page.getByRole('article', { name: 'Молоко' })).toBeVisible()
+  // Stop-list has no expiry timestamps. Cache a known warehouse boundary first.
+  await page.evaluate(async () => {
+    const path = '/src/app/mocks/inventory-fixtures.ts'
+    const { inventoryItems } = await import(path)
+    inventoryItems[0].nearest_expires_at = new Date(Date.now() + 20_000).toISOString()
+    inventoryItems[0].remaining_seconds = 20
+  })
+  const refreshed = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/inventory')
+  await page.getByRole('button', { name: 'Обновить склад' }).click()
+  await refreshed
+  await expect(page.getByRole('button', { name: 'Обновить склад' })).toBeEnabled()
+  await page.getByRole('navigation', { name: 'Разделы приложения', exact: true }).getByRole('link', { name: 'Стоп-лист', exact: true }).click(); await expect(soup(page)).toBeVisible()
   await soup(page).locator('summary').click()
   await expect(soup(page).getByRole('region')).toContainText('0,001 мл')
   await page.evaluate(async () => {

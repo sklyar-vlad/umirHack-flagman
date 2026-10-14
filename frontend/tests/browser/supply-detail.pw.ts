@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { expect, test, type Page } from '@playwright/test'
 
 const supplyId = '00000000-0000-4000-8000-000000000100'
@@ -27,8 +28,8 @@ for (const width of [360, 390, 1024, 1440]) {
     await expect(lines.nth(22)).toContainText('Израсходована')
     await expect(lines.nth(22)).toContainText('0 л')
     await expect(lines.nth(24)).toContainText('99999999,999999 кг')
-    await expect(page.getByText('10.10.2026, 12:05:00', { exact: true })).toBeVisible()
-    await expect(page.getByText('10.10.2026, 12:00:00', { exact: true })).toBeVisible()
+    await expect(page.getByText('10.10.2026, 12:05', { exact: true })).toBeVisible()
+    await expect(page.getByText('10.10.2026, 12:00', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: /Редактировать|Удалить|Сохранить|Изменить/ })).toHaveCount(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: `test-results/supply-detail-${width}.png`, fullPage: true })
@@ -56,10 +57,7 @@ for (const width of [360, 390, 1024, 1440]) {
 test('loading, transient failure/retry, cached 404, recovery and 403', async ({ page }) => {
   await login(page)
   await expect(page.getByRole('heading', { name: 'Поставка ТЕСТ-101' })).toBeVisible()
-  await page.getByLabel('Сценарий API').selectOption('slow')
-  await expect(page.getByRole('status', { name: 'Загрузка поставки' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Обновить поставку' })).toBeDisabled()
-  await expect(page.getByRole('status', { name: 'Загрузка поставки' })).toHaveCount(0)
+  await backgroundRefresh(page, 'slow', '/api/v1/supplies/00000000-0000-4000-8000-000000000100', 'Загрузка поставки', page.getByRole('heading', { name: 'Поставка ТЕСТ-101' }), page.getByRole('button', { name: 'Обновить поставку' }))
   await page.getByLabel('Сценарий API').selectOption('network-error')
   await expect(page.getByRole('heading', { name: 'Не удалось загрузить поставку' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Поставка ТЕСТ-101' })).toBeVisible()

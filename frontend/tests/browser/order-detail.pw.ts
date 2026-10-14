@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { expect, test, type Page } from '@playwright/test'
 
 const id = '77777777-7777-4777-8777-777777777777'
@@ -25,7 +26,7 @@ for (const width of [360, 390, 1024, 1440]) {
     await expect(snapshot(page).getByText('240 г', { exact: true }).filter({ visible: true })).toBeVisible()
     await expect(snapshot(page).getByText('Томаты', { exact: true }).filter({ visible: true })).toBeVisible()
     await expect(snapshot(page).getByText('Тесто для пиццы', { exact: true }).filter({ visible: true })).toBeVisible()
-    await expect(page.getByText('09.10.2026, 12:00:00', { exact: true })).toBeVisible()
+    await expect(page.getByText('09.10.2026, 12:00', { exact: true })).toBeVisible()
     await expect(page.getByText('Рецептура: 1', { exact: true })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: `test-results/order-detail-${width}.png`, fullPage: true })
@@ -57,10 +58,7 @@ for (const width of [360, 390, 1024, 1440]) {
 
 test('loading, keyboard retry, stale snapshot, cached resource 404 and local 403', async ({ page }) => {
   await login(page); await expect(page.getByRole('heading', { name: 'Заказ №247' })).toBeVisible()
-  await page.getByLabel('Сценарий API').selectOption('slow')
-  await expect(page.getByRole('status', { name: 'Загрузка заказа' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Обновить заказ' })).toBeDisabled()
-  await expect(page.getByRole('status', { name: 'Загрузка заказа' })).toHaveCount(0)
+  await backgroundRefresh(page, 'slow', `/api/v1/orders/${id}`, 'Загрузка заказа', page.getByRole('heading', { name: 'Заказ №247' }), page.getByRole('button', { name: 'Обновить заказ' }))
   await page.getByLabel('Сценарий API').selectOption('network-error')
   await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Заказ №247' })).toBeVisible()

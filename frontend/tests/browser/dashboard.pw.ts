@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { test, expect, type Page } from '@playwright/test'
 
 async function login(page: Page, role = 'manager', target = '/dashboard') {
@@ -19,7 +20,8 @@ for (const width of [360, 390, 1024, 1440]) {
     await expect(metric(page, 'Истекающие партии')).toHaveText('1'); await expect(metric(page, 'Просроченные партии')).toHaveText('2')
     await expect(page.getByText('Всего проблемных партий: 3. Показано: 3.')).toBeVisible()
     const batch = page.getByRole('article', { name: 'Партия: Молоко, строка 2' })
-    for (const text of ['500 мл', 'ТЕСТ-101', '64800 с', 'Скоро истекает']) await expect(batch).toContainText(text)
+    for (const text of ['500 мл', 'ТЕСТ-101', 'Скоро истекает']) await expect(batch).toContainText(text)
+    await expect(batch).not.toContainText('64800 с')
     await expect(page.getByRole('article', { name: /^Предложение:/ }).first()).toHaveAccessibleName('Предложение: Суп дня')
     await expect(page.getByRole('article', { name: 'Закупить: Молоко' })).toContainText('К закупке: 2,5 л')
     expect([...new Set(reads.filter((url) => !url.pathname.startsWith('/api/v1/auth/') && url.pathname !== '/api/v1/events').map((url) => url.pathname + url.search))]).toEqual(['/api/v1/dashboard'])
@@ -73,9 +75,7 @@ for (const role of ['admin', 'manager', 'storekeeper', 'order_operator']) {
 }
 test('dashboard loading, retry, stale, empty, capped preview and denial', async ({ page }) => {
   await login(page)
-  await page.getByLabel('Сценарий API').selectOption('slow'); await expect(page.getByRole('status', { name: 'Загрузка обзора' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Обновить обзор' })).toBeDisabled()
-  await expect(page.getByRole('status', { name: 'Загрузка обзора' })).toHaveCount(0)
+  await backgroundRefresh(page, 'slow', '/api/v1/dashboard', 'Загрузка обзора', metric(page, 'Истекающие партии'), page.getByRole('button', { name: 'Обновить обзор' }))
   await page.getByLabel('Сценарий API').selectOption('network-error'); await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible()
   await expect(page.getByRole('article', { name: 'Предложение: Суп дня' })).toBeVisible()
   await page.evaluate(async () => { const path = '/src/app/mocks/scenarios.ts'; const { setMockScenario } = await import(path); setMockScenario('success') })
@@ -111,6 +111,16 @@ test('dashboard reflects reception and order through shared synthetic storage', 
 })
 test('dashboard time event refreshes expiry without mutation', async ({ page }) => {
   await page.clock.install(); await login(page); await expect(metric(page, 'Истекающие партии')).toHaveText('1')
+  // A time-only notification refreshes when a known cached batch crosses expiry.
+  await page.evaluate(async () => {
+    const path = '/src/app/mocks/inventory-fixtures.ts'
+    const { inventoryBatches } = await import(path)
+    inventoryBatches.find((batch: { id: string }) => batch.id.endsWith('202')).remaining_seconds = 20
+  })
+  const refreshed = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/dashboard')
+  await page.getByRole('button', { name: 'Обновить обзор' }).click()
+  await refreshed
+  await expect(page.getByRole('button', { name: 'Обновить обзор' })).toBeEnabled()
   await page.evaluate(async () => { const path = '/src/app/mocks/scenarios.ts'; const { setMockScenario } = await import(path); setMockScenario('dashboard-expired') })
   await page.clock.runFor(30_500); await expect(metric(page, 'Истекающие партии')).toHaveText('0'); await expect(metric(page, 'Просроченные партии')).toHaveText('3')
   await expect(page.getByRole('article', { name: 'Партия: Молоко, строка 2' })).toContainText('Просрочена')

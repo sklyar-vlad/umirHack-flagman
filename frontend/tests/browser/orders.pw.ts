@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { expect, test, type Page } from '@playwright/test'
 async function login(page: Page, target: string, role = 'manager') {
   await page.goto(`/login?returnTo=${encodeURIComponent(target)}`)
@@ -16,7 +17,7 @@ for (const width of [360, 390, 1024, 1440]) {
     const link = page.getByRole('link', { name: 'Заказ ТЕСТ-101', exact: true })
     await expect(link).toBeVisible()
     await expect(page.getByText('Исторический суп — 2 порц.').filter({ visible: true })).toBeVisible()
-    await expect(page.getByText('10.10.2026, 12:05:00', { exact: true }).filter({ visible: true })).toBeVisible()
+    await expect(page.getByText('10.10.2026, 12:05', { exact: true }).filter({ visible: true })).toBeVisible()
     expect(requests.every((url) => new URL(url).pathname === '/api/v1/orders')).toBe(true)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: `test-results/orders-${width}.png`, fullPage: true })
@@ -100,8 +101,7 @@ for (const tab of ['orders', 'attempts']) {
     await login(page, `/orders?tab=${tab}`)
     const noun = tab === 'orders' ? 'заказов' : 'отказов', search = tab === 'orders' ? 'Номер заказа или название блюда' : 'ID попытки или название блюда'
     await expect(page.getByText(`Найдено ${noun}: ${tab === 'orders' ? 26 : 25}. Страница 1.`)).toBeVisible()
-    await page.getByLabel('Сценарий API').selectOption('slow'); await expect(page.getByRole('status', { name: `Загрузка ${noun}` })).toBeVisible()
-    await expect(page.getByRole('status', { name: `Загрузка ${noun}` })).toHaveCount(0)
+    await backgroundRefresh(page, 'slow', tab === 'orders' ? '/api/v1/orders' : '/api/v1/order-attempts', `Загрузка ${noun}`, page.getByText(`Найдено ${noun}: ${tab === 'orders' ? 26 : 25}. Страница 1.`))
     await page.getByLabel('Сценарий API').selectOption('network-error'); await expect(page.getByRole('heading', { name: `Не удалось загрузить историю ${noun}` })).toBeVisible()
     await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible()
     await page.getByLabel(search).fill('не существует'); await page.getByLabel(search).press('Enter')

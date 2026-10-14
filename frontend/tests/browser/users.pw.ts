@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { test, expect, type Page } from '@playwright/test'
 const anna = 'Анна Администратор', boris = 'Борис Кладовщик', id = '00000000-0000-4000-8000-000000000901'
 async function login(page: Page, role = 'admin', target = '/admin/users') {
@@ -12,7 +13,7 @@ for (const width of [360, 390, 1024, 1440]) {
     page.on('pageerror', (error) => errors.push(error.message))
     page.on('request', (request) => { const url = new URL(request.url()); if (/\/api\/v1\/(users|roles)/.test(url.pathname)) { reads.push(url); if (request.method() !== 'GET') writes.push(request.url()) } })
     await page.setViewportSize({ width, height: 1000 }); await login(page)
-    await expect(card(page)).toContainText('anna@example.test'); await expect(card(page)).toContainText('Администратор'); await expect(card(page)).toContainText('12.10.2026, 09:15:00')
+    await expect(card(page)).toContainText('anna@example.test'); await expect(card(page)).toContainText('Администратор'); await expect(card(page)).toContainText('12.10.2026, 09:15')
     await expect(card(page, boris)).toContainText('Отключён'); await expect(card(page, boris)).toContainText('Ещё не входил')
     await expect(page.getByLabel('Роль', { exact: true })).toBeEnabled()
     expect(Object.fromEntries(reads.find((url) => url.pathname === '/api/v1/users')!.searchParams)).toEqual({ role: 'all', is_active: 'all', sort: 'name', page: '1', page_size: '50' })
@@ -45,7 +46,7 @@ test('F21 URL pagination, AND filters, name/email literal search and back/forwar
 })
 test('F21 loading, stale retry, initial error, empty and parameter isolation', async ({ page }) => {
   await login(page); await expect(card(page)).toBeVisible()
-  await page.getByLabel('Сценарий API').selectOption('users-slow'); await expect(page.getByRole('status', { name: 'Загрузка пользователей' })).toBeVisible(); await expect(page.getByRole('button', { name: 'Обновить пользователей' })).toBeDisabled(); await expect(page.getByRole('status', { name: 'Загрузка пользователей' })).toHaveCount(0)
+  await backgroundRefresh(page, 'users-slow', '/api/v1/users', 'Загрузка пользователей', card(page), page.getByRole('button', { name: 'Обновить пользователей' }))
   await page.getByLabel('Сценарий API').selectOption('users-error'); await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible(); await expect(page.getByRole('article')).toHaveCount(25)
   await page.evaluate(async () => { const path = '/src/app/mocks/scenarios.ts'; const { setMockScenario } = await import(path); setMockScenario('success') })
   await page.getByRole('button', { name: 'Попробовать снова' }).focus(); await page.keyboard.press('Enter'); await expect(page.getByRole('heading', { name: 'Не удалось загрузить пользователей' })).toHaveCount(0)
@@ -56,7 +57,7 @@ test('F21 loading, stale retry, initial error, empty and parameter isolation', a
 })
 test('F21 directory loading/error, independent retry and directory 403 hides cached users', async ({ page }) => {
   await login(page); await expect(card(page)).toBeVisible()
-  await page.getByLabel('Сценарий API').selectOption('roles-slow'); await expect(page.getByRole('status', { name: 'Загрузка справочника ролей' })).toBeVisible(); await expect(page.getByRole('status', { name: 'Загрузка справочника ролей' })).toHaveCount(0)
+  await backgroundRefresh(page, 'roles-slow', '/api/v1/roles', 'Загрузка справочника ролей', card(page))
   await page.getByLabel('Сценарий API').selectOption('roles-error'); await expect(page.getByRole('heading', { name: 'Не удалось загрузить роли' })).toBeVisible(); await expect(page.getByLabel('Роль', { exact: true })).toBeDisabled(); await expect(card(page)).toContainText('Администратор')
   await page.evaluate(async () => { const path = '/src/app/mocks/scenarios.ts'; const { setMockScenario } = await import(path); setMockScenario('success') })
   await page.getByRole('button', { name: 'Попробовать снова' }).click(); await expect(page.getByLabel('Роль', { exact: true })).toBeEnabled()

@@ -1,0 +1,51 @@
+name: Frontend CI
+
+on:
+  pull_request:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      VITEST_MAX_WORKERS: '2'
+      CI: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.22.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked frontend dependencies and Chromium
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Lint, TypeScript, all unit tests and production build
+        run: ./scripts/frontend-checks.sh
+      - name: Selected browser acceptance with explicit MSW
+        working-directory: frontend
+        run: npm run test:acceptance
+      - name: Install pinned migration tool
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Real nginx and isolated API acceptance
+        working-directory: frontend
+        run: |
+          go install github.com/pressly/goose/v3/cmd/goose@v3.27.1
+          npm run test:production

@@ -56,5 +56,8 @@ resync and disconnect scenarios alongside existing REST fixtures. An isolated
 local SSE browser fixture verifies native Last-Event-ID transmission without
 service-worker interception, using the same shared connection controller. Production
 never substitutes mocks. Tests of synthetic notifications verify frontend
-behavior; authenticated S24 durable replay, proxy buffering, real worker time
-markers and real session revocation require separate server integration checks.
+behavior. The [F31 production acceptance](acceptance.md) verifies authenticated
+native SSE delivery through the existing nginx and matching Traefik flush settings
+with a disposable real backend/database, without MSW. Durable replay across a
+long deployment, real worker time markers and deployment-specific session
+revocation still require separate server integration checks.

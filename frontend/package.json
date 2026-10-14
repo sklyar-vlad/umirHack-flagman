@@ -8,9 +8,11 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc -b --noEmit",
+    "typecheck": "tsc -b --noEmit && tsc -p tsconfig.acceptance.json",
     "test": "vitest run",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "test:acceptance": "playwright test reception new-order write-off product-editor dish-editor auth navigation live-updates ui-stability acceptance",
+    "test:production": "bash tests/production/run.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

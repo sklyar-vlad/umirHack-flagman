@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { test, expect, type Page } from '@playwright/test'
 
 async function login(page: Page, role = 'admin', target = '/stock-movements') {
@@ -57,7 +58,7 @@ test('order operator cannot mount either history route', async ({ page }) => {
 })
 test('loading, stale data, empty, invalid response and revoked access', async ({ page }) => {
   await login(page); await expect(page.getByText('Найдено движений: 92. Страница 1.')).toBeVisible()
-  await page.getByLabel('Сценарий API').selectOption('movements-slow'); await expect(page.getByRole('status', { name: 'Загрузка движений' })).toBeVisible(); await expect(page.getByRole('status', { name: 'Загрузка движений' })).not.toBeVisible()
+  await backgroundRefresh(page, 'movements-slow', '/api/v1/stock-movements', 'Загрузка движений', page.getByText('Найдено движений: 92. Страница 1.'))
   await page.getByLabel('Сценарий API').selectOption('movements-error'); await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible()
   await page.getByLabel('Сценарий API').selectOption('movements-empty'); await expect(page.getByRole('heading', { name: 'Движений пока нет' })).toBeVisible()
   await page.getByLabel('Сценарий API').selectOption('movements-invalid'); await expect(page.getByRole('heading', { name: 'Не удалось загрузить движения' })).toBeVisible()

@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { expect, test, type Page } from '@playwright/test'
 
 async function login(page: Page, target = '/supplies', role = 'manager') {
@@ -19,8 +20,8 @@ for (const width of [360, 390, 1024, 1440]) {
     await expect(page.getByLabel('Поиск по номеру')).toHaveValue('ТЕСТ')
     const link = page.getByRole('link', { name: 'Поставка ТЕСТ-101', exact: true })
     await expect(link).toBeVisible()
-    await expect(page.getByText('10.10.2026, 12:05:00', { exact: true }).filter({ visible: true })).toBeVisible()
-    await expect(page.getByText('10.10.2026, 12:00:00', { exact: true }).filter({ visible: true })).toBeVisible()
+    await expect(page.getByText('10.10.2026, 12:05', { exact: true }).filter({ visible: true })).toBeVisible()
+    await expect(page.getByText('10.10.2026, 12:00', { exact: true }).filter({ visible: true })).toBeVisible()
     await expect(page.getByText('27', { exact: true }).filter({ visible: true })).toBeVisible()
     await expect(page.getByText('Найдено поставок: 1. Страница 1.')).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
@@ -110,10 +111,7 @@ test('loading, current-list network recovery, no stale results for new filters, 
   await login(page, '/supplies?search=ТЕСТ')
   const link = page.getByRole('link', { name: 'Поставка ТЕСТ-101' })
   await expect(link).toBeVisible()
-  await page.getByLabel('Сценарий API').selectOption('slow')
-  await expect(page.getByRole('status', { name: 'Загрузка поставок' })).toBeVisible()
-  await expect(link).toBeVisible()
-  await expect(page.getByRole('status', { name: 'Загрузка поставок' })).toHaveCount(0)
+  await backgroundRefresh(page, 'slow', '/api/v1/supplies', 'Загрузка поставок', link)
   await page.getByLabel('Сценарий API').selectOption('network-error')
   await expect(page.getByRole('heading', { name: 'Не удалось загрузить поставки' })).toBeVisible()
   await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible()

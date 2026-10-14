@@ -1,3 +1,4 @@
+import { backgroundRefresh } from './refresh'
 import { test, expect, type Page } from '@playwright/test'
 async function login(page: Page, role = 'admin', target = '/analytics/write-offs') {
   await page.goto(`/login?returnTo=${encodeURIComponent(target)}`)
@@ -51,7 +52,7 @@ test('manager can read report and manual-only movement links', async ({ page }) 
 test('order consumption leaves losses unchanged; loading, errors, empty and revoked access', async ({ page }) => {
   await login(page); await expect(page.getByText('Групп продуктов и единиц: 27. Страница 1.')).toBeVisible()
   await page.getByLabel('Сценарий API').selectOption('losses-order'); await expect(page.getByText('3200 мл', { exact: true }).filter({ visible: true }).first()).toBeVisible()
-  await page.getByLabel('Сценарий API').selectOption('losses-slow'); await expect(page.getByRole('status', { name: 'Загрузка потерь' })).toBeVisible(); await expect(page.getByRole('status', { name: 'Загрузка потерь' })).not.toBeVisible()
+  await backgroundRefresh(page, 'losses-slow', '/api/v1/analytics/write-offs', 'Загрузка потерь', page.getByText('Групп продуктов и единиц: 27. Страница 1.'))
   await page.getByLabel('Сценарий API').selectOption('losses-error'); await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible()
   await page.getByLabel('Сценарий API').selectOption('losses-empty'); await expect(page.getByRole('heading', { name: 'Потерь пока нет' })).toBeVisible()
   await page.getByLabel('Сценарий API').selectOption('losses-invalid'); await expect(page.getByRole('heading', { name: 'Не удалось загрузить потери' })).toBeVisible()
