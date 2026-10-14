@@ -85,13 +85,13 @@ describe('published dashboard in explicit MSW', () => {
     expect(screen.getAllByRole('article', { name: /^Закупить:/ }).map((node) => node.getAttribute('aria-label'))).toEqual(snapshot.procurement_recommendations.map((item) => `Закупить: ${item.product_name}`))
     expect(screen.getAllByRole('article', { name: /^Предложение:/ })[0].textContent).toContain('Место: 2')
   })
-  it('keeps exact fractional quantities and zero seconds from the server', async () => {
+  it('keeps exact quantities and omits the second countdown', async () => {
     const snapshot = dashboardSnapshot(); snapshot.attention_batches[0].remaining_quantity = '0.001'; snapshot.attention_batches[0].remaining_seconds = 0
     snapshot.procurement_recommendations[0].recommended_quantity = '0.001'
     server.use(http.get('/api/v1/dashboard', () => Response.json(snapshot)))
     mount(); await ready()
     expect(screen.getByRole('article', { name: 'Партия: Молоко, строка 1' }).textContent).toContain('0,001 мл')
-    expect(screen.getByRole('article', { name: 'Партия: Молоко, строка 1' }).textContent).toContain('0 с до срока')
+    expect(screen.getByRole('article', { name: 'Партия: Молоко, строка 1' }).textContent).not.toContain('0 с до срока')
     expect(screen.getByRole('article', { name: 'Закупить: Молоко' }).textContent).toContain('0,000001 л')
   })
   for (const role of ['admin', 'manager', 'storekeeper', 'order_operator'] as const) {
@@ -139,10 +139,10 @@ describe('published dashboard in explicit MSW', () => {
     await screen.findByRole('heading', { name: 'Недостаточно прав' }); expect(screen.queryAllByRole('article')).toHaveLength(0)
     expect(store.getState().session.status).toBe('authenticated')
   })
-  it('refreshes on focus/reconnect and dish tag changes', async () => {
+  it('refreshes on explicit tag invalidation and dish tag changes', async () => {
     const { store } = mount(); await ready(); setMockScenario('dashboard-expired')
-    store.dispatch(dashboardApi.internalActions.onFocus()); await waitFor(() => expect(metric('Истекающие партии')).toBe('0'))
-    setMockScenario('success'); store.dispatch(dashboardApi.internalActions.onOnline()); await waitFor(() => expect(metric('Истекающие партии')).toBe('1'))
+    store.dispatch(dashboardApi.util.invalidateTags(['Dashboard'])); await waitFor(() => expect(metric('Истекающие партии')).toBe('0'))
+    setMockScenario('success'); store.dispatch(dashboardApi.util.invalidateTags(['Dashboard'])); await waitFor(() => expect(metric('Истекающие партии')).toBe('1'))
     setMockScenario('dashboard-empty'); store.dispatch(dashboardApi.util.invalidateTags(['Dishes'])); await screen.findByRole('heading', { name: 'Нет проблемных партий' })
     expect(readCount()).toBe(4)
   })

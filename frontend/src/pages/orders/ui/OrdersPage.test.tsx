@@ -54,7 +54,7 @@ describe('order history in explicit MSW mode', () => {
   it('shows historical names/version, portions, restaurant date, actor and successful number', async () => {
     mount()
     const row = within(await table()).getAllByRole('row')[1]
-    for (const text of ['ТЕСТ-101', 'Исторический суп', 'Салат до переименования', 'Рецептура: 3', '2 порц.', '10.10.2026, 12:05:00', 'Тестовый оператор', 'Выполнен']) expect(row.textContent).toContain(text)
+    for (const text of ['ТЕСТ-101', 'Исторический суп', 'Салат до переименования', 'Рецептура: 3', '2 порц.', '10.10.2026, 12:05', 'Тестовый оператор', 'Выполнен']) expect(row.textContent).toContain(text)
     expect(requests.map((r) => r.pathname)).toEqual(['/api/v1/orders'])
     expect(requests[0].searchParams.get('sort')).toBe('-created_at')
     expect([...requests[0].searchParams.keys()].sort()).toEqual(['page', 'page_size', 'search', 'sort'])

@@ -1,5 +1,6 @@
 import { useId, type ComponentPropsWithRef, type ReactNode } from 'react'
 import { icons, type IconName } from '@/shared/assets/icons'
+import { DateTimeInput } from './date-time-input'
 
 export function Icon({ name }: { name: IconName }) {
   return <img className="ui-icon" src={icons[name]} alt="" aria-hidden="true" />
@@ -16,6 +17,7 @@ export function Button({ variant = 'primary', loading = false, loadingLabel = 'Ð
 }
 
 export function Input({ className = '', ...props }: ComponentPropsWithRef<'input'>) {
+  if (props.type === 'datetime-local') return <DateTimeInput {...props} className={className} />
   return <input {...props} className={`ui-input ${className}`} />
 }
 

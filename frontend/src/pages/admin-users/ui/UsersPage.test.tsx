@@ -63,7 +63,7 @@ describe('F21 safe published user reads', () => {
   })
   it('renders activity, safe email, null login and restaurant timezone rather than browser timezone', async () => {
     mount(); const anna = await ready(); await waitFor(() => expect(requests).toHaveLength(2))
-    expect(anna.textContent).toContain('anna@example.test'); expect(anna.textContent).toContain('Администратор'); expect(anna.textContent).toContain('12.10.2026, 15:15:00')
+    expect(anna.textContent).toContain('anna@example.test'); expect(anna.textContent).toContain('Администратор'); expect(anna.textContent).toContain('12.10.2026, 15:15')
     const boris = screen.getByRole('article', { name: `Пользователь: ${mockUsers[1].name}` }); expect(boris.textContent).toContain('Отключён'); expect(boris.textContent).toContain('Ещё не входил')
     expect(Object.fromEntries(new URL(requests.find((r) => new URL(r.url).pathname === '/api/v1/users')!.url).searchParams)).toEqual({ role: 'all', is_active: 'all', sort: 'name', page: '1', page_size: '50' })
     expect(requests.every((r) => r.method === 'GET' && !r.url.includes('password'))).toBe(true)

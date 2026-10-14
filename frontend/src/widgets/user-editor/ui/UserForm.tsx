@@ -64,7 +64,7 @@ export function UserForm({ user, password = false, onReload }: { user?: User; pa
   return <section className={styles.form} aria-label="Форма пользователя">
     <UnsavedChangesGuard dirty={dirty} pending={writer.busy || passwordBusy} />
     {notice && <p role="status">{notice}</p>}
-    {roles.isFetching && <Skeleton label="Загрузка справочника ролей" />}
+    {roles.isFetching && !roles.currentData && <Skeleton label="Загрузка справочника ролей" />}
     {roles.error && <ErrorState title={isApiError(roles.error) && roles.error.status === 403 ? 'Недостаточно прав' : 'Не удалось загрузить роли'} onRetry={() => { void roles.refetch() }} />}
     <form noValidate aria-label={user ? 'Редактирование пользователя' : 'Создание пользователя'} onSubmit={(event) => { void handleSubmit(submit)(event) }}>
       <p>{baseline ? `Ревизия: ${baseline.revision}. Пароль меняется отдельно.` : 'Создайте пользователя с начальным паролем. Email-приглашение не отправляется.'}</p>
@@ -73,7 +73,7 @@ export function UserForm({ user, password = false, onReload }: { user?: User; pa
           <FormField label="Имя пользователя" error={errors.name?.message}>{(props) => <Input {...props} {...register('name')} aria-required autoComplete="off" />}</FormField>
           <FormField label="Email пользователя" error={errors.email?.message}>{(props) => <Input {...props} {...register('email')} type="email" aria-required autoComplete="off" />}</FormField>
         </div>
-        <FormField label="Роль пользователя" error={errors.role?.message}>{(props) => <Select {...props} {...register('role')} value={watch('role')} disabled={roles.isFetching || !!roles.error} aria-required>{roles.currentData?.items.map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}</Select>}</FormField>
+        <FormField label="Роль пользователя" error={errors.role?.message}>{(props) => <Select {...props} {...register('role')} value={watch('role')} disabled={(roles.isFetching && !roles.currentData) || !!roles.error} aria-required>{roles.currentData?.items.map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}</Select>}</FormField>
         <Checkbox {...register('is_active')}>Пользователь активен</Checkbox>
         {!user && <FormField label="Начальный пароль" error={errors.initial_password?.message} hint="От 12 до 128 символов. Пароль не сохраняется в черновик.">{(props) => <Input {...props} {...register('initial_password')} type="password" autoComplete="new-password" aria-required />}</FormField>}
         <Button type="submit" disabled={blocked} loading={writer.busy}>Сохранить пользователя</Button>

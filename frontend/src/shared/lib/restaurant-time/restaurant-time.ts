@@ -99,5 +99,5 @@ export function formatRestaurantDateTime(raw: string | null, timeZone = DEFAULT_
   const local = restaurantDateTimeToInput(raw, timeZone)!
   const [date, time] = local.split('T')
   const [year, month, day] = date.split('-')
-  return `${day}.${month}.${year}, ${time.slice(0, 8)}`
+  return `${day}.${month}.${year}, ${time.slice(0, 5)}`
 }

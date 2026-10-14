@@ -118,14 +118,14 @@ export function DishForm({ dish, returnTo, onReload }: { dish?: Dish; returnTo: 
         <FormField label="Описание блюда" hint="До 2000 символов. Пусто — без описания." error={errors.description?.message}>{(props) => <textarea {...props} {...register('description')} className={styles.description} rows={3} />}</FormField>
         <Checkbox {...register('is_active')}>Блюдо активно</Checkbox>
         <h2>Рецептура на порцию</h2>
-        {products.isFetching && <Skeleton label="Загрузка активных продуктов" />}
+        {products.isFetching && !products.currentData && <Skeleton label="Загрузка активных продуктов" />}
         {products.error && <ErrorState title={isApiError(products.error) && products.error.status === 403 ? 'Недостаточно прав для чтения продуктов' : 'Не удалось загрузить активные продукты'} onRetry={() => { void products.refetch() }} />}
         {!products.isFetching && !products.error && products.currentData?.length === 0 && <EmptyState title="Активных продуктов пока нет" description="Добавьте продукт в административном каталоге." />}
         {(errors.recipe?.root?.message ?? errors.recipe?.message) && <p role="alert">{errors.recipe?.root?.message ?? errors.recipe?.message}</p>}
         {fields.map((field, index) => {
           const line = values.recipe[index], selected = products.currentData?.find((product) => product.id.toLowerCase() === line?.product_id.toLowerCase())
           return <fieldset key={field.id} className={styles.ingredient}><legend>Ингредиент {index + 1}</legend>
-            <FormField label={`Продукт ${index + 1}`} required error={errors.recipe?.[index]?.product_id?.message}>{(props) => <Select {...props} {...register(`recipe.${index}.product_id`)} value={line?.product_id ?? ''} disabled={products.isFetching || !!products.error} onChange={(event) => {
+            <FormField label={`Продукт ${index + 1}`} required error={errors.recipe?.[index]?.product_id?.message}>{(props) => <Select {...props} {...register(`recipe.${index}.product_id`)} value={line?.product_id ?? ''} disabled={(products.isFetching && !products.currentData) || !!products.error} onChange={(event) => {
               invalidatePreview(); setValue(`recipe.${index}.product_id`, event.target.value, { shouldDirty: true, shouldValidate: true }); const product = products.currentData?.find((item) => item.id === event.target.value)
               if (product) setValue(`recipe.${index}.unit`, product.unit, { shouldDirty: true })
             }}><option value="">Выберите активный продукт</option>{line?.product_id && !selected && <option value={line.product_id}>{dish?.recipe.find((item) => item.product_id.toLowerCase() === line.product_id.toLowerCase())?.product_name ?? 'Сохранённый продукт'} · недоступен в активном каталоге</option>}{products.currentData?.map((product) => <option key={product.id} value={product.id} disabled={values.recipe.some((item, other) => other !== index && item.product_id.toLowerCase() === product.id.toLowerCase())}>{product.name} ({product.unit})</option>)}</Select>}</FormField>

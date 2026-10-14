@@ -19,7 +19,7 @@ export function DishCatalogue({ locked, onAdd, onObserved }: { locked: boolean; 
     <form className={styles.search} noValidate onSubmit={form.handleSubmit(({ search }) => setArgs({ search: search.trim(), page: 1 }))}>
       <FormField label="Поиск блюда" error={form.formState.errors.search?.message}>{(props) => <Input {...props} {...form.register('search')} type="search" />}</FormField><Button type="submit" variant="secondary">Найти блюдо</Button>
     </form>
-    {catalogue.isFetching && <Skeleton label="Загрузка блюд" rows={3} />}
+    {catalogue.isFetching && !catalogue.currentData && <Skeleton label="Загрузка блюд" rows={3} />}
     <ApiAccessBoundary error={catalogue.error}>
       {catalogue.error && <ErrorState title="Не удалось загрузить блюда" description="Корзина сохранена. Обновите каталог перед добавлением блюда." onRetry={() => { void catalogue.refetch() }} retrying={catalogue.isFetching} />}
       {!catalogue.isFetching && !catalogue.error && data && !data.items.length && <EmptyState title={args.search ? 'Блюда не найдены' : 'Каталог пуст'} description="Измените поиск или повторите загрузку." />}

@@ -98,7 +98,7 @@ export function ReceiveSupplyForm({ onReceived, initialProductId }: { initialPro
   }
   return <>
     <UnsavedChangesGuard dirty={isDirty || unresolved || mutation.isLoading} />
-    {catalogue.isFetching && <Skeleton label="Загрузка продуктов" rows={2} />}
+    {catalogue.isFetching && !catalogue.currentData && <Skeleton label="Загрузка продуктов" rows={2} />}
     <ApiAccessBoundary error={catalogue.error}>
       {catalogue.error && <ErrorState title="Не удалось загрузить продукты" description="Форма сохранена. Повторите загрузку каталога перед новой отправкой." onRetry={() => { void catalogue.refetch() }} retrying={catalogue.isFetching} />}
       {!catalogue.isFetching && !catalogue.error && !products.length && <EmptyState title="Нет активных продуктов" description="Для новой приёмки нужен хотя бы один активный продукт." />}
@@ -129,7 +129,7 @@ export function ReceiveSupplyForm({ onReceived, initialProductId }: { initialPro
                 <FormField label={`Продукт, строка ${index + 1}`} required error={errors.items?.[index]?.productId?.message}>{(props) => <Select {...props} {...form.register(`items.${index}.productId`, { onChange: (event) => {
                   const selected = products.find((item) => item.id === event.target.value)
                   if (selected) form.setValue(`items.${index}.displayUnit`, selected.display_unit, { shouldDirty: true })
-                } })} value={watchedItems[index]?.productId ?? ''} disabled={catalogue.isFetching || !!catalogue.error}><option value="">Выберите продукт</option>{products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>}</FormField>
+                } })} value={watchedItems[index]?.productId ?? ''} disabled={(catalogue.isFetching && !catalogue.currentData) || !!catalogue.error}><option value="">Выберите продукт</option>{products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>}</FormField>
                 <FormField label={`Количество, строка ${index + 1}`} required error={errors.items?.[index]?.quantity?.message}>{(props) => <Input {...props} {...form.register(`items.${index}.quantity`)} inputMode="decimal" autoComplete="off" />}</FormField>
                 <FormField label={`Единица, строка ${index + 1}`}>{(props) => <Select {...props} {...form.register(`items.${index}.displayUnit`)} value={watchedItems[index]?.displayUnit ?? 'kg'}>{units.map((unit) => <option key={unit} value={unit}>{unitLabels[unit]}</option>)}</Select>}</FormField>
                 <FormField label={`Годен до, строка ${index + 1}`} required error={errors.items?.[index]?.expiresAt?.message}>{(props) => <Input {...props} {...form.register(`items.${index}.expiresAt`)} type="datetime-local" step="1" />}</FormField>

@@ -12,7 +12,7 @@ async function observe(page: Page) {
       constructor(url: string | URL, options?: EventSourceInit) {
         super(url, options); observations.sources++
         this.addEventListener('open', () => { observations.opened++ })
-        for (const type of ['inventory.time_changed', 'resync.required']) this.addEventListener(type, (event) => { observations.deliveries.push(`${type}:${(event as MessageEvent).lastEventId}`) })
+        for (const type of ['inventory.changed', 'inventory.time_changed', 'resync.required']) this.addEventListener(type, (event) => { observations.deliveries.push(`${type}:${(event as MessageEvent).lastEventId}`) })
       }
       close() { observations.closed++; super.close() }
     }

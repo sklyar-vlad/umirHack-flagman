@@ -24,7 +24,7 @@ export function MovementsPage() {
     <header className={styles.header}><div><h1>История складских движений</h1><p className="text-muted">Приход, расход заказа и списания по партиям.</p></div><Button variant="secondary" disabled={query.isFetching || !!error} onClick={() => { void query.refetch() }}>Обновить историю</Button></header>
     <MovementFilters key={JSON.stringify([params.toString(), resetEpoch])} values={values} timezone={timezone} onChange={change} onReset={reset} />
     {error ? <ErrorState title="Некорректные фильтры" description={error} /> : <ApiAccessBoundary error={query.error}>
-      {query.isFetching && <Skeleton label="Загрузка движений" rows={4} />}
+      {query.isFetching && !query.currentData && <Skeleton label="Загрузка движений" rows={4} />}
       {query.error && <ErrorState title="Не удалось загрузить движения" description={data ? 'Показан последний успешный список для этих фильтров. Данные могут быть устаревшими.' : 'Попробуйте ещё раз.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}
       {data && <><p role="status" className="text-caption text-muted">Найдено движений: {data.total}. Страница {data.page}.</p><DataTable rows={data.items} rowKey={(item) => item.id} caption="Записи складского учёта" emptyState={empty} loading={query.isFetching} columns={[
         { key: 'time', header: 'Дата', render: (item) => <time dateTime={item.occurred_at}>{formatRestaurantDateTime(item.occurred_at, timezone)}</time> },

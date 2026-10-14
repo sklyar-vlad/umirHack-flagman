@@ -14,7 +14,7 @@ export function InventorySelection({ productId, supplyId, onClear }: { productId
   return <section className={styles.card} aria-label="Выбор из поставки">
     <div className={styles.row}><h2>Партии выбранного продукта</h2><Button variant="ghost" onClick={onClear}>Снять выбор поставки</Button></div>
     <ApiAccessBoundary error={query.error}>
-      {query.isFetching ? <Skeleton label="Загрузка выбранного продукта" /> : query.error ? errorStatus === 404
+      {query.isFetching && !query.currentData ? <Skeleton label="Загрузка выбранного продукта" /> : query.error ? errorStatus === 404
         ? <EmptyState title="Поставка не найдена" description="Снимите выбор и продолжите работу со складом." />
         : <ErrorState title="Не удалось загрузить выбранный продукт" onRetry={() => { void query.refetch() }} />
         : product && query.currentData ? <>

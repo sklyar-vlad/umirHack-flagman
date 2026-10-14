@@ -34,7 +34,7 @@ export function SupplyDetailPage() {
       <Link className="ui-button ui-button--secondary" to={safeSupplyListUrl(params.get('returnTo'))}>К истории поставок</Link>
     </header>
     <ApiAccessBoundary error={query.error}>
-      {query.isFetching && <Skeleton label="Загрузка поставки" rows={4} />}
+      {query.isFetching && !query.currentData && <Skeleton label="Загрузка поставки" rows={4} />}
       {unavailable ? <EmptyState title={errorStatus === 404 ? 'Поставка не найдена' : 'Некорректный адрес поставки'} description={errorStatus === 404 ? 'Эта поставка отсутствует. Вернитесь к истории поставок.' : 'Проверьте идентификатор в ссылке или выберите поставку из истории.'} /> : <>
         {query.error && <ErrorState title="Не удалось загрузить поставку" description={data ? 'Показан последний успешный снимок этой поставки. Данные могут быть устаревшими.' : 'Попробуйте ещё раз.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}
         {data && <>

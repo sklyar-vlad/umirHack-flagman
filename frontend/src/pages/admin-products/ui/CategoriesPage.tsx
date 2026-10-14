@@ -38,7 +38,7 @@ export function CategoriesPage() {
     {editing !== null && !denied && <CategoryDialog key={editing} id={editing === 'new' ? undefined : editing} onSaved={saved} onClose={close} onDirty={setDirty} returnFocusRef={initiator} actions={<Link className="ui-button ui-button--secondary" to="/admin/products">В каталог продуктов</Link>} />}
     <CategorySearchForm key={search} value={search} onSearch={(search) => change({ search })} />
     <ApiAccessBoundary error={query.error}>
-      {query.isFetching && <Skeleton label="Загрузка категорий" />}
+      {query.isFetching && !query.currentData && <Skeleton label="Загрузка категорий" />}
       {query.error && <ErrorState title="Не удалось загрузить категории" description={data ? 'Показан последний список; данные могут быть устаревшими. Изменение недоступно до обновления.' : 'Попробуйте ещё раз.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}
       {data && <><p role="status">Категорий: {data.total}. Страница {data.page}.</p><div className={styles.list}>{data.items.map((category) => <article className={styles.card} key={category.id} aria-label={`Категория: ${category.name}`}><h2>{category.name}</h2><p>Ревизия: {category.revision}</p><Button variant="secondary" disabled={editing !== null || query.isFetching || !!query.error} onClick={(event) => { initiator.current = event.currentTarget; setEditing(category.id); setNotice('') }} aria-label={`Переименовать: ${category.name}`}>Переименовать</Button></article>)}</div>
         {!data.items.length && (page > 1 ? <EmptyState title="На этой странице нет категорий" /> : search ? <NoResults query={search} onReset={() => change({ search: '' })} /> : <EmptyState title="Нет категорий" description="Создайте первую категорию для продуктов." />)}

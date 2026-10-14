@@ -24,7 +24,7 @@ export function AuditPage() {
     <header className={styles.header}><div><h1>Журнал действий</h1><p className="text-muted">Администрирование ресторана</p></div><Button variant="secondary" disabled={query.isFetching || !!filterError} onClick={() => { void query.refetch() }}>Обновить журнал</Button></header>
     <AuditFilters key={JSON.stringify([params.toString(), resetEpoch])} values={values} timezone={timezone} onChange={change} onReset={reset} />
     {filterError ? <ErrorState title="Некорректные фильтры" description={filterError} /> : <ApiAccessBoundary error={query.error}>
-      {query.isFetching && <Skeleton label="Загрузка журнала" rows={4} />}
+      {query.isFetching && !query.currentData && <Skeleton label="Загрузка журнала" rows={4} />}
       {query.error && <ErrorState title="Не удалось загрузить журнал" description={data ? 'Показан последний успешный список для этих фильтров. Данные могут быть устаревшими.' : 'Попробуйте ещё раз.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}
       {data && <><p role="status" className="text-caption text-muted">Найдено записей: {data.total}. Страница {data.page}.</p>
         <DataTable rows={data.items} rowKey={(item) => item.id} caption="События журнала действий" emptyState={empty} loading={query.isFetching} columns={[

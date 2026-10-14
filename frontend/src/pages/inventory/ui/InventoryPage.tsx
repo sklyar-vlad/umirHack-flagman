@@ -32,11 +32,11 @@ function InventoryContents() {
     {canReadSupply && selection.productId && selection.supplyId && <InventorySelection key={`${selection.productId}:${selection.supplyId}`} {...selection} onClear={() => setParams(inventorySearchParams(values))} />}
     <InventoryFilters key={values.search} values={values} onChange={change} />
     <div className={styles.filters} role="group" aria-label="Фильтры склада">
-      {inventoryFilters.map((filter) => <Button key={filter} variant={values.filter === filter ? 'primary' : 'secondary'} aria-pressed={values.filter === filter} onClick={() => change({ filter })}>{filterLabels[filter]} · {query.isFetching || query.error ? '—' : data?.counts[filter] ?? '—'}</Button>)}
+      {inventoryFilters.map((filter) => <Button key={filter} variant={values.filter === filter ? 'primary' : 'secondary'} aria-pressed={values.filter === filter} onClick={() => change({ filter })}>{filterLabels[filter]} · {query.error ? '—' : data?.counts[filter] ?? '—'}</Button>)}
       <Button variant="ghost" onClick={reset}>Сбросить фильтры</Button>
     </div>
     <ApiAccessBoundary error={query.error}>
-      {query.isFetching && <Skeleton label="Загрузка склада" rows={5} />}
+      {query.isFetching && !query.currentData && <Skeleton label="Загрузка склада" rows={5} />}
       {!query.isFetching && query.error ? <ErrorState title="Не удалось загрузить склад" onRetry={() => { void query.refetch() }} /> : data && <>
         <p role="status" className="text-caption text-muted">Найдено продуктов: {data.total}. Страница {data.page}.</p>
         {data.items.length === 0 ? data.total > 0 ? <EmptyState title="На этой странице нет продуктов" description="Вернитесь к первой странице списка." /> : values.search || values.category_id || values.filter !== 'all' ? <NoResults query={values.search} onReset={reset} /> : <EmptyState title="Склад пока пуст" description="Продукты появятся после добавления в каталог." /> : <div className={styles.list}>{data.items.map((item) => <InventoryCard key={item.product.id} item={item} />)}</div>}

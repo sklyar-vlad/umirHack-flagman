@@ -15,7 +15,7 @@ export function HotOfferCard({ item, timezone, disabled, adding, onComposition, 
     <ul className={styles.batches}>{item.problem_batches.map((batch) => <li key={batch.batch_id}>
       <strong>{batch.product_name}</strong><p>Поставка №{batch.supply_number}, строка {batch.line_number}.</p>
       <p>Остаток партии: {formatQuantity(batch.remaining_quantity, batch.unit)}. На одну порцию: {formatQuantity(batch.used_for_one_portion, batch.unit)}.</p>
-      <p>Годен до: <time dateTime={batch.expires_at}>{formatRestaurantDateTime(batch.expires_at, timezone)}</time>. По снимку сервера: {batch.remaining_seconds} с.</p>
+      <p>Годен до: <time dateTime={batch.expires_at}>{formatRestaurantDateTime(batch.expires_at, timezone)}</time>.</p>
     </li>)}</ul>
     <div className={styles.actions}><Button variant="secondary" onClick={onComposition} aria-label={`Состав: ${item.dish.name}`}>Состав</Button>
       <Button disabled={disabled} loading={adding} onClick={onAdd} aria-label={`Добавить в заказ: ${item.dish.name}`}>Добавить в заказ</Button></div>

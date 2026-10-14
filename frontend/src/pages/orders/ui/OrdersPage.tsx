@@ -42,7 +42,7 @@ export function OrdersPage() {
       <OrderFilters key={JSON.stringify([tab, current.search, current.from, current.to, values.attempts.reason_code])} tab={tab} values={{ ...current, reason_code: values.attempts.reason_code }} timezone={timezone} onChange={change} onReset={reset} />
       {tab === 'attempts' && <p className="text-caption text-muted">У попытки есть собственный ID и причина, без номера успешного заказа. Предварительная проверка и технические ошибки не создают запись в этой истории.</p>}
       {filterError ? <ErrorState title="Некорректные фильтры" description={filterError} /> : <ApiAccessBoundary error={query.error}>
-        {query.isFetching && <Skeleton label={`Загрузка ${noun}`} rows={4} />}
+        {query.isFetching && !query.currentData && <Skeleton label={`Загрузка ${noun}`} rows={4} />}
         {query.error && <ErrorState title={`Не удалось загрузить историю ${noun}`} description={data ? 'Показан последний успешный список для этих фильтров. Данные могут быть устаревшими.' : 'Попробуйте ещё раз. Ошибка загрузки не является сохранённым отказом заказа.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}
         {data && <>
           <p role="status" className="text-caption text-muted">Найдено {noun}: {data.total}. Страница {data.page}.</p>

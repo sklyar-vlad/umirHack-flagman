@@ -22,7 +22,7 @@ export function LossPage() {
     <header className={styles.header}><div><h1>Потери от списаний</h1><p className="text-muted">Просрочка и ручные списания по продуктам и единицам.</p></div><Button variant="secondary" disabled={query.isFetching || !!error} onClick={() => { void query.refetch() }}>Обновить отчёт</Button></header>
     <LossFilters key={JSON.stringify([params.toString(), resetEpoch])} values={values} timezone={timezone} onChange={change} onReset={reset} />
     {error ? <ErrorState title="Некорректные фильтры" description={error} /> : <ApiAccessBoundary error={query.error}>
-      {query.isFetching && <Skeleton label="Загрузка потерь" rows={4} />}
+      {query.isFetching && !query.currentData && <Skeleton label="Загрузка потерь" rows={4} />}
       {query.error && <ErrorState title="Не удалось загрузить потери" description={data ? 'Показан последний успешный отчёт для этих фильтров. Данные могут быть устаревшими.' : 'Попробуйте ещё раз.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}
       {data && <><p role="status" className="text-caption text-muted">Групп продуктов и единиц: {data.total}. Страница {data.page}.</p><DataTable rows={data.items} rowKey={(row) => `${row.product_id}:${row.unit}`} caption="Потери по продуктам" emptyState={empty} loading={query.isFetching} columns={[
         { key: 'product', header: 'Продукт', render: (row) => <div className={styles.record}><strong>{row.product_name}</strong><span>ID: {row.product_id}</span></div> },

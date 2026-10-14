@@ -119,8 +119,8 @@ describe('published per-portion stop-list in explicit MSW mode', () => {
     await screen.findByRole('heading', { name: 'Не удалось загрузить стоп-лист' }); expect(screen.queryByRole('article')).toBeNull()
     setMockScenario('success'); screen.getByRole('button', { name: 'Попробовать снова' }).focus(); await user.keyboard('{Enter}'); await card()
     setMockScenario('slow'); store.dispatch(dishApi.util.invalidateTags(['StopList']))
-    await screen.findByRole('status', { name: 'Загрузка стоп-листа' }); expect((screen.getByRole('button', { name: 'Обновить стоп-лист' }) as HTMLButtonElement).disabled).toBe(true)
-    await waitFor(() => expect(screen.queryByRole('status', { name: 'Загрузка стоп-листа' })).toBeNull(), { timeout: 3000 })
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Обновить стоп-лист' }) as HTMLButtonElement).disabled).toBe(true)); expect(screen.queryByRole('status', { name: 'Загрузка стоп-листа' })).toBeNull(); expect((screen.getByRole('button', { name: 'Обновить стоп-лист' }) as HTMLButtonElement).disabled).toBe(true)
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Обновить стоп-лист' }) as HTMLButtonElement).disabled).toBe(false), { timeout: 3000 })
     setMockScenario('network-error'); store.dispatch(dishApi.util.invalidateTags(['StopList']))
     await screen.findByText(/Данные могут быть устаревшими/); expect(await card()).toBeTruthy()
   })
@@ -145,11 +145,11 @@ describe('published per-portion stop-list in explicit MSW mode', () => {
     await act(async () => { await store.dispatch(orderApi.endpoints.createOrder.initiate({ key: crypto.randomUUID(), body: { items: [{ dish_id: compositionDishes()[0].id, portions: 1, recipe_version: 1 }] } })).unwrap() })
     expect((await card()).textContent).toContain('99,001 мл'); expect(readCount()).toBe(3)
   })
-  it('refreshes recipe changes, focus and reconnect', async () => {
+  it('refreshes recipe changes, explicit tag invalidation', async () => {
     const { store } = mount('/stop-list?search=Молочный'); await card()
     setMockScenario('stop-list-recipe'); store.dispatch(dishApi.util.invalidateTags(['Dishes'])); await screen.findByRole('heading', { name: 'Ничего не найдено' })
-    setMockScenario('success'); store.dispatch(dishApi.internalActions.onFocus()); await card()
-    setMockScenario('stop-list-expired'); store.dispatch(dishApi.internalActions.onOnline())
+    setMockScenario('success'); store.dispatch(dishApi.util.invalidateTags(['StopList'])); await card()
+    setMockScenario('stop-list-expired'); store.dispatch(dishApi.util.invalidateTags(['StopList']))
     await waitFor(() => expect(screen.getByRole('article').textContent).toContain('Остались только просроченные партии'))
   })
   it('refreshes expiration through central fallback without writes, querying only mounted reads', async () => {

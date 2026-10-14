@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useId, useRef, type ReactNode } from 'react'
 import { Button, Icon } from './controls'
 
 export type DialogProps = {
@@ -16,12 +16,13 @@ export type DialogProps = {
 function Modal({ open, onClose, title, description, children, actions, closeLabel = 'Закрыть', initialFocusRef, returnFocusRef, drawer = false }: DialogProps & { drawer?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null)
   const id = useId()
+  const focusTargets = useEffectEvent(() => ({ initial: initialFocusRef?.current, previous: returnFocusRef?.current ?? document.activeElement }))
   useEffect(() => {
     const dialog = ref.current
     if (!dialog || !open) return
-    const previousFocus = returnFocusRef?.current ?? document.activeElement
+    const { initial, previous: previousFocus } = focusTargets()
     dialog.showModal()
-    initialFocusRef?.current?.focus()
+    initial?.focus()
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
@@ -29,7 +30,7 @@ function Modal({ open, onClose, title, description, children, actions, closeLabe
       document.body.style.overflow = previousOverflow
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus()
     }
-  }, [open, initialFocusRef, returnFocusRef])
+  }, [open])
 
   return <dialog ref={ref} className={`ui-dialog${drawer ? ' ui-drawer' : ''}`} aria-labelledby={`${id}-title`} aria-describedby={description ? `${id}-description` : undefined}
     onKeyDown={(event) => {

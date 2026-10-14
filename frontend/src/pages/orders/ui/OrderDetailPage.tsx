@@ -17,7 +17,7 @@ export function OrderDetailPage() {
       <Link className="ui-button ui-button--secondary" to={safeOrderListUrl(params.get('returnTo'))}>К истории заказов</Link>
     </header>
     <ApiAccessBoundary error={query.error}>
-      {query.isFetching && <Skeleton label="Загрузка заказа" rows={4} />}
+      {query.isFetching && !query.currentData && <Skeleton label="Загрузка заказа" rows={4} />}
       {unavailable ? <EmptyState title={status === 404 ? 'Заказ не найден' : 'Некорректный адрес заказа'} description={status === 404 ? 'Этот заказ отсутствует. Вернитесь к истории заказов.' : 'Проверьте идентификатор в ссылке или выберите заказ из истории.'} /> : <>
         {query.error && <ErrorState title="Не удалось загрузить заказ" description={data ? 'Показан последний успешный снимок этого заказа. Данные могут быть устаревшими.' : 'Попробуйте ещё раз.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}
         {data && <><Button variant="secondary" disabled={query.isFetching} onClick={() => { void query.refetch() }}>Обновить заказ</Button><OrderSnapshot order={data} loading={query.isFetching} /></>}

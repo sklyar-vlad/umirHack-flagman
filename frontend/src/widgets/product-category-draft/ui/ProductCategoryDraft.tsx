@@ -18,9 +18,9 @@ export function ProductCategoryDraft() {
     <h2>Подготовка продукта</h2><p>Название и категория сохраняются в открытом черновике при создании категории. Сохранение продукта будет доступно в F17.</p>
     <FormField label="Название продукта">{(props) => <Input {...props} {...register('name')} />}</FormField>
     <ApiAccessBoundary error={choices.error}>
-      {choices.isFetching && <Skeleton label="Загрузка вариантов категорий" />}
+      {choices.isFetching && !choices.currentData && <Skeleton label="Загрузка вариантов категорий" />}
       {choices.error && <ErrorState title="Не удалось загрузить варианты категорий" onRetry={() => { void choices.refetch() }} />}
-      <FormField label="Категория продукта">{(props) => <Select {...props} {...register('category_id')} value={categoryId} disabled={choices.isFetching || !!choices.error}><option value="">Выберите категорию</option>{categoryId && !choices.currentData?.some((category) => category.id === categoryId) && <option value={categoryId}>Выбранная категория · обновление справочника</option>}{choices.currentData?.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</Select>}</FormField>
+      <FormField label="Категория продукта">{(props) => <Select {...props} {...register('category_id')} value={categoryId} disabled={(choices.isFetching && !choices.currentData) || !!choices.error}><option value="">Выберите категорию</option>{categoryId && !choices.currentData?.some((category) => category.id === categoryId) && <option value={categoryId}>Выбранная категория · обновление справочника</option>}{choices.currentData?.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</Select>}</FormField>
       <Button ref={initiator} variant="secondary" onClick={() => setOpen(true)}>Создать категорию для продукта</Button>
     </ApiAccessBoundary>
     {notice && <p role="status">{notice}</p>}

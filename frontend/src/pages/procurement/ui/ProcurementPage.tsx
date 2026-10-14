@@ -22,7 +22,7 @@ export function ProcurementPage() {
     <p className="text-caption text-muted">Приоритет сервера: больше блокируемых блюд, затем отсутствие годного остатка, затем название. Просрочка не уменьшает закупку. Снимок обновляется при серверных изменениях и восстановлении связи.</p>
     <ProcurementFilters key={values.search} values={values} onChange={change} onReset={reset} />
     <ApiAccessBoundary error={query.error}>
-      {query.isFetching && <Skeleton label="Загрузка закупок" rows={4} />}
+      {query.isFetching && !query.currentData && <Skeleton label="Загрузка закупок" rows={4} />}
       {query.error && <ErrorState title="Не удалось загрузить закупки" description={data ? 'Показан последний успешный список для этих фильтров. Данные могут быть устаревшими.' : 'Попробуйте ещё раз.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}
       {data && <>
         <p role="status" className="text-caption text-muted">Продуктов к закупке: {data.total}. Страница {data.page}. Снимок: <time dateTime={data.meta.server_time}>{formatRestaurantDateTime(data.meta.server_time, timezone)}</time>.</p>

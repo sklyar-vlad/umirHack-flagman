@@ -16,6 +16,7 @@ interface LivePorts {
 export function createLiveEvents(ports: LivePorts) {
   let source: EventStream | null = null, stopped = false, connected = false
   let cursor = -1n, failures = 0, polls = 0
+  let online = ports.online()
   let batch: ReturnType<typeof setTimeout> | undefined, poll: ReturnType<typeof setTimeout> | undefined
   let events: LiveEvent[] = [], full = false, checking = false
   function confirm() {
@@ -50,9 +51,13 @@ export function createLiveEvents(ports: LivePorts) {
     cursor = -1n
     const current = ports.connect()
     source = current
+    let opened = false
     current.addEventListener('open', () => {
       if (stopped || source !== current) return
-      connected = true; failures = 0; polls = 0; stopPolling(); queue(); confirm()
+      const recovering = opened || failures > 0
+      opened = true; connected = true; failures = 0; polls = 0; stopPolling()
+      if (recovering) queue()
+      confirm()
     })
     current.addEventListener('error', () => {
       if (stopped || source !== current) return
@@ -72,7 +77,10 @@ export function createLiveEvents(ports: LivePorts) {
   }
   function wake() {
     if (stopped) return
-    if (!ports.online() || !ports.visible()) { stopPolling(); return }
+    const recovered = !online && ports.online()
+    online = ports.online()
+    if (!online || !ports.visible()) { stopPolling(); return }
+    if (connected && !recovered) return
     polls = 0; failures = 0; queue(); confirm(); connect(); fallback()
   }
   function stop() {

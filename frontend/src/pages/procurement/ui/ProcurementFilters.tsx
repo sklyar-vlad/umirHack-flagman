@@ -18,7 +18,7 @@ export function ProcurementFilters({ values, onChange, onReset }: { values: Proc
       <Button variant="ghost" onClick={onReset}>Сбросить фильтры</Button>
     </form>
     <div>
-      <FormField label="Категория">{(props) => <Select {...props} value={values.category_id} disabled={categories.isFetching || !!categories.error} onChange={(event) => onChange({ category_id: event.target.value })}>
+      <FormField label="Категория">{(props) => <Select {...props} value={values.category_id} disabled={(categories.isFetching && !categories.currentData) || !!categories.error} onChange={(event) => onChange({ category_id: event.target.value })}>
         <option value="">Все категории</option>
         {values.category_id && !categories.currentData?.some((category) => category.id === values.category_id) && <option value={values.category_id}>Категория по ссылке</option>}
         {categories.currentData?.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}

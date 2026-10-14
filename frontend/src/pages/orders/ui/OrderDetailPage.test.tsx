@@ -62,7 +62,7 @@ describe('immutable OrderDetail in explicit MSW mode', () => {
     mount(); const rows = within(await table()).getAllByRole('row').slice(1)
     expect(orderDetailSchema.safeParse(fixture).success).toBe(true)
     expect(screen.getByRole('heading', { name: 'Заказ №247' })).toBeTruthy()
-    expect(screen.getByText('09.10.2026, 12:00:00')).toBeTruthy()
+    expect(screen.getByText('09.10.2026, 12:00')).toBeTruthy()
     expect(screen.getByText('Оператор')).toBeTruthy(); expect(screen.getByText('Рецептура: 1')).toBeTruthy()
     expect(rows).toHaveLength(3)
     for (const [i, allocation] of fixture.items[0].allocations.entries()) {

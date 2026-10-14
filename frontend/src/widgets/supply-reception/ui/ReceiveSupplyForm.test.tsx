@@ -275,7 +275,7 @@ describe('published reception UI in explicit MSW', () => {
     await screen.findByRole('heading', { name: 'Нет активных продуктов' })
     expect((screen.getByRole('button', { name: 'Принять поставку' }) as HTMLButtonElement).disabled).toBe(true)
     setMockScenario('products-slow'); store.dispatch(productApi.util.invalidateTags(['Products']))
-    await screen.findByRole('status', { name: 'Загрузка продуктов' })
+    expect(screen.queryByRole('status', { name: 'Загрузка продуктов' })).toBeNull()
     await screen.findByRole('option', { name: 'Молоко' }, { timeout: 5000 })
   })
   it('refetches every dependent subscribed cache only on confirmed success', async () => {

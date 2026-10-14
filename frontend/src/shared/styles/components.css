@@ -365,3 +365,19 @@
 @media (prefers-reduced-motion: reduce) {
   .ui-spinner, .ui-skeleton span { animation: none; }
 }
+
+/* Keep search actions aligned with their controls, not the field labels. */
+form[role='search'] { align-items: flex-end; }
+form[role='search'] > .ui-field { flex: 1 1 260px; }
+form[role='search'] > .ui-button { flex: none; }
+
+.ui-datetime { display: flex; gap: var(--space-8); align-items: center; min-width: 0; }
+.ui-datetime > .ui-input { flex: 1; min-width: 0; }
+.ui-datetime > .ui-button { flex: none; padding-inline: var(--space-12); }
+.ui-datetime input::-webkit-calendar-picker-indicator { display: none; }
+.ui-calendar-heading { display: flex; justify-content: space-between; align-items: center; gap: var(--space-8); margin-bottom: var(--space-16); }
+.ui-calendar-heading p { text-transform: capitalize; font: var(--text-strong); }
+.ui-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-4); text-align: center; }
+.ui-calendar-grid > .ui-button { min-width: 0; padding: var(--space-8) 0; }
+.ui-calendar-time { display: grid; gap: var(--space-8); margin-block: var(--space-16); font: var(--text-label); }
+@media (max-width: 400px) { .ui-datetime { flex-wrap: wrap; } .ui-datetime > .ui-input { flex-basis: 100%; } }

@@ -35,7 +35,7 @@ export function SuppliesPage() {
     </div></header>
     <SupplyFilters key={JSON.stringify([values.search, values.from, values.to])} values={values} timezone={timezone} onChange={change} onReset={reset} />
     {periodError ? <ErrorState title="Некорректный период" description={periodError} /> : <ApiAccessBoundary error={query.error}>
-      {query.isFetching && <Skeleton label="Загрузка поставок" rows={4} />}
+      {query.isFetching && !query.currentData && <Skeleton label="Загрузка поставок" rows={4} />}
       {query.error && <ErrorState title="Не удалось загрузить поставки" description={data ? 'Показан последний успешный список для этих фильтров. Данные могут быть устаревшими.' : 'Попробуйте ещё раз.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}
       {data && <>
         <p role="status" className="text-caption text-muted">Найдено поставок: {data.total}. Страница {data.page}.</p>

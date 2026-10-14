@@ -16,7 +16,7 @@ export function ProductsPage() {
     <p className="text-muted">Настройки учёта активных и отключённых продуктов. Фактические остатки и партии доступны на складе. Сортировка: по названию.</p>
     <ProductFilters key={values.search} values={values} onChange={change} onReset={reset} />
     <ApiAccessBoundary error={query.error}>
-      {query.isFetching && <Skeleton label="Загрузка каталога" rows={4} />}
+      {query.isFetching && !query.currentData && <Skeleton label="Загрузка каталога" rows={4} />}
       {query.error && <ErrorState title="Не удалось загрузить каталог" description={data ? 'Показан последний успешный список для этих фильтров. Данные могут быть устаревшими.' : 'Попробуйте ещё раз.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}
       {data && <><p role="status">Продуктов: {data.total}. Страница {data.page}.</p>
         {data.items.length ? <div className={styles.list}>{data.items.map((product) => <article className={styles.card} key={product.id} aria-label={`Продукт: ${product.name}`}>

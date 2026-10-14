@@ -10,7 +10,7 @@ const reasons = { ingredient_shortage: 'Недостаточно годного 
 export function DishesPage() {
   const [params, setParams] = useSearchParams(), values = readDishSearch(params)
   const [preview, setPreview] = useState<{ id: string; name: string; opener: HTMLElement } | null>(null)
-  const query = useAdminDishesQuery(values, { refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true }), data = query.currentData
+  const query = useAdminDishesQuery(values, { refetchOnMountOrArgChange: true, refetchOnFocus: false, refetchOnReconnect: false }), data = query.currentData
   const change = (patch: Partial<DishSearch>) => setParams(dishSearchParams(changeDishSearch(values, patch)))
   const normalized = dishSearchParams(values), returnTo = `/admin/dishes${normalized.size ? `?${normalized}` : ''}`
   const reset = () => setParams(dishSearchParams(defaultDishSearch))
@@ -19,7 +19,7 @@ export function DishesPage() {
     <p className="text-muted">Активные и отключённые блюда, текущие рецептуры и серверная доступность. Доступные порции рассчитаны отдельно для каждого блюда; это не резерв. Сортировка: по названию.</p>
     <DishFilters key={values.search} values={values} onChange={change} onReset={reset} />
     <ApiAccessBoundary error={query.error}>
-      {query.isFetching && <Skeleton label="Загрузка каталога блюд" rows={4} />}
+      {query.isFetching && !query.currentData && <Skeleton label="Загрузка каталога блюд" rows={4} />}
       {query.error && <ErrorState title="Не удалось загрузить каталог блюд" description={data ? 'Показан последний успешный список для этих фильтров. Данные могут быть устаревшими.' : 'Попробуйте ещё раз.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}
       {data && <><p role="status">Блюд: {data.total}. Страница {data.page}.</p>
         {data.items.length ? <div className={styles.list}>{data.items.map((dish) => <article className={styles.card} key={dish.id} aria-label={`Блюдо: ${dish.name}`}>

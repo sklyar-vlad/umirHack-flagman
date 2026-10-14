@@ -13,7 +13,7 @@ import styles from './ForecastPage.module.css'
 export function ForecastPage() {
   const [params, setParams] = useSearchParams(), values = readForecastSearch(params), error = forecastSearchError(values)
   const { user, settings } = useSelector(selectSession), timezone = settings?.timezone ?? 'Europe/Moscow'
-  const query = useStopListForecastQuery(values, { skip: !!error || !user || !['admin', 'manager'].includes(user.role), refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true })
+  const query = useStopListForecastQuery(values, { skip: !!error || !user || !['admin', 'manager'].includes(user.role), refetchOnMountOrArgChange: true, refetchOnFocus: false, refetchOnReconnect: false })
   const data = query.currentData, [resetEpoch, setResetEpoch] = useState(0)
   const change = (patch: Partial<ForecastSearch>) => setParams(forecastSearchParams(changeForecastSearch(values, patch)))
   const reset = () => { setResetEpoch((value) => value + 1); setParams(new URLSearchParams()) }
@@ -22,7 +22,7 @@ export function ForecastPage() {
     <ForecastFilters key={JSON.stringify([params.toString(), resetEpoch])} values={values} onChange={change} onReset={reset} />
     <p className="text-caption text-muted">Будущие поставки не учитываются. Модель предполагает неизменную рецептуру и постоянный средний расход. Ближайшие оценки идут первыми; строки без даты — в конце, в порядке сервера.</p>
     {error ? <ErrorState title="Некорректные настройки" description={error} /> : <ApiAccessBoundary error={query.error}>
-      {query.isFetching && <Skeleton label="Загрузка прогноза" rows={4} />}
+      {query.isFetching && !query.currentData && <Skeleton label="Загрузка прогноза" rows={4} />}
       {query.error && <ErrorState title="Не удалось загрузить прогноз" description={data ? 'Показан последний успешный прогноз для этих настроек. Данные могут быть устаревшими.' : 'Попробуйте ещё раз.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}
       {data && <>
         <p role="status" className="text-caption text-muted">Активных блюд: {data.total}. Страница {data.page}. История: {data.meta.lookback_days} дн. Горизонт: {data.meta.horizon_hours} ч.</p>

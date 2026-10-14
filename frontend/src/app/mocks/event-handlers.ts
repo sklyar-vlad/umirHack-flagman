@@ -16,12 +16,13 @@ export function createMockEventResponse(request: Request) {
         if (scenario !== previousScenario) { ticks = 0; previousScenario = scenario }
         ticks++
         try {
-          if (scenario === 'events-disconnect') { stop(); return }
+          if (scenario === 'events-disconnect' || scenario === 'session-expired') { stop(); return }
           if (scenario === 'events-reconnect' && ticks === 2) { stop(); return }
           if (scenario === 'events-replay' && ticks === 2) { controller.enqueue(encoder.encode(previous)); return }
           if (ticks % 30 === 0 || (scenario === 'events-replay' || scenario === 'events-resync' || scenario === 'events-reconnect') && ticks === 1) {
             cursor++
-            previous = `id: ${cursor}\nevent: ${scenario === 'events-resync' && ticks === 1 ? 'resync.required' : 'inventory.time_changed'}\ndata: ${JSON.stringify({ occurred_at: new Date().toISOString(), topics: ['inventory', 'batches', 'dashboard', 'dishes', 'stop-list', 'hot-offers', 'procurement-recommendations'] })}\n\n`
+            const type = scenario === 'events-resync' && ticks === 1 ? 'resync.required' : scenario === 'events-replay' || scenario === 'events-reconnect' ? 'inventory.changed' : 'inventory.time_changed'
+            previous = `id: ${cursor}\nevent: ${type}\ndata: ${JSON.stringify({ occurred_at: new Date().toISOString(), topics: ['inventory', 'batches', 'dashboard', 'dishes', 'stop-list', 'hot-offers', 'procurement-recommendations'] })}\n\n`
             controller.enqueue(encoder.encode(previous))
           } else controller.enqueue(encoder.encode(': mock heartbeat\n\n'))
         } catch { clearInterval(timer) }

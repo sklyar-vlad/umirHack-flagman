@@ -9,7 +9,7 @@ describe('API instants and restaurant wall time', () => {
     expect(parseApiDateTime('2026-10-10T15:30:00+03:00').toISOString()).toBe('2026-10-10T12:30:00.000Z')
     expect(restaurantDateTimeToInput('2026-10-10T12:30:00Z')).toBe('2026-10-10T15:30:00')
     expect(restaurantDateTimeFromInput('2026-10-10T15:30')).toBe('2026-10-10T12:30:00Z')
-    expect(formatRestaurantDateTime('2026-10-10T12:30:00Z')).toBe('10.10.2026, 15:30:00')
+    expect(formatRestaurantDateTime('2026-10-10T12:30:00Z')).toBe('10.10.2026, 15:30')
   })
 
   it('preserves null and treats a blank optional datetime input as null', () => {

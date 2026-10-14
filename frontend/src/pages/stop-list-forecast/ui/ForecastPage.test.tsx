@@ -83,7 +83,7 @@ describe('F29 stop-list forecast', () => {
     expect(names).toEqual(forecastRows(false).map((item) => item.dish_name))
     for (const label of ['Уже недоступно', 'Истечение срока партии', 'Ожидаемый расход', 'Недостаточно истории; по срокам остановки в горизонте не найдено', 'Остановка в пределах горизонта не ожидается']) expect(screen.getByText(label)).toBeTruthy()
     expect(screen.getAllByText('Дата не определена')).toHaveLength(2)
-    expect(screen.getByText('13.10.2026, 12:30:00')).toBeTruthy()
+    expect(screen.getByText('13.10.2026, 12:30')).toBeTruthy()
     expect(document.querySelector('time[datetime="2026-10-13T09:45:00.000000001Z"]')?.getAttribute('title')).toBe('2026-10-13T09:45:00.000000001Z')
     expect(screen.getAllByText(/Отсутствие даты не означает/)).toHaveLength(2)
     expect(requests.every((r) => r.method === 'GET' && new URL(r.url).pathname === endpoint)).toBe(true)

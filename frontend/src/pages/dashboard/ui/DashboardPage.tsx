@@ -17,7 +17,7 @@ export function DashboardPage() {
   return <div className={styles.page}>
     <header className={styles.row}><div><h1>Обзор</h1><p className="text-muted">Состояние склада и рекомендации на один момент времени.</p></div><Button variant="secondary" disabled={query.isFetching} onClick={() => { void query.refetch() }}>Обновить обзор</Button></header>
     <ApiAccessBoundary error={query.error}>
-      {query.isFetching && <Skeleton label="Загрузка обзора" rows={5} />}
+      {query.isFetching && !query.currentData && <Skeleton label="Загрузка обзора" rows={5} />}
       {query.error && <ErrorState title="Не удалось загрузить обзор" description={data ? 'Показан последний успешный снимок. Данные могут быть устаревшими.' : 'Попробуйте ещё раз.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}
       {data && <>
         <p role="status" className="text-caption text-muted">{data.settings.restaurant_name}. Снимок: <time dateTime={data.meta.server_time}>{formatRestaurantDateTime(data.meta.server_time, data.settings.timezone)}</time>. Часовой пояс: {data.settings.timezone}. Скоро истекает: в течение {data.settings.expiring_threshold_hours} ч. Снимок обновляется при серверных изменениях и восстановлении связи.</p>
@@ -35,7 +35,7 @@ export function DashboardPage() {
           {data.attention_batches.length ? <div className={styles.attention}>{data.attention_batches.map((batch) => <article key={batch.batch_id} className={styles.card} aria-label={`Партия: ${batch.product_name}, строка ${batch.line_number}`}>
             <header className={styles.row}><h3>{batch.product_name}</h3><Badge tone={batch.status === 'expired' ? 'danger' : 'warning'}>{batch.status === 'expired' ? 'Просрочена' : 'Скоро истекает'}</Badge></header>
             <p>Остаток: {formatQuantity(batch.remaining_quantity, batch.unit)}. Поставка №{batch.supply_number}, строка {batch.line_number}.</p>
-            <p>Годен до: <time dateTime={batch.expires_at}>{formatRestaurantDateTime(batch.expires_at, data.settings.timezone)}</time>. По снимку сервера: {batch.remaining_seconds} с до срока.</p>
+            <p>Годен до: <time dateTime={batch.expires_at}>{formatRestaurantDateTime(batch.expires_at, data.settings.timezone)}</time>.</p>
             <Link to={`/inventory?${new URLSearchParams({ filter: batch.status, search: batch.product_name, product_id: batch.product_id, ...(allowed('supplies') && { supply_id: batch.supply_id }) })}`}>На склад: {batch.product_name}, строка {batch.line_number}</Link>
           </article>)}</div> : <EmptyState title="Нет проблемных партий" description="По этому снимку нет истекающих или просроченных партий с положительным остатком." />}
         </section>

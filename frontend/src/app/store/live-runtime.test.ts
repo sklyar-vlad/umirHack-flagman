@@ -56,7 +56,7 @@ describe('session-scoped live runtime', () => {
     await Promise.all([mounted, inactive, admin]); inactive.unsubscribe()
     store.dispatch(saveWorkDraft({ key: 'supply', draft: { note: 'Unsaved values' } })); store.dispatch(replaceBasket([{ dishId: 'dish', portions: 2 }]))
     const before = store.getState().dishChanges
-    MockSource.all[0].emit('inventory.time_changed')
+    MockSource.all[0].emit('inventory.changed')
     await vi.advanceTimersByTimeAsync(180)
     expect(read).toHaveBeenCalledTimes(3); expect(forbidden).toHaveBeenCalledTimes(1)
     expect(store.getState().dishChanges).toBe(before + 1)
@@ -67,10 +67,17 @@ describe('session-scoped live runtime', () => {
     expect(store.getState().session.basket).toHaveLength(1)
     mounted.unsubscribe(); admin.unsubscribe()
   })
-  it('refreshes focus without needing any SSE event and ignores old-owner late delivery', async () => {
+  it('does not refetch on focus or clock-only markers and refreshes after online recovery', async () => {
     authenticate(); const controller = auth(); dispose = startLiveRuntime(store, controller)
     const mounted = store.dispatch(api.endpoints.liveTestInventory.initiate('visible')); await mounted
     window.dispatchEvent(new Event('focus')); await vi.advanceTimersByTimeAsync(180)
+    MockSource.all[0].emit('inventory.time_changed'); await vi.advanceTimersByTimeAsync(180)
+    expect(read).toHaveBeenCalledTimes(1); expect(controller.revalidate).not.toHaveBeenCalled()
+    const online = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    window.dispatchEvent(new Event('offline'))
+    online.mockReturnValue(true)
+    window.dispatchEvent(new Event('online')); await vi.advanceTimersByTimeAsync(180)
+    online.mockRestore()
     expect(read).toHaveBeenCalledTimes(2); expect(controller.revalidate).toHaveBeenCalledTimes(1)
     const old = MockSource.all[0]; store.dispatch(replaceSession(initialSessionState))
     old.emit('inventory.changed', '10'); await vi.advanceTimersByTimeAsync(20_000)

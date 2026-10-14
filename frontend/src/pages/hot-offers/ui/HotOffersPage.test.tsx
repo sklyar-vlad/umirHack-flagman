@@ -70,7 +70,7 @@ describe('published hot offers frontend with explicit MSW', () => {
     server.use(http.get('/api/v1/hot-offers', () => Response.json({ items, total: 2, page: 1, page_size: 50, meta: { server_time: '2026-10-11T12:00:00Z' } })))
     mount(); const soup = await card()
     expect(screen.getAllByRole('article').map((node) => node.getAttribute('aria-label'))).toEqual(['Предложение: Салат дня', 'Предложение: Суп дня'])
-    for (const text of ['Место: 1', '1,6667', 'Низкий приоритет', '15 порц.', '500 мл', '100 мл', 'ТЕСТ-101', 'строка 2', '64800 с.']) expect(soup.textContent).toContain(text)
+    for (const text of ['Место: 1', '1,6667', 'Низкий приоритет', '15 порц.', '500 мл', '100 мл', 'ТЕСТ-101', 'строка 2']) expect(soup.textContent).toContain(text)
     expect((await card('Салат дня')).textContent).toContain('Средний приоритет')
     expect(screen.getByText(/не гарантируют возможность приготовить их вместе/)).toBeTruthy()
     expect(requests.some(({ method }) => method === 'POST')).toBe(false)
@@ -82,7 +82,7 @@ describe('published hot offers frontend with explicit MSW', () => {
   it('preserves exact thousandths, large portion strings and a valid subsecond batch', async () => {
     const item = hotOfferItems()[0]; item.available_portions = '90071992547409931234'; item.problem_batches[0].remaining_quantity = '0.001'; item.problem_batches[0].used_for_one_portion = '0.001'; item.problem_batches[0].remaining_seconds = 0
     server.use(http.get('/api/v1/hot-offers', () => Response.json({ items: [item], total: 1, page: 1, page_size: 50, meta: { server_time: '2026-10-11T12:00:00Z' } })))
-    mount(); const soup = await card(); expect(soup.textContent).toContain('90071992547409931234'); expect(soup.textContent).toContain('0,001 мл'); expect(soup.textContent).toContain('0 с.')
+    mount(); const soup = await card(); expect(soup.textContent).toContain('90071992547409931234'); expect(soup.textContent).toContain('0,001 мл'); expect(soup.textContent).not.toContain('0 с.')
   })
   it('redirects the tab entry preserving filters', async () => {
     const { router } = mount('/recommendations?tab=hot-offers&search=Суп&token=secret'); await card()
@@ -195,9 +195,9 @@ describe('published hot offers frontend with explicit MSW', () => {
     await act(async () => { await store.dispatch(orderApi.endpoints.createOrder.initiate({ key: crypto.randomUUID(), body: { items: [{ dish_id: dish.id, portions: 4, recipe_version: 1 }] } })).unwrap() })
     await screen.findByRole('heading', { name: 'Нет блюд для приоритетной продажи' })
   })
-  it('refreshes external recipe changes and expiration on focus/reconnect', async () => {
-    const { store } = mount(); await card(); setMockScenario('order-recipe-changed'); store.dispatch(dishApi.internalActions.onFocus()); await waitFor(() => expect(screen.getByRole('article', { name: 'Предложение: Суп дня' }).textContent).toContain('Рецептура: 2'))
-    setMockScenario('hot-offers-expired'); store.dispatch(dishApi.internalActions.onOnline()); await screen.findByRole('heading', { name: 'Нет блюд для приоритетной продажи' })
+  it('refreshes external recipe changes and expiration on explicit tag invalidation', async () => {
+    const { store } = mount(); await card(); setMockScenario('order-recipe-changed'); store.dispatch(dishApi.util.invalidateTags(['HotOffers'])); await waitFor(() => expect(screen.getByRole('article', { name: 'Предложение: Суп дня' }).textContent).toContain('Рецептура: 2'))
+    setMockScenario('hot-offers-expired'); store.dispatch(dishApi.util.invalidateTags(['HotOffers'])); await screen.findByRole('heading', { name: 'Нет блюд для приоритетной продажи' })
   })
   it.each(['invalid-json', 'invalid-schema'] as const)('rejects %s without claiming an empty list', async (scenario) => {
     setMockScenario(scenario); mount(); await screen.findByRole('heading', { name: 'Не удалось загрузить предложения' }); expect(screen.queryByRole('heading', { name: 'Нет блюд для приоритетной продажи' })).toBeNull()

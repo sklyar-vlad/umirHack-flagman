@@ -17,8 +17,9 @@ The `Products` read tag is permitted for every role, matching published
 `GET /products`, which also feeds reception choices. Its refresh does not grant
 access to administrative routes or product writes.
 
-`inventory.time_changed` refreshes server expiry snapshots without any client
-stock arithmetic. Ingredient, recipe and time changes invalidate the current
+`inventory.time_changed` refreshes expiry snapshots only when a cached batch
+crosses its expiry or restaurant warning boundary. Ordinary clock ticks do not
+trigger REST requests. Stock arithmetic remains on the server. Ingredient, recipe and time changes invalidate the current
 whole-basket check marker and trigger the existing debounced check. The basket,
 accepted recipe snapshots and unresolved immutable write attempts are retained.
 Recipe changes still require explicit review. Events never reserve stock or
@@ -32,14 +33,15 @@ a full REST refresh. Cursor is scoped to one stream/session and never persisted
 or transferred between owners. `resync.required` rereads all role-permitted
 active snapshots and invalidates the basket check.
 
-Every open/reconnect, window focus, visible-page restoration and online recovery
-refreshes REST independently of notifications. Existing mutation invalidations
+Initial reads belong to the page queries. Reconnect and online recovery refresh
+REST independently of notifications; focus or visibility restoration while the
+stream is healthy does not trigger another read. Existing mutation invalidations
 and mount refresh remain in place. Page-specific polling is consolidated here:
 while disconnected, visible online reads refresh every 10 seconds, up to six
 attempts. Recovery cancels that timer. Five consecutive stream errors close the
-native retrying instance; focus/online/visibility restoration permits a fresh
+native retrying instance; online/visibility restoration permits a fresh
 attempt and resets the polling budget. Offline/hidden pages do not poll.
-After exhaustion, manual page retry or focus/online restoration can refresh;
+After exhaustion, manual page retry or online/visibility restoration can refresh;
 cached data is not asserted to be current indefinitely.
 
 Stream failures cannot reveal HTTP status through native EventSource. They

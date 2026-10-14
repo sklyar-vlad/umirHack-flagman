@@ -126,8 +126,8 @@ describe('published procurement UI in explicit MSW', () => {
     await screen.findByRole('heading', { name: 'Не удалось загрузить закупки' }); expect(screen.queryByRole('article')).toBeNull()
     setMockScenario('success'); within(screen.getAllByRole('alert').find((alert) => alert.textContent?.includes('Не удалось загрузить закупки'))!).getByRole('button', { name: 'Попробовать снова' }).focus(); await user.keyboard('{Enter}'); await card()
     setMockScenario('slow'); store.dispatch(procurementApi.util.invalidateTags(['Procurement']))
-    await screen.findByRole('status', { name: 'Загрузка закупок' }); expect((screen.getByRole('button', { name: 'Обновить закупки' }) as HTMLButtonElement).disabled).toBe(true)
-    await waitFor(() => expect(screen.queryByRole('status', { name: 'Загрузка закупок' })).toBeNull(), { timeout: 3000 })
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Обновить закупки' }) as HTMLButtonElement).disabled).toBe(true)); expect(screen.queryByRole('status', { name: 'Загрузка закупок' })).toBeNull(); expect((screen.getByRole('button', { name: 'Обновить закупки' }) as HTMLButtonElement).disabled).toBe(true)
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Обновить закупки' }) as HTMLButtonElement).disabled).toBe(false), { timeout: 3000 })
     setMockScenario('network-error'); store.dispatch(procurementApi.util.invalidateTags(['Procurement'])); await screen.findByText(/Данные могут быть устаревшими/); expect(await card()).toBeTruthy()
   })
   it('recovers category failures without hiding procurement data', async () => {
@@ -156,11 +156,11 @@ describe('published procurement UI in explicit MSW', () => {
     await act(async () => { await store.dispatch(orderApi.endpoints.createOrder.initiate({ key: crypto.randomUUID(), body: { items: [{ dish_id: compositionDishes()[0].id, portions: 1, recipe_version: 1 }] } })).unwrap() })
     await waitFor(() => expect(screen.getByRole('article').textContent).toContain('1,599999 л')); expect(readCount()).toBe(3)
   })
-  it('refreshes recipes, focus and reconnect', async () => {
+  it('refreshes recipes, explicit tag invalidation', async () => {
     const { store } = mount('/recommendations/procurement?search=Молоко'); await card()
     setMockScenario('stop-list-recipe'); store.dispatch(procurementApi.util.invalidateTags(['Dishes'])); await waitFor(() => expect(screen.queryByRole('link', { name: 'Молочный суп' })).toBeNull())
-    setMockScenario('success'); store.dispatch(procurementApi.internalActions.onFocus()); await screen.findByRole('link', { name: 'Молочный суп' })
-    setMockScenario('procurement-expired'); store.dispatch(procurementApi.internalActions.onOnline()); await waitFor(() => expect(screen.getByRole('article').textContent).toContain('К закупке: 4 л'))
+    setMockScenario('success'); store.dispatch(procurementApi.util.invalidateTags(['Procurement'])); await screen.findByRole('link', { name: 'Молочный суп' })
+    setMockScenario('procurement-expired'); store.dispatch(procurementApi.util.invalidateTags(['Procurement'])); await waitFor(() => expect(screen.getByRole('article').textContent).toContain('К закупке: 4 л'))
   })
   it('rejects null/zero targets, incompatible units, fractional pieces and duplicate rows', () => {
     const items = procurementItems().slice(0, 2), data = { items, total: 2, page: 1, page_size: 20, meta: { server_time: '2026-10-11T12:00:00Z' } }

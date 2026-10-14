@@ -12,8 +12,8 @@ export const baseApi = createApi({
   reducerPath: 'api',
   baseQuery,
   tagTypes: ['Healthcheck'],
-  refetchOnFocus: true,
-  refetchOnReconnect: true,
+  refetchOnFocus: false,
+  refetchOnReconnect: false,
   endpoints: (build) => ({
     healthcheck: build.query<HealthcheckResponse, void>({
       providesTags: ['Healthcheck'],

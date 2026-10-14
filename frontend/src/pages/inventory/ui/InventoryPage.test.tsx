@@ -59,8 +59,8 @@ describe('published warehouse contracts', () => {
   })
   it('shows signed server seconds, including expiry equality, independent of the local clock', () => {
     expect(remainingTime(64800)).toBe('До срока: 18 ч')
-    expect(remainingTime(0, true)).toBe('Срок истёк 0 с назад')
-    expect(remainingTime(-1)).toBe('Срок истёк 1 с назад')
+    expect(remainingTime(0, true)).toBe('Срок истёк менее минуты назад')
+    expect(remainingTime(-1)).toBe('Срок истёк менее минуты назад')
     expect(remainingTime(null)).toBe('Нет годных партий')
   })
 })

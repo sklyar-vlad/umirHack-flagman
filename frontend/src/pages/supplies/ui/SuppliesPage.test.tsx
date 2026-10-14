@@ -64,8 +64,8 @@ describe('supply history in explicit MSW mode', () => {
   it('shows distinct created/reception dates, original line count, author and status', async () => {
     mount()
     const row = within(await table()).getAllByRole('row')[1]
-    expect(row.textContent).toContain('10.10.2026, 12:05:00')
-    expect(row.textContent).toContain('10.10.2026, 12:00:00')
+    expect(row.textContent).toContain('10.10.2026, 12:05')
+    expect(row.textContent).toContain('10.10.2026, 12:00')
     expect(row.textContent).toContain('27')
     expect(row.textContent).toContain('Тестовый кладовщик')
     expect(row.textContent).toContain('Принята')

@@ -20,9 +20,10 @@
 .skip:focus { transform: none; }
 @media (max-width: 767px) {
   .sidebar { display: none; }
-  .header .menuButton { display: inline-flex; flex-shrink: 0; }
-  .header { flex-wrap: wrap; padding: var(--space-16); gap: var(--space-12); }
-  .headerRestaurant { flex: 1; }
-  .user { margin-left: 0; flex: 1; text-align: left; }
+  .header .menuButton { display: inline-flex; width: 44px; height: 44px; padding: 0; grid-column: 1; grid-row: 1; }
+  .header { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; padding: var(--space-16); gap: var(--space-8) var(--space-12); }
+  .headerRestaurant { grid-column: 2; grid-row: 1; }
+  .header > button:last-child { grid-column: 3; grid-row: 1; }
+  .user { margin-left: 0; grid-column: 2 / -1; grid-row: 2; text-align: left; }
   .content { padding: var(--page-padding-mobile); }
 }

@@ -79,10 +79,10 @@ export function ProductForm({ product, returnTo, onReload }: { product?: Product
       <fieldset disabled={busy || denied || categoryOpen} className={styles.fields}>
         <FormField label="Название продукта" error={errors.name?.message}>{(props) => <Input {...props} {...register('name')} aria-required autoFocus />}</FormField>
         <ApiAccessBoundary error={choices.error}>
-          {choices.isFetching && <Skeleton label="Загрузка вариантов категорий" />}
+          {choices.isFetching && !choices.currentData && <Skeleton label="Загрузка вариантов категорий" />}
           {!choices.isFetching && !choices.error && choices.currentData?.length === 0 && <EmptyState title="Категорий пока нет" description="Создайте категорию, чтобы сохранить продукт." />}
           {choices.error && <ErrorState title="Не удалось загрузить варианты категорий" onRetry={() => { void choices.refetch() }} />}
-          <FormField label="Категория продукта" error={errors.category_id?.message}>{(props) => <Select {...props} {...register('category_id')} aria-required value={values.category_id} disabled={choices.isFetching || !!choices.error}><option value="">Выберите категорию</option>{values.category_id && !choices.currentData?.some((category) => category.id === values.category_id) && <option value={values.category_id}>Выбранная категория · обновление справочника</option>}{choices.currentData?.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</Select>}</FormField>
+          <FormField label="Категория продукта" error={errors.category_id?.message}>{(props) => <Select {...props} {...register('category_id')} aria-required value={values.category_id} disabled={(choices.isFetching && !choices.currentData) || !!choices.error}><option value="">Выберите категорию</option>{values.category_id && !choices.currentData?.some((category) => category.id === values.category_id) && <option value={values.category_id}>Выбранная категория · обновление справочника</option>}{choices.currentData?.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</Select>}</FormField>
           <Button ref={initiator} variant="secondary" onClick={() => setCategoryOpen(true)}>Создать категорию для продукта</Button>
         </ApiAccessBoundary>
         <div className={styles.grid}>

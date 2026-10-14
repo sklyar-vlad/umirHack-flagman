@@ -12,7 +12,7 @@ import styles from './UsersPage.module.css'
 export function UsersPage() {
   const [params, setParams] = useSearchParams(), values = readUserSearch(params)
   const timezone = useSelector(selectSession).settings?.timezone
-  const options = { refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true }
+  const options = { refetchOnMountOrArgChange: true, refetchOnFocus: false, refetchOnReconnect: false }
   const query = useUsersQuery(values, options), roles = useRolesQuery(undefined, options), data = query.currentData
   const change = (patch: Partial<UserSearch>) => setParams(userSearchParams(changeUserSearch(values, patch)))
   const normalized = userSearchParams(values), returnTo = `/admin/users${normalized.size ? `?${normalized}` : ''}`
@@ -24,10 +24,10 @@ export function UsersPage() {
     <ApiAccessBoundary error={accessError}>
       <div className={styles.actions}><Link className="ui-button ui-button--primary" to={`/admin/users/new?${new URLSearchParams({ returnTo })}`}>Создать пользователя</Link><Button variant="secondary" disabled={query.isFetching} onClick={() => { void query.refetch() }}>Обновить пользователей</Button></div>
       <p className="text-muted">Поиск по имени и email. Сортировка: по имени. Последний вход указан в часовом поясе ресторана: {timezone ?? 'Europe/Moscow'}. Email-приглашения не отправляются.</p>
-      {roles.isFetching && <Skeleton label="Загрузка справочника ролей" rows={1} />}
+      {roles.isFetching && !roles.currentData && <Skeleton label="Загрузка справочника ролей" rows={1} />}
       {roles.error && <ErrorState title="Не удалось загрузить роли" description="Названия показаны по фиксированному справочнику приложения. Фильтр ролей доступен после успешной загрузки." onRetry={() => { void roles.refetch() }} retrying={roles.isFetching} />}
       <UserFilters key={values.search} values={values} roles={roles.currentData} rolesUnavailable={!!roles.error} onChange={change} onReset={reset} />
-      {query.isFetching && <Skeleton label="Загрузка пользователей" rows={4} />}
+      {query.isFetching && !query.currentData && <Skeleton label="Загрузка пользователей" rows={4} />}
       {query.error && <ErrorState title="Не удалось загрузить пользователей" description={data ? 'Показан последний успешный список для этих фильтров. Данные могут быть устаревшими.' : 'Попробуйте ещё раз.'} onRetry={() => { void query.refetch() }} retrying={query.isFetching} />}
       {data && <><p role="status">Пользователей: {data.total}. Страница {data.page}.</p>
         {data.items.length ? <div className={styles.list}>{data.items.map((user) => <article className={styles.card} key={user.id} aria-label={`Пользователь: ${user.name}`}>
