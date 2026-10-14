@@ -48,6 +48,7 @@ Vite проксирует `/api` на `http://api.flagman.localhost`. Для р�
 | `/analytics/ingredient-shortages` | `/analytics/ingredient-shortages` | [Недостача](docs/ingredient-shortages.md) |
 | `/analytics/stop-list-forecast` (также `/forecast`) | `/analytics/stop-list-forecast` | [Прогноз](docs/stop-list-forecast.md) |
 | `/admin/products`, `/admin/products/new`, `/admin/products/:id/edit`, `/admin/categories` | `/products`, `/product-categories` | [Продукты](docs/products.md) |
+| `/dishes`, `/dishes/:id` | `/dishes`, `/dishes/{id}` | Просмотр рецептур: состав на порцию, поиск, фильтры, доступность; admin, manager и order_operator |
 | `/admin/dishes`, `/admin/dishes/new`, `/admin/dishes/:id/edit` (также `/admin/recipes`) | `/dishes`, `/dishes/preview` | [Рецептуры](docs/dishes.md) |
 | `/admin/users`, `/admin/users/new`, `/admin/users/:id/edit` | `/users`, `/users/{id}/password`, `/roles` | [Пользователи](docs/users.md) |
 | `/admin/settings` | GET/PATCH `/settings` | [Настройки](docs/settings.md) |

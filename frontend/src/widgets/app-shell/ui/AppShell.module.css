@@ -8,7 +8,8 @@
 .navLink { display: flex; gap: var(--space-12); align-items: center; min-height: var(--control-height); padding: var(--space-8) var(--space-12); border-radius: var(--control-radius); color: var(--color-text); text-decoration: none; box-sizing: border-box; }
 .navLink span { overflow-wrap: anywhere; }
 .navLink img { flex-shrink: 0; }
-.navLink:hover, .active { background: var(--color-brand-soft); color: var(--color-brand); }
+.navLink:hover { background: var(--color-subtle); }
+.active, .active:hover { background: var(--color-brand-soft); color: var(--color-brand); }
 .workspace { flex: 1; min-width: 0; }
 .header { display: flex; align-items: center; gap: var(--space-16); padding: var(--space-16) var(--page-padding-desktop); border-bottom: var(--border-width) solid var(--color-border); background: var(--color-surface); }
 .headerRestaurant { min-width: 0; overflow-wrap: anywhere; }

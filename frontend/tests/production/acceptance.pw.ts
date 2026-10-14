@@ -226,6 +226,28 @@ for (const [role, width, blocked] of [
     await page.reload()
     await expect(page.getByRole('heading', { name: 'Пользователи и роли', exact: true })).toBeVisible()
   }
+  // This case already reloaded inventory and administration. Refill the real
+  // shared API bucket before the additional catalogue/detail/reload sequence.
+  await new Promise((resolve) => setTimeout(resolve, 2_000))
+  await page.goto('/dishes')
+  if (role === 'storekeeper') {
+    await expect(page.getByRole('heading', { name: 'Недостаточно прав' })).toBeVisible()
+  } else {
+    await expect(page.getByRole('heading', { name: 'Рецептуры', exact: true })).toBeVisible()
+    const first = page.getByRole('article', { name: /^Рецептура:/ }).first()
+    await expect(first).toBeVisible()
+    await first.getByRole('link', { name: /^Открыть рецептуру/ }).click()
+    await expect(page.getByRole('region', { name: 'Состав на одну порцию' })).toBeVisible()
+    await page.reload()
+    await expect(page.getByRole('region', { name: 'Состав на одну порцию' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Редактировать рецептуру' })).toHaveCount(role === 'admin' ? 1 : 0)
+  }
+  if (width < 768) {
+    await page.getByRole('button', { name: 'Открыть меню' }).click()
+    const box = (await page.getByRole('dialog', { name: 'Меню', exact: true }).boundingBox())!
+    expect(box.x).toBe(0); expect(box.width).toBe(320)
+    await page.keyboard.press('Escape')
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.getByRole('button', { name: 'Выйти', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Вход в Кладовую' })).toBeVisible()

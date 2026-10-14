@@ -94,6 +94,8 @@ export const dishApi = baseApi.enhanceEndpoints({ addTagTypes: ['Dishes', 'StopL
   }),
 }) })
 export const { usePreviewDishMutation, useCreateDishMutation, useUpdateDishMutation, useAdminDishesQuery, useDishesQuery, useLazyDishQuery, useDishQuery, useStopListQuery, useHotOffersQuery } = dishApi
+// The published catalogue is readable by admin, manager and order_operator.
+export const useDishCatalogueQuery = useAdminDishesQuery
 
 function matchesDish(dish: Dish, body: Partial<CreateDish>) {
   return (body.name === undefined || dish.name === body.name) && (body.description === undefined || dish.description === body.description) && (body.is_active === undefined || dish.is_active === body.is_active) && (!body.recipe || body.recipe.length === dish.recipe.length && body.recipe.every((line) => dish.recipe.some((item) => item.product_id.toLowerCase() === line.product_id.toLowerCase() && parseQuantity(item.quantity_per_portion) === parseQuantity(line.quantity_per_portion))))

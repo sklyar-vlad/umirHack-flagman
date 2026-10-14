@@ -25,9 +25,19 @@ for (const width of [360, 390, 1024, 1440]) {
     const nav = await navigation(page, width)
     for (const title of ['Обзор', 'Склад', 'Поставки', 'Заказы', 'Стоп-лист', 'Рекомендации']) await expect(nav.getByRole('link', { name: title, exact: true })).toBeVisible()
     await expect(nav.getByRole('link', { name: 'Обзор', exact: true })).toHaveAttribute('aria-current', 'page')
+    const hovered = nav.getByRole('link', { name: 'Заказы', exact: true })
+    await hovered.hover()
+    expect(await hovered.evaluate((node) => getComputedStyle(node).backgroundColor)).not.toBe(await nav.getByRole('link', { name: 'Обзор', exact: true }).evaluate((node) => getComputedStyle(node).backgroundColor))
     await expect(nav.getByRole('link', { name: 'Админ-панель', exact: true })).toHaveCount(0)
     if (width < 768) {
       const drawer = page.getByRole('dialog', { name: 'Меню', exact: true })
+      const box = (await drawer.boundingBox())!
+      expect(box.x).toBe(0)
+      expect(box.y).toBe(0)
+      expect(box.width).toBe(320)
+      expect(box.height).toBe(1000)
+      expect(box.x + box.width).toBeLessThanOrEqual(width)
+      await page.screenshot({ path: `test-results/mobile-menu-${width}.png`, fullPage: true })
       for (let i = 0; i < 15; i++) {
         await page.keyboard.press('Tab')
         expect(await page.evaluate(() => document.activeElement === document.body || !!document.activeElement?.closest('dialog'))).toBe(true)

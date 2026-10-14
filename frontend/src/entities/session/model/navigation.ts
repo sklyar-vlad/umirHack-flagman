@@ -22,7 +22,7 @@ export const sections: readonly Section[] = [
   { id: 'movements', path: '/stock-movements', title: 'История движений', icon: 'adminHistory', roles: stock, group: 'extra' },
   { id: 'analytics', path: '/analytics', title: 'Аналитика', icon: 'grid', roles: management, group: 'extra' },
   { id: 'forecast', path: '/analytics/stop-list-forecast', title: 'Прогноз', icon: 'grid', roles: management, group: 'extra' },
-  { id: 'dishes', path: '/dishes', title: 'Рецепты', icon: 'adminBook', roles: sales, group: 'extra' },
+  { id: 'dishes', path: '/dishes', title: 'Рецептуры', icon: 'adminBook', roles: sales, group: 'extra' },
   { id: 'products', path: '/admin/products', title: 'Продукты', icon: 'box', roles: admin, group: 'admin' },
   { id: 'categories', path: '/admin/categories', title: 'Категории', icon: 'adminBook', roles: admin, group: 'admin' },
   { id: 'recipes', path: '/admin/dishes', title: 'Рецептуры', icon: 'adminBook', roles: admin, group: 'admin' },

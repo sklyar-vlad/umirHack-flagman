@@ -1,3 +1,4 @@
+import { RecipesPage, RecipeDetailPage } from '@/pages/recipes'
 import { ForecastPage } from '@/pages/stop-list-forecast'
 import { IngredientShortagesPage } from '@/pages/ingredient-shortages'
 import { AnalyticsNavigation } from '@/widgets/analytics-navigation'
@@ -43,7 +44,7 @@ const protectedRoutes: RouteObject[] = [
   { path: '/admin/audit', element: guarded(sections.find((section) => section.id === 'audit')!, <><AdminNavigation /><AuditPage /></>) },
   ...sections.map((section): RouteObject => ({
     path: section.path,
-    element: guarded(section, <>{section.group === 'admin' && <AdminNavigation />}{section.id === 'forecast' ? <><AnalyticsNavigation /><ForecastPage /></> : section.id === 'write-offs' ? <WriteOffPage /> : section.id === 'analytics' ? <><AnalyticsNavigation /><LossPage /></> : section.id === 'movements' ? <MovementsPage /> : section.id === 'audit' ? <AuditPage /> : section.id === 'settings' ? <SettingsPage /> : section.id === 'users' ? <UsersPage /> : section.id === 'recipes' ? <DishesPage /> : section.id === 'products' ? <ProductsPage /> : section.id === 'categories' ? <CategoriesPage /> : section.id === 'overview' ? <DashboardPage /> : section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'offers' ? <HotOffersPage /> : section.id === 'procurement' ? <ProcurementPage /> : section.id === 'recommendations'
+    element: guarded(section, <>{section.group === 'admin' && <AdminNavigation />}{section.id === 'forecast' ? <><AnalyticsNavigation /><ForecastPage /></> : section.id === 'write-offs' ? <WriteOffPage /> : section.id === 'analytics' ? <><AnalyticsNavigation /><LossPage /></> : section.id === 'movements' ? <MovementsPage /> : section.id === 'audit' ? <AuditPage /> : section.id === 'settings' ? <SettingsPage /> : section.id === 'users' ? <UsersPage /> : section.id === 'dishes' ? <RecipesPage /> : section.id === 'recipes' ? <DishesPage /> : section.id === 'products' ? <ProductsPage /> : section.id === 'categories' ? <CategoriesPage /> : section.id === 'overview' ? <DashboardPage /> : section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'offers' ? <HotOffersPage /> : section.id === 'procurement' ? <ProcurementPage /> : section.id === 'recommendations'
       ? <RecommendationsLanding />
       : <SectionPage section={section} />}</>),
   })),
@@ -60,7 +61,7 @@ const protectedRoutes: RouteObject[] = [
   { path: '/admin/dishes/:id', element: guarded(sections.find((section) => section.id === 'recipes')!, <DishEntryPage />) },
   { path: '/admin/dishes/:id/edit', element: guarded(sections.find((section) => section.id === 'recipes')!, <DishEntryPage />) },
   { path: '/admin', element: guarded(administration, <SectionLanding group="admin" />) },
-  { path: '/dishes/:id', element: guarded(dishes) },
+  { path: '/dishes/:id', element: guarded(dishes, <RecipeDetailPage />) },
   { path: '/supplies/new', element: guarded(supplies, <SupplyEntryPage />) },
   { path: '/supplies/:id', element: guarded(supplies, <SupplyDetailPage />) },
   { path: '/orders/new', element: guarded(orders, <NewOrderPage />) },

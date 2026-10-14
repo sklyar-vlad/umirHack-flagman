@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form'
 import type { DishSearch } from '@/entities/dish'
 import { Button, FormField, Input, Select } from '@/shared/ui'
-import styles from './AdminDishes.module.css'
+import styles from './DishFilters.module.css'
 export function DishFilters({ values, onChange, onReset }: { values: DishSearch; onChange: (patch: Partial<DishSearch>) => void; onReset: () => void }) {
   const { register, handleSubmit } = useForm({ defaultValues: { search: values.search } })
   return <div className={styles.filters}>

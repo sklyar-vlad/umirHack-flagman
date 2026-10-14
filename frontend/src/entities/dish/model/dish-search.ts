@@ -20,3 +20,12 @@ export function safeDishListUrl(value: string | null | undefined) {
   const params = dishSearchParams(readDishSearch(url.searchParams))
   return url.pathname + (params.size ? `?${params}` : '')
 }
+
+/** Viewing recipes returns only to the public catalogue, with published filters. */
+export function safeRecipeListUrl(value: string | null | undefined) {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/dishes'
+  const url = new URL(value, 'https://internal.invalid')
+  if (url.origin !== 'https://internal.invalid' || url.pathname !== '/dishes') return '/dishes'
+  const params = dishSearchParams(readDishSearch(url.searchParams))
+  return url.pathname + (params.size ? `?${params}` : '')
+}
