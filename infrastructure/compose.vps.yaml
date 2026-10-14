@@ -1,82 +1,83 @@
-# Standalone VPS deployment: one dotenv file and automatic HTTPS.
+# Standalone deployment; do not combine local and VPS files.
 name: flagman-vps
 services:
-  validate-config:
-    image: postgres:18-alpine
-    entrypoint: ["sh", "/scripts/validate-vps-env.sh"]
-    environment:
-      METRICS_TOKEN: ${METRICS_TOKEN:?Set metrics token}
-      FLAGMAN_DOMAIN: ${FLAGMAN_DOMAIN:?Set public DNS hostname}
-    volumes: ["./validate-vps-env.sh:/scripts/validate-vps-env.sh:ro"]
-    network_mode: none
   traefik:
     image: traefik:v3.7
     restart: unless-stopped
     command:
-      - --api.dashboard=true
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --providers.file.filename=/etc/traefik/dashboard.yaml
-      - --entrypoints.web.address=:80
-      - --entrypoints.web.http.redirections.entrypoint.to=websecure
-      - --entrypoints.web.http.redirections.entrypoint.scheme=https
-      - --entrypoints.web.http.redirections.entrypoint.permanent=true
-      - --entrypoints.websecure.address=:443
-      - --entrypoints.websecure.transport.respondingtimeouts.writetimeout=0s
-      - --entrypoints.admin.address=:8081
-      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:?Set ACME email}
-      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
-      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
-    ports: ["80:80", "443:443", "127.0.0.1:8081:8081"]
+    - --api.insecure=true
+    - --providers.docker=true
+    - --providers.docker.exposedbydefault=false
+    - --entrypoints.web.address=:80
+    - --entrypoints.web.http.redirections.entrypoint.to=websecure
+    - --entrypoints.web.http.redirections.entrypoint.scheme=https
+    - --entrypoints.web.http.redirections.entrypoint.permanent=true
+    - --entrypoints.websecure.address=:443
+    - --entrypoints.websecure.transport.respondingtimeouts.writetimeout=0s
+    - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:?Set ACME_EMAIL}
+    - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+    - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+    ports:
+    - 80:80
+    - 443:443
+    - 127.0.0.1:${TRAEFIK_PORT:-8081}:8080
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./dashboard.yaml:/etc/traefik/dashboard.yaml:ro
-      - certificates:/letsencrypt
-    networks: [flagman]
-    depends_on:
-      validate-config: {condition: service_completed_successfully}
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - certificates:/letsencrypt
+    networks:
+    - flagman
   db:
     image: postgres:18-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:?Set database name}
-      POSTGRES_USER: ${POSTGRES_USER:?Set database user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASS:?Set database password}
-    networks: [warehouse]
-    volumes: ["postgres-data:/var/lib/postgresql"]
-    depends_on:
-      validate-config: {condition: service_completed_successfully}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASS:?Set POSTGRES_PASS}
+    volumes:
+    - postgres-data:/var/lib/postgresql
+    networks:
+    - warehouse
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      test:
+      - CMD-SHELL
+      - PGPASSWORD="$$POSTGRES_PASSWORD" psql -X -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -v ON_ERROR_STOP=1 -c 'SELECT 1' >/dev/null
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
   migrate:
-    image: gomicro/goose:latest
-    restart: on-failure:3
+    build:
+      context: ../backend
+      dockerfile: ../infrastructure/Dockerfile.backend
+      target: migrate
     environment:
-      GOOSE_DRIVER: postgres
-      GOOSE_DBSTRING: ${POSTGRES_URL:?Set internal database URL}
-    entrypoint: ["goose", "-dir", "/migrations"]
-    command: ["up"]
-    volumes: ["../backend/database/migrations:/migrations:ro"]
-    networks: [warehouse]
+      POSTGRES_URL: ${POSTGRES_URL:?Set POSTGRES_URL}
+    networks:
+    - warehouse
     depends_on:
-      db: {condition: service_healthy}
+      db:
+        condition: service_healthy
   monitoring-init:
     image: postgres:18-alpine
-    restart: on-failure:3
     environment:
       PGHOST: db
-      PGDATABASE: ${POSTGRES_DB:?Set database name}
-      PGUSER: ${POSTGRES_USER:?Set database user}
-      PGPASSWORD: ${POSTGRES_PASS:?Set database password}
-      FLAGMAN_GRAFANA_PASSWORD: ${GRAFANA_PG_PASSWORD:?Set Grafana database password}
-    entrypoint: ["psql", "-X", "-v", "ON_ERROR_STOP=1", "-f", "/scripts/grafana-role.sql"]
-    volumes: ["./monitoring/grafana-role.sql:/scripts/grafana-role.sql:ro"]
-    networks: [warehouse]
+      PGDATABASE: ${POSTGRES_DB:?Set POSTGRES_DB}
+      PGUSER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASS:?Set POSTGRES_PASS}
+      FLAGMAN_GRAFANA_PASSWORD: ${GRAFANA_PG_PASSWORD:?Set GRAFANA_PG_PASSWORD}
+    entrypoint:
+    - psql
+    - -X
+    - -v
+    - ON_ERROR_STOP=1
+    - -f
+    - /grafana-role.sql
+    volumes:
+    - ./monitoring/grafana-role.sql:/grafana-role.sql:ro
+    networks:
+    - warehouse
     depends_on:
-      migrate: {condition: service_completed_successfully}
+      migrate:
+        condition: service_completed_successfully
   backend:
     build:
       context: ../backend
@@ -85,92 +86,119 @@ services:
     environment:
       ENV: production
       GIN_MODE: release
-      PORT: "8080"
-      FRONTEND_ORIGIN: https://${FLAGMAN_DOMAIN:?Set public DNS hostname}
-      POSTGRES_URL: ${POSTGRES_URL:?Set internal database URL}
-      METRICS_TOKEN: ${METRICS_TOKEN:?Set metrics token of at least 32 characters}
-    networks: [flagman, warehouse]
+      PORT: '8080'
+      FRONTEND_ORIGIN: https://${FLAGMAN_DOMAIN:?Set FLAGMAN_DOMAIN}
+      POSTGRES_URL: ${POSTGRES_URL:?Set POSTGRES_URL}
+      METRICS_TOKEN: ${METRICS_TOKEN:?Set METRICS_TOKEN}
+    networks:
+    - flagman
+    - warehouse
     depends_on:
-      migrate: {condition: service_completed_successfully}
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v1/ready"]
+      test:
+      - CMD
+      - wget
+      - -q
+      - -O
+      - /dev/null
+      - http://127.0.0.1:8080/api/v1/ready
       interval: 5s
       timeout: 5s
-      retries: 12
+      retries: 20
       start_period: 10s
   frontend:
     build:
       context: ..
       dockerfile: infrastructure/Dockerfile.frontend
     restart: unless-stopped
-    networks: [flagman]
+    networks:
+    - flagman
     depends_on:
-      backend: {condition: service_healthy}
+      backend:
+        condition: service_healthy
     labels:
-      traefik.enable: "true"
-      traefik.docker.network: flagman-vps
-      traefik.http.routers.frontend.rule: Host(`${FLAGMAN_DOMAIN:?Set public DNS hostname}`)
+      traefik.enable: 'true'
+      traefik.docker.network: ${COMPOSE_PROJECT_NAME:-flagman-vps}
+      traefik.http.routers.frontend.rule: Host(`${FLAGMAN_DOMAIN:?Set FLAGMAN_DOMAIN}`)
       traefik.http.routers.frontend.entrypoints: websecure
-      traefik.http.routers.frontend.tls: "true"
-      traefik.http.routers.frontend.tls.certresolver: letsencrypt
-      traefik.http.services.frontend.loadbalancer.server.port: "80"
+      traefik.http.services.frontend.loadbalancer.server.port: '80'
       traefik.http.services.frontend.loadbalancer.responseforwarding.flushinterval: -1ms
+      traefik.http.routers.frontend.tls: 'true'
+      traefik.http.routers.frontend.tls.certresolver: letsencrypt
   prometheus:
     image: prom/prometheus:v3.5.0
     restart: unless-stopped
     environment:
-      METRICS_TOKEN: ${METRICS_TOKEN:?Set metrics token}
-    entrypoint: ["/bin/sh", "/etc/prometheus/entrypoint.sh"]
+      METRICS_TOKEN: ${METRICS_TOKEN:?Set METRICS_TOKEN}
+    entrypoint:
+    - /bin/sh
+    - -ec
+    command:
+    - umask 077; test "$${#METRICS_TOKEN}" -ge 32; printf '%s' "$$METRICS_TOKEN" > /tmp/flagman-metrics-token; exec /bin/prometheus
+      --config.file=/etc/prometheus/prometheus.yaml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=15d
     volumes:
-      - ./monitoring/prometheus.vps.yaml:/etc/prometheus/prometheus.yaml:ro
-      - ./monitoring/prometheus-entrypoint.sh:/etc/prometheus/entrypoint.sh:ro
-      - prometheus-data:/prometheus
-    networks: [flagman]
-    depends_on: [backend]
+    - ./monitoring/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+    - prometheus-data:/prometheus
+    networks:
+    - flagman
+    depends_on:
+      backend:
+        condition: service_healthy
   grafana:
     image: grafana/grafana:12.1.1
     restart: unless-stopped
-    ports: ["127.0.0.1:3000:3000"]
+    ports:
+    - 127.0.0.1:${GRAFANA_PORT:-3000}:3000
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:?Set database name}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set Grafana admin password}
-      FLAGMAN_GRAFANA_PASSWORD: ${GRAFANA_PG_PASSWORD:?Set Grafana database password}
-      GF_AUTH_ANONYMOUS_ENABLED: "false"
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_PLUGINS_PREINSTALL_DISABLED: "true"
-      GF_ANALYTICS_REPORTING_ENABLED: "false"
-      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
-      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD}
+      FLAGMAN_GRAFANA_PASSWORD: ${GRAFANA_PG_PASSWORD:?Set GRAFANA_PG_PASSWORD}
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_PLUGINS_PREINSTALL_DISABLED: 'true'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+      GF_ANALYTICS_CHECK_FOR_UPDATES: 'false'
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: 'false'
     volumes:
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
-      - grafana-data:/var/lib/grafana
-    networks: [flagman, warehouse]
+    - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+    - grafana-data:/var/lib/grafana
+    networks:
+    - flagman
+    - warehouse
     depends_on:
-      monitoring-init: {condition: service_completed_successfully}
-  seed-users:
-    profiles: [ops]
+      monitoring-init:
+        condition: service_completed_successfully
+  seed:
+    profiles:
+    - tools
     build:
       context: ../backend
       dockerfile: ../infrastructure/Dockerfile.backend
       target: seed-users
+    command:
+    - -data
     environment:
-      GOOSE_DBSTRING: ${POSTGRES_URL:?Set internal database URL}
+      POSTGRES_URL: ${POSTGRES_URL:?Set POSTGRES_URL}
       DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
       DEMO_MANAGER_PASSWORD: ${DEMO_MANAGER_PASSWORD:-}
       DEMO_STOREKEEPER_PASSWORD: ${DEMO_STOREKEEPER_PASSWORD:-}
       DEMO_ORDER_OPERATOR_PASSWORD: ${DEMO_ORDER_OPERATOR_PASSWORD:-}
-    networks: [warehouse]
+    networks:
+    - warehouse
     depends_on:
-      migrate: {condition: service_completed_successfully}
+      migrate:
+        condition: service_completed_successfully
 volumes:
-  postgres-data:
-  certificates:
-  prometheus-data:
-  grafana-data:
+  postgres-data: {}
+  prometheus-data: {}
+  grafana-data: {}
+  certificates: {}
 networks:
   flagman:
-    name: flagman-vps
+    name: ${COMPOSE_PROJECT_NAME:-flagman-vps}
   warehouse:
     internal: true

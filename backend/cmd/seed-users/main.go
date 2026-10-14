@@ -33,7 +33,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Print("demo users seed completed")
+	log.Print("demo seed completed")
 }
 
 func run() error {
@@ -42,6 +42,7 @@ func run() error {
 		"../infrastructure/.env",
 		"Database configuration",
 	)
+	includeData := flag.Bool("data", false, "Also seed catalog, recipes, settings and inventory")
 	flag.Parse()
 
 	if err := godotenv.Load(*envFile); err != nil {
@@ -55,9 +56,12 @@ func run() error {
 		return err
 	}
 
-	dsn := os.Getenv("GOOSE_DBSTRING")
+	dsn := os.Getenv("POSTGRES_URL")
 	if dsn == "" {
-		return errors.New("GOOSE_DBSTRING is required for seed-users")
+		dsn = os.Getenv("GOOSE_DBSTRING")
+	}
+	if dsn == "" {
+		return errors.New("POSTGRES_URL is required for seed")
 	}
 
 	ctx, cancel := context.WithTimeout(
@@ -73,14 +77,14 @@ func run() error {
 	})
 	if err != nil {
 		return errors.New(
-			"cannot connect to seed database; check GOOSE_DBSTRING and database availability",
+			"cannot connect to seed database; check configuration and database availability",
 		)
 	}
 	defer pool.Close()
 
 	repo := repository.NewRepository(pool, zap.NewNop())
 
-	return repo.WithinTx(ctx, nil, func(tx repository.DBTX) error {
+	err = repo.WithinTx(ctx, nil, func(tx repository.DBTX) error {
 		if _, err := tx.Exec(
 			ctx,
 			"SELECT pg_advisory_xact_lock($1)",
@@ -148,6 +152,13 @@ func run() error {
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	if *includeData {
+		return database.SeedDemo(ctx, pool)
+	}
+	return nil
 }
 
 func loadDemoUsers() ([]seedUser, error) {

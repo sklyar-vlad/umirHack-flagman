@@ -39,13 +39,6 @@ jobs:
       - name: Selected browser acceptance with explicit MSW
         working-directory: frontend
         run: npm run test:acceptance
-      - name: Install pinned migration tool
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-        with:
-          go-version-file: backend/go.mod
-          cache-dependency-path: backend/go.sum
-      - name: Real nginx and isolated API acceptance
+      - name: Real local Compose and isolated API acceptance
         working-directory: frontend
-        run: |
-          go install github.com/pressly/goose/v3/cmd/goose@v3.27.1
-          npm run test:production
+        run: npm run test:production

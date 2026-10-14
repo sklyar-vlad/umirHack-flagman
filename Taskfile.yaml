@@ -2,217 +2,23 @@ version: "3"
 
 vars:
   ENV_FILE: '{{.ENV_FILE | default "./infrastructure/.env"}}'
-  COMPOSE_CMD: docker compose --env-file ./infrastructure/.env -f ./infrastructure/compose.yaml -f ./infrastructure/compose.local.yaml
-  GOOSE_CMD: goose -env ./infrastructure/.env -dir ./backend/database/migrations
 
 env:
   FLAGMAN_ENV_FILE: '{{.ENV_FILE}}'
-  FLAGMAN_MODE: '{{.MODE | default "auto"}}'
 
 tasks:
   default:
-    cmds:
-      - 'task --list'
+    cmds: [task --list]
     silent: true
-
-### START
-
   up:
-    desc: Поднять БД, применить миграции и запустить приложение (DEPLOY_MODE=vps для HTTPS)
-    cmds:
-      - sh ./infrastructure/manage.sh up
-
-### STOP
-
+    desc: Собрать и запустить local/VPS; схема БД готовится автоматически
+    cmds: [sh infrastructure/manage.sh up]
   down:
-    desc: down all containers
-    cmds:
-      - sh ./infrastructure/manage.sh down
-    silent: true
-
-### LOGS
-
+    desc: Остановить контейнеры, сохранив данные
+    cmds: [sh infrastructure/manage.sh down]
   logs:
-    desc: check logs all containers
-    cmds:
-      - sh ./infrastructure/manage.sh logs
-
-### DATABASE 
-
-  migration:
-    desc: Создать SQL-миграцию
-    vars:
-      NAME: '{{.NAME | default "migration"}}'
-    cmds:
-      - '{{.GOOSE_CMD}} -s create "{{.NAME}}" sql'
-
-  migrate:
-    desc: Применить все ожидающие миграции
-    cmds:
-      - sh ./infrastructure/manage.sh migrate
-
-  migrate-one:
-    desc: Применить одну следующую миграцию
-    cmds:
-      - sh ./infrastructure/manage.sh migrate-one
-
-  migrate-status:
-    desc: Показать состояние миграций
-    cmds:
-      - sh ./infrastructure/manage.sh migrate-status
-
-  migrate-version:
-    desc: Показать текущую версию схемы
-    cmds:
-      - sh ./infrastructure/manage.sh migrate-version
-
-  migrate-validate:
-    desc: Проверить формат файлов миграций
-    cmds:
-      - sh ./infrastructure/manage.sh migrate-validate
-
-  rollback-one:
-    desc: Откатить одну последнюю миграцию
-    cmds:
-      - sh ./infrastructure/manage.sh rollback-one
-
-  rollback:
-    desc: Откатить все миграции
-    cmds:
-      - sh ./infrastructure/manage.sh rollback
-
+    desc: Смотреть логи
+    cmds: [sh infrastructure/manage.sh logs]
   seed:
-    desc: Заполнить начальные справочники, рецептуры и настройки
-    preconditions:
-      - sh: test -f "$FLAGMAN_ENV_FILE"
-        msg: Создай infrastructure/.env из infrastructure/.env.example
-      - sh: test -f ./backend/database/seeds/001_catalog.sql
-        msg: Не найден backend/database/seeds/001_catalog.sql
-      - sh: test -f ./backend/database/seeds/002_inventory.sql
-        msg: Не найден backend/database/seeds/002_inventory.sql
-    cmds:
-      - sh ./infrastructure/manage.sh seed
-
-  seed-users:
-    desc: Создать демопользователей всех четырёх ролей
-    preconditions:
-      - sh: test -f "$FLAGMAN_ENV_FILE"
-        msg: Не найден infrastructure/.env
-    cmds:
-      - sh ./infrastructure/manage.sh seed-users
-
-  demo-events:
-    desc: Поток поставок и заказов через API выделенного demo-окружения
-    dir: backend
-    env:
-      DEMO_EVENTS_URL: '{{.DEMO_URL | default ""}}'
-      DEMO_EVENTS_ORIGIN: '{{.ORIGIN | default ""}}'
-      DEMO_EVENTS_CONFIRM: '{{.CONFIRM | default ""}}'
-      DEMO_EVENTS_SCENARIO: '{{.SCENARIO | default "normal"}}'
-      DEMO_EVENTS_COUNT: '{{.COUNT | default "10"}}'
-      DEMO_EVENTS_INTERVAL: '{{.INTERVAL | default "1s"}}'
-      DEMO_EVENTS_EXPIRY: '{{.EXPIRY | default "30s"}}'
-      DEMO_EVENTS_DISH: '{{.DISH_ID | default ""}}'
-    preconditions:
-      - sh: test "${ENV:-}" = demo
-        msg: Требуется ENV=demo
-      - sh: test "${DEMO_EVENTS_CONFIRM:-}" = demo
-        msg: Укажи CONFIRM=demo для выделенного demo-адреса
-      - sh: test -n "${DEMO_EVENTS_URL:-}" && test -n "${DEMO_EVENTS_ORIGIN:-}"
-        msg: Укажи DEMO_URL и ORIGIN явно
-      - sh: test -n "${DEMO_MANAGER_PASSWORD:-}"
-        msg: Экспортируй пароль demo-менеджера в DEMO_MANAGER_PASSWORD
-    cmds:
-      - >-
-          go run ./cmd/demo-events --confirm-demo
-          --demo-url "$DEMO_EVENTS_URL" --origin "$DEMO_EVENTS_ORIGIN"
-          --scenario "$DEMO_EVENTS_SCENARIO" --count "$DEMO_EVENTS_COUNT"
-          --interval "$DEMO_EVENTS_INTERVAL" --expiry "$DEMO_EVENTS_EXPIRY"
-          --dish-id "$DEMO_EVENTS_DISH"
-
-  demo-reset:
-    desc: Очистить только базу postgres_demo; требуется CONFIRM=postgres-demo
-    dotenv:
-      - ./infrastructure/.env
-    env:
-      DEMO_RESET_CONFIRM: '{{.CONFIRM | default ""}}'
-    preconditions:
-      - sh: test -f ./infrastructure/.env
-        msg: Не найден infrastructure/.env
-      - sh: test -f ./backend/database/seeds/reset_demo.sql
-        msg: Не найден backend/database/seeds/reset_demo.sql
-      - sh: test "${ENV:-}" = demo
-        msg: Сброс разрешён только при ENV=demo
-      - sh: test "${POSTGRES_DB:-}" = postgres_demo
-        msg: Сброс разрешён только для POSTGRES_DB=postgres_demo
-      - sh: test "${DEMO_RESET_CONFIRM:-}" = postgres-demo
-        msg: Для удаления демоданных укажи CONFIRM=postgres-demo
-    cmds:
-      - '{{.COMPOSE_CMD}} stop backend frontend'
-      - >-
-          {{.COMPOSE_CMD}} exec -T db
-          sh -eu -c 'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres_demo'
-          < ./backend/database/seeds/reset_demo.sql
-
-### SWAGGER 
-
-  swagger:
-    desc: up swagger
-    cmds:
-    - docker run --rm --name flagman-swagger -p 127.0.0.1:8090:8080 -e SWAGGER_JSON=/docs/openapi.yaml -v "$PWD/backend/docs:/docs:ro" docker.swagger.io/swaggerapi/swagger-ui
-    - echo "swagger was up at localhost:8090 ✅"
-
-### LINTING
-
-  backend:format-check:
-    desc: Проверить gofmt без изменения файлов
-    cmds:
-      - bash ./scripts/backend-checks.sh format
-
-  backend:lint:
-    desc: Проверить backend существующими правилами golangci-lint без исправлений
-    cmds:
-      - bash ./scripts/backend-checks.sh lint
-
-  backend:test:
-    desc: Модульные проверки backend без PostgreSQL (включая точные расчёты)
-    cmds:
-      - bash ./scripts/backend-checks.sh unit
-
-  backend:vet:
-    cmds:
-      - bash ./scripts/backend-checks.sh vet
-
-  backend:build:
-    cmds:
-      - bash ./scripts/backend-checks.sh build
-
-  backend:check:
-    desc: Неизменяющие исходники format/lint/test/vet/build для локальной разработки и CI
-    cmds:
-      - bash ./scripts/backend-checks.sh all
-
-  backend:integration:
-    desc: Все PostgreSQL тесты в новой временной БД на локальном Docker с Goose миграциями
-    cmds:
-      - bash ./scripts/backend-ci.sh integration
-
-  backend:smoke:
-    desc: Собрать образ backend и проверить API/readiness в отдельном Compose без БД приложения
-    cmds:
-      - bash ./scripts/backend-ci.sh smoke
-
-  backend:demo:
-    desc: Чистая локальная демонстрация backend через API в одноразовом Compose
-    cmds:
-      - bash ./scripts/backend-ci.sh demo
-
-  lint:
-    dir: backend
-    desc: formatting project
-    cmds:
-      - echo "⚠️  start linting... ⚠️"
-      - go fmt ./...
-      - golangci-lint run --fix
-      - echo "✅ linting and formatting finished ✅"
-    silent: true
+    desc: Добавить демопользователей, каталог, рецепты и партии через контейнер
+    cmds: [sh infrastructure/manage.sh seed]

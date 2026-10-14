@@ -57,7 +57,7 @@ func TestDashboardSourcesAndUnitGrouping(t *testing.T) {
 	if sqlCount != 4 {
 		t.Fatal("missing warehouse panels", sqlCount)
 	}
-	for _, name := range []string{"monitoring/prometheus.yaml", "monitoring/grafana/provisioning/datasources/flagman.yaml", "monitoring/grafana/provisioning/dashboards/flagman.yaml", "compose.monitoring.yaml"} {
+	for _, name := range []string{"monitoring/prometheus.yaml", "monitoring/grafana/provisioning/datasources/flagman.yaml", "monitoring/grafana/provisioning/dashboards/flagman.yaml", "compose.local.yaml", "compose.vps.yaml"} {
 		b, err := os.ReadFile(infra + "/" + name)
 		if err != nil {
 			t.Fatal(err)
@@ -146,7 +146,7 @@ func TestPrometheusScrapesProtectedBackend(t *testing.T) {
 		"-v",
 		dir+":/test:ro",
 		"-v",
-		filepath.Join(dir, "metrics_token")+":/run/secrets/metrics_token:ro",
+		filepath.Join(dir, "metrics_token")+":/tmp/flagman-metrics-token:ro",
 		"prom/prometheus:v3.5.0",
 		"--config.file=/test/prometheus.yaml",
 		"--web.listen-address=127.0.0.1:"+strconv.Itoa(port),

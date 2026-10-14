@@ -19,6 +19,24 @@ type fixture struct {
 }
 
 func newFixture(t *testing.T) *fixture {
+	f := newEmptyFixture(t)
+	files, err := filepath.Glob("migrations/*.sql")
+	if err != nil || len(files) == 0 {
+		t.Fatal("missing migrations")
+	}
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.pool.Exec(f.ctx, strings.SplitN(string(data), "-- +goose Down", 2)[0]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return f
+}
+
+func newEmptyFixture(t *testing.T) *fixture {
 	t.Helper()
 	dsn := os.Getenv("FLAGMAN_TEST_DATABASE_URL")
 	if dsn == "" {
@@ -58,18 +76,5 @@ func newFixture(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	files, err := filepath.Glob("migrations/*.sql")
-	if err != nil || len(files) == 0 {
-		t.Fatal("missing migrations")
-	}
-	for _, file := range files {
-		data, err := os.ReadFile(file)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := pool.Exec(ctx, strings.SplitN(string(data), "-- +goose Down", 2)[0]); err != nil {
-			t.Fatal(err)
-		}
-	}
 	return &fixture{ctx: ctx, pool: pool}
 }

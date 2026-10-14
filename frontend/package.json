@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:browser": "playwright test",
     "test:acceptance": "playwright test reception new-order write-off product-editor dish-editor auth navigation live-updates ui-stability acceptance",
-    "test:production": "bash tests/production/run.sh"
+    "test:production": "bash ../scripts/integration-checks.sh frontend"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

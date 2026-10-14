@@ -7,6 +7,6 @@ scrape_configs:
     scrape_timeout: 5s
     authorization:
       type: Bearer
-      credentials_file: /run/secrets/metrics_token
+      credentials_file: /tmp/flagman-metrics-token
     static_configs:
       - targets: [backend:8080]

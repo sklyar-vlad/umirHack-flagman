@@ -71,44 +71,6 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 		"privkey.pem",
 		pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}),
 	)
-	// Exercise the operator preflight with real external certificate/secret files.
-	for _, name := range []string{"postgres_password", "postgres_url", "grafana_admin_password", "grafana_pg_password"} {
-		write(name, []byte("isolated-test-secret"))
-	}
-	write("metrics_token", []byte(strings.Repeat("a", 64)))
-	preflight := func(domain, secretDir string) error {
-		cmd := exec.Command("sh", "../../../../infrastructure/deploy-check.sh")
-		cmd.Env = append(
-			os.Environ(),
-			"FLAGMAN_DOMAIN="+domain,
-			"POSTGRES_DB=test",
-			"POSTGRES_USER=test",
-			"FLAGMAN_SECRETS_DIR="+secretDir,
-			"FLAGMAN_TLS_DIR="+dir,
-			"FLAGMAN_BACKUP_DIR="+dir,
-		)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Logf("preflight rejection: %s", out)
-		}
-		return err
-	}
-	if err := preflight("flagman.example", dir); err != nil {
-		t.Fatal("valid preflight failed", err)
-	}
-	for _, domain := range []string{"https://flagman.example", "flagman.example:443", "wrong.example", "example` || PathPrefix(`/"} {
-		if err := preflight(domain, dir); err == nil {
-			t.Fatal("invalid deployment domain accepted", domain)
-		}
-	}
-	if err := preflight("flagman.example", "."); err == nil {
-		t.Fatal("relative secrets accepted")
-	}
-	write("metrics_token", []byte("short"))
-	if err := preflight("flagman.example", dir); err == nil {
-		t.Fatal("short deployment secret accepted")
-	}
-	write("metrics_token", []byte(strings.Repeat("a", 64)))
 	nginxPort := proxyPort(t)
 	raw, err := os.ReadFile("../../../../infrastructure/nginx.conf")
 	if err != nil {
@@ -129,7 +91,7 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 		"docker",
 		"compose",
 		"-f",
-		"../../../../infrastructure/compose.https.yaml",
+		"../../../../infrastructure/compose.vps.yaml",
 		"config",
 		"--format",
 		"json",
@@ -139,9 +101,12 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 		"POSTGRES_DB=test",
 		"POSTGRES_USER=test",
 		"FLAGMAN_DOMAIN=flagman.example",
-		"FLAGMAN_SECRETS_DIR=/tmp/test-secrets",
-		"FLAGMAN_TLS_DIR=/tmp/test-certs",
-		"FLAGMAN_BACKUP_DIR=/tmp/test-backup",
+		"POSTGRES_PASS=isolated-test-password",
+		"POSTGRES_URL=postgres://test:isolated-test-password@db:5432/test",
+		"ACME_EMAIL=test@example.com",
+		"METRICS_TOKEN="+strings.Repeat("a", 64),
+		"GRAFANA_ADMIN_PASSWORD=isolated-grafana-password",
+		"GRAFANA_PG_PASSWORD=isolated-grafana-database-password",
 	)
 	b, err := command.Output()
 	if err != nil {
@@ -171,12 +136,7 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 		}
 	}
 	rule := cfg.Services["frontend"].Labels["traefik.http.routers.frontend.rule"]
-	tlsRaw, err := os.ReadFile("../../../../infrastructure/tls.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	tlsConfig := strings.ReplaceAll(string(tlsRaw), "/run/secrets/tls_chain", "/test/fullchain.pem")
-	tlsConfig = strings.ReplaceAll(tlsConfig, "/run/secrets/tls_key", "/test/privkey.pem")
+	tlsConfig := "\ntls:\n  certificates:\n    - certFile: /test/fullchain.pem\n      keyFile: /test/privkey.pem\n"
 	dynamic := fmt.Sprintf(`http:
   routers:
     frontend:
@@ -198,12 +158,16 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 `, rule, nginxPort) + tlsConfig
 	write("dynamic.yaml", []byte(dynamic))
 	httpPort, tlsPort, adminPort := proxyPort(t), proxyPort(t), proxyPort(t)
-	var args []string
+	args := []string{
+		"--api.dashboard=true",
+		"--providers.file.filename=/test/dynamic.yaml",
+		fmt.Sprintf("--entrypoints.admin.address=127.0.0.1:%d", adminPort),
+	}
 	for _, arg := range cfg.Services["traefik"].Command {
 		switch {
 		case strings.HasPrefix(arg, "--providers.docker="):
 			arg = "--providers.docker=false"
-		case strings.HasPrefix(arg, "--providers.docker."):
+		case strings.HasPrefix(arg, "--providers.docker.") || strings.HasPrefix(arg, "--certificatesresolvers.") || arg == "--api.insecure=true":
 			continue
 		case strings.HasPrefix(arg, "--providers.file.filename="):
 			arg = "--providers.file.filename=/test/dynamic.yaml"

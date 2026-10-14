@@ -56,12 +56,12 @@ func TestCurlUnbufferedThroughNginxAndTraefik(t *testing.T) {
 	nginxURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 	waitProxy(t, nginxURL)
 	// Use the same streaming flags as Compose and proxy both direct and via nginx.
-	raw, err = os.ReadFile("../../../../infrastructure/compose.yaml")
+	raw, err = os.ReadFile("../../../../infrastructure/compose.local.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(raw), "--entrypoints.web.transport.respondingtimeouts.writetimeout=0s") ||
-		!strings.Contains(string(raw), "responseforwarding.flushinterval=-1ms") {
+		!strings.Contains(string(raw), "responseforwarding.flushinterval: -1ms") {
 		t.Fatal("Compose stream options missing")
 	}
 	dynamic := fmt.Sprintf(`http:

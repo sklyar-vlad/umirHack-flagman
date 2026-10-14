@@ -1,8 +1,0 @@
-tls:
-  certificates:
-    - certFile: /run/secrets/tls_chain
-      keyFile: /run/secrets/tls_key
-  options:
-    default:
-      minVersion: VersionTLS12
-      sniStrict: true

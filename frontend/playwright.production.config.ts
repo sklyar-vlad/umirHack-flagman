@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
 if (!process.env.FRONTEND_TEST_ORIGIN || !process.env.FRONTEND_TEST_PASSWORD) {
-  throw new Error('Run bash tests/production/run.sh to provision isolated acceptance services')
+  throw new Error('Run npm run test:production to provision isolated acceptance services')
 }
 
 export default defineConfig({

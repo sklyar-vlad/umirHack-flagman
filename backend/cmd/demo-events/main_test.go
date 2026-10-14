@@ -199,18 +199,14 @@ func TestExecutableSIGTERMStopsIntervalAndLogsOut(t *testing.T) {
 	}
 }
 
-func TestTaskDemoEventsEntryPoint(t *testing.T) {
-	task, err := exec.LookPath("task")
-	if err != nil {
-		t.Skip("task runner not installed")
-	}
+func TestCLIDemoEventsEntryPoint(t *testing.T) {
 	events := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/auth/login":
 			var input dto.LoginRequest
 			if err := json.NewDecoder(r.Body).Decode(&input); err != nil || input.Password != "test-password" {
-				t.Error("Task did not inherit demo password")
+				t.Error("CLI did not inherit demo password")
 			}
 			http.SetCookie(w, &http.Cookie{Name: "session", Value: "private-cookie", Path: "/"})
 			_ = json.NewEncoder(w).
@@ -227,25 +223,13 @@ func TestTaskDemoEventsEntryPoint(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	taskfile, err := filepath.Abs("../../../Taskfile.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(
-		ctx,
-		task,
-		"--taskfile",
-		taskfile,
-		"demo-events",
-		"CONFIRM=demo",
-		"DEMO_URL="+server.URL,
-		"ORIGIN=http://frontend.test",
-		"SCENARIO=depletion",
-		"COUNT=2",
-		"INTERVAL=0",
-		"DISH_ID=30000000-0000-4000-8000-000000000001",
+		ctx, "go", "run", ".", "--confirm-demo",
+		"--demo-url", server.URL, "--origin", "http://frontend.test",
+		"--scenario", "depletion", "--count", "2", "--interval", "0",
+		"--dish-id", "30000000-0000-4000-8000-000000000001",
 	)
 	for _, entry := range os.Environ() {
 		if !strings.HasPrefix(entry, "ENV=") && !strings.HasPrefix(entry, "DEMO_MANAGER_PASSWORD=") {
@@ -256,6 +240,6 @@ func TestTaskDemoEventsEntryPoint(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 	if err != nil || events != 2 || strings.Count(string(output), "order created id=") != 2 ||
 		strings.Contains(string(output), "test-password") {
-		t.Fatalf("Task entry point: %v events=%d output=%s", err, events, output)
+		t.Fatalf("CLI entry point: %v events=%d output=%s", err, events, output)
 	}
 }
