@@ -17,12 +17,46 @@ const (
 )
 
 type Service interface {
+	ProductFlow(context.Context, model.AnalyticsFilter) ([]dto.ProductFlowAnalytics, int64, error)
 	IngredientShortages(context.Context, model.AnalyticsFilter) ([]dto.IngredientShortageAnalytics, int64, error)
 	WriteOffs(context.Context, model.AnalyticsFilter) ([]dto.WriteOffAnalytics, int64, error)
 }
 type Handler struct{ service Service }
 
 func NewHandler(service Service) *Handler { return &Handler{service: service} }
+
+func (h *Handler) ProductFlow(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	q := c.Request.URL.Query()
+	if _, ok := q["reason"]; ok {
+		basehandler.WriteError(
+			c,
+			&validations.FieldError{Field: "reason", Message: "Для движения продуктов фильтр причины не используется"},
+		)
+		return
+	}
+	f, err := parseFilter(c.Request.URL.RawQuery, true)
+	if err != nil {
+		basehandler.WriteError(c, err)
+		return
+	}
+	items, total, err := h.service.ProductFlow(c.Request.Context(), f)
+	if err != nil {
+		basehandler.WriteError(c, err)
+		return
+	}
+	c.JSON(
+		200,
+		dto.ListResponse[dto.ProductFlowAnalytics]{
+			Items:    items,
+			Total:    total,
+			Page:     f.Page,
+			PageSize: f.PageSize,
+			Meta:     map[string]any{},
+		},
+	)
+}
+
 func (h *Handler) WriteOffs(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	f, err := parseFilter(c.Request.URL.RawQuery, true)

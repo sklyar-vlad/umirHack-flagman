@@ -16,6 +16,7 @@ import (
 )
 
 type Repository interface {
+	ProductFlow(context.Context, repository.DBTX, model.AnalyticsFilter) ([]dto.ProductFlowAnalytics, int64, error)
 	IngredientShortages(
 		context.Context,
 		repository.DBTX,
@@ -33,6 +34,24 @@ type Service struct {
 
 func NewService(repo Repository, transactions Transactions) *Service {
 	return &Service{repo: repo, transactions: transactions}
+}
+
+func (s *Service) ProductFlow(ctx context.Context, f model.AnalyticsFilter) ([]dto.ProductFlowAnalytics, int64, error) {
+	if err := authorize(ctx); err != nil {
+		return nil, 0, err
+	}
+	var items []dto.ProductFlowAnalytics
+	var total int64
+	err := s.transactions.WithinTx(
+		ctx,
+		&pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
+		func(tx repository.DBTX) error {
+			var err error
+			items, total, err = s.repo.ProductFlow(ctx, tx, f)
+			return err
+		},
+	)
+	return items, total, safeError(err)
 }
 
 func authorize(ctx context.Context) error {

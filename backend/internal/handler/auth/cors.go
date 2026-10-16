@@ -11,6 +11,20 @@ import (
 
 func (h *Handler) CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// This namespace authenticates only with scoped bearer tokens, never cookies.
+		// Supplier clients can be hosted independently of the session-based app.
+		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/integration/") {
+			c.Header("Cache-Control", "no-store")
+			c.Header("Access-Control-Allow-Origin", "*")
+			c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			if c.Request.Method == http.MethodOptions {
+				c.AbortWithStatus(http.StatusNoContent)
+				return
+			}
+			c.Next()
+			return
+		}
 		if path := c.Request.URL.Path; strings.HasPrefix(path, "/api/v1/auth/") || path == "/api/v1/roles" ||
 			path == "/api/v1/users" ||
 			strings.HasPrefix(path, "/api/v1/users/") {

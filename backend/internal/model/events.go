@@ -142,13 +142,14 @@ func (*SettingsAuditSnapshot) auditSnapshot()      {}
 type OutboxEventType string
 
 const (
-	InventoryChanged     OutboxEventType = "inventory.changed"
-	InventoryTimeChanged OutboxEventType = "inventory.time_changed"
-	ProductsChanged      OutboxEventType = "products.changed"
-	CategoriesChanged    OutboxEventType = "product_categories.changed"
-	DishesChanged        OutboxEventType = "dishes.changed"
-	SettingsChanged      OutboxEventType = "settings.changed"
-	UsersChanged         OutboxEventType = "users.changed"
+	IncomingSuppliesChanged OutboxEventType = "supplies.incoming_changed"
+	InventoryChanged        OutboxEventType = "inventory.changed"
+	InventoryTimeChanged    OutboxEventType = "inventory.time_changed"
+	ProductsChanged         OutboxEventType = "products.changed"
+	CategoriesChanged       OutboxEventType = "product_categories.changed"
+	DishesChanged           OutboxEventType = "dishes.changed"
+	SettingsChanged         OutboxEventType = "settings.changed"
+	UsersChanged            OutboxEventType = "users.changed"
 )
 
 type EventTopic string
@@ -194,3 +195,29 @@ type OutboxPayload struct {
 	OrderIDs    []uuid.UUID  `json:"order_ids,omitempty"`
 	UserIDs     []uuid.UUID  `json:"user_ids,omitempty"`
 }
+
+// Workflow snapshots deliberately exclude bearer tokens and token hashes.
+const (
+	AuditIntegrationToken AuditEntity = "integration_token"
+	AuditIncomingSupply   AuditEntity = "incoming_supply"
+	AuditHotOffer         AuditEntity = "hot_offer"
+)
+
+type WorkflowLineAudit struct {
+	ID               uuid.UUID `json:"id"`
+	ProductID        uuid.UUID `json:"product_id"`
+	Quantity         string    `json:"quantity"`
+	AcceptedQuantity string    `json:"accepted_quantity"`
+}
+type WorkflowAuditSnapshot struct {
+	Name       string              `json:"name,omitempty"`
+	Status     string              `json:"status,omitempty"`
+	Revision   int                 `json:"revision,omitempty"`
+	Published  *bool               `json:"is_published,omitempty"`
+	Manual     *bool               `json:"is_manual,omitempty"`
+	Message    string              `json:"message,omitempty"`
+	ExternalID string              `json:"external_id,omitempty"`
+	Items      []WorkflowLineAudit `json:"items,omitempty"`
+}
+
+func (*WorkflowAuditSnapshot) auditSnapshot() {}

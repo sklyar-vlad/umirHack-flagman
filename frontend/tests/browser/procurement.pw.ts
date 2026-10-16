@@ -69,7 +69,7 @@ for (const role of ['admin', 'storekeeper']) {
     await login(page, '/recommendations/procurement?search=Молоко', role); await expect(milk(page)).toBeVisible()
     await expect(milk(page).getByRole('link', { name: 'Молочный суп' })).toHaveCount(role === 'admin' ? 1 : 0)
     await expect(milk(page)).toContainText('Молочный суп')
-    await expect(page.getByRole('navigation', { name: 'Вкладки рекомендаций' }).getByRole('link', { name: 'Продвигать блюда' })).toHaveCount(role === 'admin' ? 1 : 0)
+    await expect(page.getByRole('navigation', { name: 'Вкладки рекомендаций' }).getByRole('link', { name: 'Горячие предложения' })).toHaveCount(role === 'admin' ? 1 : 0)
     await expect(milk(page).getByRole('link', { name: 'Принять поставку: Молоко' })).toBeVisible()
   })
 }

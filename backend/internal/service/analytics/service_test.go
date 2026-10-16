@@ -24,6 +24,9 @@ func TestAnalyticsServiceRejectsMissingAndForbiddenActorsBeforeDatabase(t *testi
 		{requestctx.WithActor(context.Background(), model.Actor{ID: uuid.New(), Role: "storekeeper"}), apperrors.ErrForbidden},
 		{requestctx.WithActor(context.Background(), model.Actor{ID: uuid.New(), Role: "order_operator"}), apperrors.ErrForbidden},
 	} {
+		if _, _, err := s.ProductFlow(tc.ctx, model.AnalyticsFilter{}); !errors.Is(err, tc.want) {
+			t.Fatal(err)
+		}
 		if _, _, err := s.WriteOffs(tc.ctx, model.AnalyticsFilter{}); !errors.Is(err, tc.want) {
 			t.Fatal(err)
 		}

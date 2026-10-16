@@ -1,5 +1,7 @@
 package model
 
+import "github.com/google/uuid"
+
 type DashboardSettings struct {
 	RestaurantName         string
 	Timezone               string
@@ -7,6 +9,7 @@ type DashboardSettings struct {
 }
 
 type DashboardData struct {
+	Preferences          map[uuid.UUID]HotOfferPreference
 	Settings             DashboardSettings
 	Stock                []ProcurementStock
 	ExpiringBatchesCount int64

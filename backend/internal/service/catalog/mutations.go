@@ -81,6 +81,25 @@ func (s *Service) categoryReference(ctx context.Context, tx repository.DBTX, id 
 }
 
 func (s *Service) CreateProduct(ctx context.Context, input *dto.CreateProductRequest) (dto.Product, error) {
+	var result dto.Product
+	err := s.write(ctx, func(tx repository.DBTX) error {
+		var err error
+		result, err = s.CreateProductWithinTransaction(ctx, tx, input)
+		return err
+	})
+	return result, err
+}
+
+// The integration uses the same validation and audit as local product creation,
+// while committing its permanent external identity in the same transaction.
+func (s *Service) CreateProductWithinTransaction(
+	ctx context.Context,
+	tx repository.DBTX,
+	input *dto.CreateProductRequest,
+) (dto.Product, error) {
+	if _, err := repository.RequireTransaction(tx); err != nil {
+		return dto.Product{}, err
+	}
 	if _, err := actor(ctx, true); err != nil {
 		return dto.Product{}, err
 	}
@@ -99,18 +118,14 @@ func (s *Service) CreateProduct(ctx context.Context, input *dto.CreateProductReq
 	if err := validateProduct(&p); err != nil {
 		return dto.Product{}, err
 	}
-	err := s.write(ctx, func(tx repository.DBTX) error {
-		if err := s.categoryReference(ctx, tx, p.Category.ID); err != nil {
-			return err
-		}
-		var err error
-		p, err = s.repo.CreateProduct(ctx, tx, &p)
-		if err != nil {
-			return err
-		}
-		return s.productAudit(ctx, tx, nil, &p)
-	})
+	if err := s.categoryReference(ctx, tx, p.Category.ID); err != nil {
+		return dto.Product{}, err
+	}
+	p, err := s.repo.CreateProduct(ctx, tx, &p)
 	if err != nil {
+		return dto.Product{}, mutationError(err)
+	}
+	if err := s.productAudit(ctx, tx, nil, &p); err != nil {
 		return dto.Product{}, err
 	}
 	return productDTO(&p), nil

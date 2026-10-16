@@ -111,3 +111,20 @@ func (s *Service) createInTx(
 	}
 	return result, nil
 }
+
+// CreateWithinTransaction lets partial reception commit its document revision,
+// batches, ledger and outbox atomically under the incoming document lock.
+func (s *Service) CreateWithinTransaction(
+	ctx context.Context,
+	tx repository.DBTX,
+	actorID uuid.UUID,
+	input dto.CreateSupplyRequest,
+) (model.CreatedSupply, error) {
+	if _, err := repository.RequireTransaction(tx); err != nil {
+		return model.CreatedSupply{}, err
+	}
+	if actorID == uuid.Nil {
+		return model.CreatedSupply{}, apperrors.ErrUnauthorized
+	}
+	return s.createInTx(ctx, tx, actorID, input)
+}

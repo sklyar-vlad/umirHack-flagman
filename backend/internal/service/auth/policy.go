@@ -16,11 +16,20 @@ const (
 	menuAndOrders
 	administration
 	analytics
+	management
 )
 
 // Each implemented business operation is listed explicitly. A future route
 // must declare its policy before it can be used, including by an administrator.
 var routePermissions = map[string]permission{
+	"GET /integration-tokens":             administration,
+	"POST /integration-tokens":            administration,
+	"DELETE /integration-tokens/:id":      administration,
+	"GET /incoming-supplies":              supplies,
+	"POST /incoming-supplies/:id/accept":  supplies,
+	"GET /hot-offers/:id":                 management,
+	"PATCH /hot-offers/:id":               management,
+	"GET /analytics/product-flow":         analytics,
 	"GET /events":                         warehouse,
 	"GET /analytics/stop-list-forecast":   analytics,
 	"GET /analytics/ingredient-shortages": analytics,
@@ -72,10 +81,10 @@ func roleAllowed(role string, permission permission) bool {
 	case roleAdmin:
 		return permission == warehouse || permission == supplies || permission == menuAndOrders ||
 			permission == administration ||
-			permission == analytics
+			permission == analytics || permission == management
 	case roleManager:
 		return permission == warehouse || permission == supplies || permission == menuAndOrders ||
-			permission == analytics
+			permission == analytics || permission == management
 	case roleStorekeeper:
 		return permission == warehouse || permission == supplies
 	case roleOrderOperator:

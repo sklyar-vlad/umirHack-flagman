@@ -1,4 +1,4 @@
-export { dishApi, usePreviewDishMutation, useCreateDishMutation, useUpdateDishMutation, useAdminDishesQuery, useDishesQuery, useLazyDishQuery, useDishQuery, useStopListQuery, useHotOffersQuery } from './api/dish-api'
+export { useLazyHotOfferPreferenceQuery, useUpdateHotOfferMutation, dishApi, usePreviewDishMutation, useCreateDishMutation, useUpdateDishMutation, useAdminDishesQuery, useDishesQuery, useLazyDishQuery, useDishQuery, useStopListQuery, useHotOffersQuery } from './api/dish-api'
 export { dishSchema, stopListSchema } from './model/contracts'
 export type { Dish, DishList, StopList } from './model/contracts'
 export { defaultStopListSearch, readStopListSearch, stopListSearchParams, changeStopListSearch } from './model/stop-list-search'

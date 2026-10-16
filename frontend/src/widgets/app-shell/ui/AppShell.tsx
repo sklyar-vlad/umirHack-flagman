@@ -8,11 +8,11 @@ import styles from './AppShell.module.css'
 function Navigation({ role, onNavigate }: { role: keyof typeof roleNames; onNavigate?: () => void }) {
   const pathname = useLocation().pathname
   const selected = sectionForPath(pathname)
-  const activeId = selected?.group === 'recommendations' ? 'recommendations' : selected?.id
+  const activeId = selected?.id === 'offers' ? 'offers' : selected?.group === 'recommendations' ? 'recommendations' : selected?.id
   return <nav aria-label="Разделы приложения" className={styles.navigation}>
     {(['main', 'extra'] as const).map((group) => <div key={group} className={styles.group}>
       {group === 'extra' && <p className="text-caption text-muted">Дополнительно</p>}
-      {visibleSections(role, group).map((section) => <Link key={section.id} to={section.path} onClick={onNavigate}
+      {[...visibleSections(role, group).filter((section) => group !== 'extra' || section.id !== 'dishes'), ...(group === 'main' ? [...visibleSections(role, 'extra').filter((section) => section.id === 'dishes'), ...visibleSections(role, 'recommendations').filter((section) => section.id === 'offers')] : [])].map((section) => <Link key={section.id} to={section.path} onClick={onNavigate}
         aria-current={activeId === section.id ? 'page' : undefined} className={`${styles.navLink} ${activeId === section.id ? styles.active : ''}`}>
         <Icon name={section.icon} /><span>{section.title}</span>
       </Link>)}

@@ -12,6 +12,7 @@ import (
 
 func renderOffer(offer *scoredOffer, rank int64, now time.Time) dto.HotOffer {
 	item := dto.HotOffer{
+		Published: true,
 		Dish: dto.HotOfferDish{
 			ID:            offer.dish.ID,
 			Name:          offer.dish.Name,

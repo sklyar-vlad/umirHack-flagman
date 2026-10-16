@@ -79,6 +79,9 @@ func TestOpenAPICoversRegisteredRoutes(t *testing.T) {
 			default:
 				return true
 			}
+			if group, ok := selector.X.(*ast.Ident); ok && group.Name == "external" {
+				path = "/integration" + path
+			}
 			parts := strings.Split(path, "/")
 			for i, part := range parts {
 				if strings.HasPrefix(part, ":") {

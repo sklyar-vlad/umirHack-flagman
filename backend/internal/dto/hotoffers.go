@@ -27,13 +27,24 @@ type HotOfferBatch struct {
 }
 
 type HotOffer struct {
-	Dish              HotOfferDish    `json:"dish"`
-	Rank              int64           `json:"rank"`
-	PriorityScore     string          `json:"priority_score"`
-	PriorityLevel     string          `json:"priority_level"`
-	AvailablePortions string          `json:"available_portions"`
-	Reason            string          `json:"reason"`
-	ProblemBatches    []HotOfferBatch `json:"problem_batches"`
+	Published          bool            `json:"is_published"`
+	Manual             bool            `json:"is_manual"`
+	Message            string          `json:"message"`
+	PreferenceRevision int             `json:"preference_revision"`
+	Dish               HotOfferDish    `json:"dish"`
+	Rank               int64           `json:"rank"`
+	PriorityScore      string          `json:"priority_score"`
+	PriorityLevel      string          `json:"priority_level"`
+	AvailablePortions  string          `json:"available_portions"`
+	Reason             string          `json:"reason"`
+	ProblemBatches     []HotOfferBatch `json:"problem_batches"`
 }
 
 type HotOffersListResponse = ListResponse[HotOffer]
+
+type UpdateHotOffer struct {
+	Published        *bool  `json:"is_published"`
+	Manual           *bool  `json:"is_manual"`
+	Message          string `json:"message"`
+	ExpectedRevision int    `json:"expected_revision"`
+}

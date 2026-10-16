@@ -2,6 +2,18 @@ package dto
 
 import "github.com/google/uuid"
 
+type ProductFlowAnalytics struct {
+	ProductID          uuid.UUID `json:"product_id"`
+	ProductName        string    `json:"product_name"`
+	Unit               string    `json:"unit"`
+	ReceivedQuantity   string    `json:"received_quantity"`
+	OrderedQuantity    string    `json:"ordered_quantity"`
+	ExpiredQuantity    string    `json:"expired_quantity"`
+	ManualQuantity     string    `json:"manual_quantity"`
+	WrittenOffQuantity string    `json:"written_off_quantity"`
+	MovementsCount     int64     `json:"movements_count"`
+}
+
 type WriteOffAnalytics struct {
 	ProductID                 uuid.UUID `json:"product_id"`
 	ProductName               string    `json:"product_name"`

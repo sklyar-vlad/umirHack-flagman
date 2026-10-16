@@ -13,7 +13,7 @@ describe('README role permissions', () => {
       expect(visibleSections(role, 'main').map((item) => item.id)).toEqual(main)
       expect(visibleSections(role, 'recommendations').map((item) => item.id)).toEqual(recommendations)
       expect(visibleSections(role, 'extra').map((item) => item.id)).toEqual(extra)
-      const administration = ['products', 'categories', 'recipes', 'users', 'settings', 'audit']
+      const administration = ['products', 'categories', 'recipes', 'users', 'settings', 'integrations', 'audit']
       expect(visibleSections(role, 'admin').map((item) => item.id)).toEqual(role === 'admin' ? administration : [])
       const allowed = [...main, ...recommendations, ...extra, ...(role === 'admin' ? administration : [])]
       for (const section of sections) expect(canAccess(role, section)).toBe(allowed.includes(section.id))

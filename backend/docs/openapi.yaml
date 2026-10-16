@@ -17,6 +17,8 @@ info:
     GET /analytics/write-offs, GET /analytics/ingredient-shortages, GET /analytics/stop-list-forecast,
     GET /events и GET /ready. Отдельный внутренний GET /metrics находится на корне
     backend, вне /api/v1; требует технический bearer-токен, не cookie-сессию.
+    После защиты добавлены /analytics/product-flow, управление публикацией /hot-offers/{id},
+    /incoming-supplies, /integration-tokens и Bearer API /integration/* для внешнего поставщика.
     Все описанные операции реализованы. Воспроизводимая чистая демонстрация:
     task seed; устройство проекта и сценарии — DEFENSE_GUIDE.md.
 
@@ -2097,7 +2099,7 @@ paths:
         schema: {type: string, enum: [create, update, password_change, manual_writeoff, expiration]}
       - name: entity_type
         in: query
-        schema: {type: string, enum: [product_category, product, dish, supply, order, stock_movement, user, settings]}
+        schema: {type: string, enum: [product_category, product, dish, supply, order, stock_movement, user, settings, integration_token, incoming_supply, hot_offer]}
       - name: entity_id
         in: query
         schema:
@@ -2344,8 +2346,235 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '500':
           $ref: '#/components/responses/InternalError'
+  /analytics/product-flow:
+    get:
+      operationId: getProductFlow
+      x-implementation-status: implemented
+      summary: Приход, расход в заказах и списания по каждому продукту
+      description: Только admin/manager. Фактические движения за [from,to), группировка product_id/unit_snapshot. Только принятые количества и успешные заказы. Точные десятичные строки, без суммирования несовместимых единиц. Count и страница из одного снимка Repeatable Read.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/HistoryFrom'
+        - $ref: '#/components/parameters/HistoryTo'
+        - {name: product_id, in: query, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Группы продуктов и исторических единиц
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items,total,page,page_size,meta]
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/ProductFlow'}}
+                  total: {type: integer}
+                  page: {type: integer}
+                  page_size: {type: integer}
+                  meta: {type: object}
+  /hot-offers/{id}:
+    get:
+      operationId: getHotOfferPreference
+      x-implementation-status: implemented
+      summary: Получить настройки публикации блюда, только admin/manager
+      description: Возвращает is_published/is_manual/message/revision. Для блюда без настроек revision=0, is_published=true, is_manual=false. Позволяет повторно опубликовать ранее скрытое ручное предложение.
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      responses:
+        '200': {description: Настройки публикации}
+    patch:
+      operationId: updateHotOffer
+      x-implementation-status: implemented
+      summary: Менеджер публикует, скрывает или редактирует предложение
+      description: Только admin/manager, cookie и CSRF. expected_revision=0 для первой настройки. Ручной выбор добавляет доступное блюдо даже без истекающих партий. Официант не получает скрытые предложения ни в списке, ни в dashboard. Доступность всегда рассчитывается по складу.
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [is_published,is_manual,expected_revision]
+              properties:
+                is_published: {type: boolean}
+                is_manual: {type: boolean}
+                message: {type: string, maxLength: 500}
+                expected_revision: {type: integer, minimum: 0}
+      responses:
+        '200': {description: Сохранённые настройки и новая revision}
+        '409': {description: Настройки уже изменены другим сотрудником}
+  /integration-tokens:
+    get:
+      operationId: listIntegrationTokens
+      x-implementation-status: implemented
+      summary: Список интеграций без секретов, только admin
+      responses:
+        '200': {description: Массив id/name/created_at/revoked_at. Значения и хеши токенов никогда не возвращаются.}
+    post:
+      operationId: createIntegrationToken
+      x-implementation-status: implemented
+      summary: Создать отдельный API-токен, только admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string, minLength: 1, maxLength: 100}
+      responses:
+        '201': {description: id/name/created_at/revoked_at и token. Секрет возвращается только здесь; в БД SHA-256.}
+  /integration-tokens/{id}:
+    delete:
+      operationId: revokeIntegrationToken
+      x-implementation-status: implemented
+      summary: Отозвать токен, только admin
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      responses:
+        '204': {description: Токен отозван. Входящие документы сохраняются.}
+  /incoming-supplies:
+    get:
+      operationId: listIncomingSupplies
+      x-implementation-status: implemented
+      summary: Очередь внешних поставок для admin/manager/storekeeper
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - {name: status, in: query, schema: {type: string, enum: [all,pending,partial,received], default: all}}
+      responses:
+        '200':
+          description: Страница входящих поставок
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/IncomingSupply'}}
+                  total: {type: integer}
+                  page: {type: integer}
+                  page_size: {type: integer}
+                  meta: {type: object}
+  /incoming-supplies/{id}/accept:
+    post:
+      operationId: acceptIncomingSupply
+      x-implementation-status: implemented
+      summary: Принять выбранные количества, остаток оставить в ожидании
+      description: Только admin/manager/storekeeper, cookie и CSRF. Блокировка документа и expected_revision защищают от двойной и конкурентной приёмки. Все строки, партии, движения, аудит, outbox и ревизия фиксируются атомарно. После потери ответа перечитать очередь перед повтором. Нельзя принять больше остатка, просроченный или неактивный продукт. Количество добавляется к уже принятому.
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_revision,items]
+              properties:
+                expected_revision: {type: integer, minimum: 1}
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [id,quantity]
+                    properties:
+                      id: {type: string, format: uuid}
+                      quantity: {$ref: '#/components/schemas/Quantity'}
+      responses:
+        '200':
+          description: Обновлённый входящий документ
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IncomingSupply'}
+        '409': {description: Документ уже изменён или принят}
+  /integration/products:
+    get:
+      operationId: integrationListProducts
+      x-implementation-status: implemented
+      summary: Справочник продуктов для внешнего сервиса
+      security: [{IntegrationBearer: []}]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+      responses:
+        '200': {description: Обычный ProductListResponse; cookie не используются}
+    post:
+      operationId: integrationCreateProduct
+      x-implementation-status: implemented
+      summary: Создать продукт из внешнего сервиса
+      description: Внешний ID уникален внутри токена. Повтор с тем же телом возвращает тот же продукт, с другим телом — 409. Валидация и аудит общие с POST /products. Токен не позволяет изменять существующие продукты или принимать поставки.
+      security: [{IntegrationBearer: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [external_id,product]
+              properties:
+                external_id: {type: string, minLength: 1, maxLength: 100}
+                product: {$ref: '#/components/schemas/CreateProductRequest'}
+      responses:
+        '201': {description: Созданный или ранее сопоставленный Product}
+        '409': {description: Внешний ID занят другим телом или название продукта уже существует}
+  /integration/product-categories:
+    get:
+      operationId: integrationListCategories
+      x-implementation-status: implemented
+      summary: Категории для формы внешнего сервиса
+      security: [{IntegrationBearer: []}]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200': {description: CategoryListResponse}
+  /integration/supplies:
+    post:
+      operationId: integrationSubmitSupply
+      x-implementation-status: implemented
+      summary: Отправить внешнюю поставку в ожидание приёмки
+      description: Остатки не меняются. Внешний ID уникален внутри токена; неизменный повтор возвращает тот же документ, изменённое тело — 409. 1–100 строк с положительными количествами в g/ml/pcs и явными сроками годности. Статусы pending → partial → received. Cookie не используются.
+      security: [{IntegrationBearer: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [external_id,number,items]
+              properties:
+                external_id: {type: string, minLength: 1, maxLength: 100}
+                number: {type: string, minLength: 1, maxLength: 80}
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [product_id,quantity,expires_at]
+                    properties:
+                      product_id: {type: string, format: uuid}
+                      quantity: {$ref: '#/components/schemas/Quantity'}
+                      expires_at: {type: string, format: date-time}
+      responses:
+        '201':
+          description: Документ ожидает приёмки или возвращён существующий
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IncomingSupply'}
+        '401': {description: Токен отсутствует, отозван или его владелец отключён/лишён прав admin}
+        '409': {description: Внешний ID использован с другим телом}
 components:
   securitySchemes:
+    IntegrationBearer:
+      type: http
+      scheme: bearer
+      description: Отдельный токен поставщика flagman_…, созданный администратором; не пользовательская сессия.
     MetricsBearer:
       type: http
       scheme: bearer
@@ -2451,6 +2680,44 @@ components:
         $ref: '#/components/schemas/UUID'
       example: 99999999-9999-4999-8999-999999999999
   schemas:
+    ProductFlow:
+      type: object
+      required: [product_id,product_name,unit,received_quantity,ordered_quantity,expired_quantity,manual_quantity,written_off_quantity,movements_count]
+      properties:
+        product_id: {type: string, format: uuid}
+        product_name: {type: string}
+        unit: {type: string, enum: [g,ml,pcs]}
+        received_quantity: {type: string, pattern: '^\d+(?:\.\d{1,3})?$'}
+        ordered_quantity: {type: string, pattern: '^\d+(?:\.\d{1,3})?$'}
+        expired_quantity: {type: string, pattern: '^\d+(?:\.\d{1,3})?$'}
+        manual_quantity: {type: string, pattern: '^\d+(?:\.\d{1,3})?$'}
+        written_off_quantity: {type: string, pattern: '^\d+(?:\.\d{1,3})?$'}
+        movements_count: {type: integer}
+    IncomingSupply:
+      type: object
+      required: [id,external_id,number,source,status,revision,created_at,items,receipt_ids]
+      properties:
+        id: {type: string, format: uuid}
+        external_id: {type: string}
+        number: {type: string}
+        source: {type: string}
+        status: {type: string, enum: [pending,partial,received]}
+        revision: {type: integer}
+        created_at: {type: string, format: date-time}
+        receipt_ids: {type: array, items: {type: string, format: uuid}}
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: {type: string, format: uuid}
+              product_id: {type: string, format: uuid}
+              product_name: {type: string}
+              unit: {type: string, enum: [g,ml,pcs]}
+              line_number: {type: integer}
+              quantity: {$ref: '#/components/schemas/Quantity'}
+              accepted_quantity: {$ref: '#/components/schemas/Quantity'}
+              expires_at: {type: string, format: date-time}
     StopListForecast:
       type: object
       additionalProperties: false
@@ -3592,6 +3859,10 @@ components:
       type: object
       required: [dish, rank, priority_score, priority_level, available_portions, reason, problem_batches]
       properties:
+        is_published: {type: boolean}
+        is_manual: {type: boolean}
+        message: {type: string, maxLength: 500}
+        preference_revision: {type: integer, minimum: 0}
         dish:
           $ref: '#/components/schemas/HotOfferDish'
         rank: {type: integer, format: int64, minimum: 1, description: Место до пагинации после фильтров}
@@ -3605,7 +3876,8 @@ components:
         reason: {type: string, description: Русское объяснение по фактическим потреблённым партиям и базовым единицам}
         problem_batches:
           type: array
-          minItems: 1
+          minItems: 0
+          description: Пусто только для ручного выбора менеджера без истекающих партий.
           description: Только затронутые истекающие партии, по сроку, приёмке и ID
           items:
             $ref: '#/components/schemas/HotOfferBatch'

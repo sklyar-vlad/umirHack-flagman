@@ -1,0 +1,6 @@
+# Optional standalone supplier UI; it talks to the app only through bearer API.
+services:
+  supplier-demo:
+    build: ../supplier-demo
+    ports: ['127.0.0.1:5184:80']
+    restart: unless-stopped

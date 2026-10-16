@@ -170,3 +170,7 @@ func TestExpiryText(t *testing.T) {
 		}
 	}
 }
+
+func (s *batchesStub) Preferences(context.Context, repository.DBTX) (map[uuid.UUID]model.HotOfferPreference, error) {
+	return map[uuid.UUID]model.HotOfferPreference{}, nil
+}

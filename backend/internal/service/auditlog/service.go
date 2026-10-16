@@ -97,6 +97,8 @@ func safeSnapshot(entity model.AuditEntity, raw json.RawMessage) (json.RawMessag
 	}
 	var snapshot model.AuditSnapshot
 	switch entity {
+	case model.AuditIntegrationToken, model.AuditIncomingSupply, model.AuditHotOffer:
+		snapshot = &model.WorkflowAuditSnapshot{}
 	case model.AuditProductCategory:
 		snapshot = &model.CategoryAuditSnapshot{}
 	case model.AuditProduct:

@@ -33,6 +33,7 @@ export function SuppliesPage() {
       {canReceive && <Link className="ui-button ui-button--primary" to={`/supplies/new?returnTo=${encodeURIComponent(returnTo)}`}>Новая поставка</Link>}
       <Button variant="secondary" disabled={query.isFetching || !!periodError} onClick={() => { void query.refetch() }}>Обновить поставки</Button>
     </div></header>
+    <nav className="ui-actions" aria-label="Поставки"><span className="ui-button ui-button--primary" aria-current="page">История приёмки</span><Link className="ui-button ui-button--secondary" to="/supplies/incoming">Входящие поставки</Link></nav>
     <SupplyFilters key={JSON.stringify([values.search, values.from, values.to])} values={values} timezone={timezone} onChange={change} onReset={reset} />
     {periodError ? <ErrorState title="Некорректный период" description={periodError} /> : <ApiAccessBoundary error={query.error}>
       {query.isFetching && !query.currentData && <Skeleton label="Загрузка поставок" rows={4} />}

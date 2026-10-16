@@ -13,11 +13,12 @@ export const hotOfferBatchSchema = z.object({
   try { formatQuantity(value.remaining_quantity, value.unit); formatQuantity(value.used_for_one_portion, value.unit); return true } catch { return false }
 }, 'Количество несовместимо с единицей продукта.')
 export const hotOfferSchema = z.object({
+ is_published: z.boolean().optional(), is_manual: z.boolean().optional(), message: z.string().max(500).optional(), preference_revision: z.number().int().nonnegative().optional(),
   dish: z.object({ id: z.uuid(), name: z.string(), recipe_version: integer }), rank: integer,
   priority_score: z.string().regex(/^\d+\.\d{4}$/).refine((value) => Number(value) <= 100),
   priority_level: z.enum(['high', 'medium', 'low']), available_portions: z.string().regex(/^[1-9]\d*$/), reason: z.string(),
-  problem_batches: z.array(hotOfferBatchSchema).min(1),
-})
+  problem_batches: z.array(hotOfferBatchSchema),
+}).refine((item) => item.is_manual || item.problem_batches.length > 0, "Автоматическое предложение должно содержать истекающую партию")
 const quantity = z.string().regex(/^\d+(?:\.\d{1,3})?$/)
 const positiveTarget = z.string().regex(/^\d{1,11}(?:\.\d{1,3})?$/).refine((value) => !/^0+(?:\.0+)?$/.test(value))
 export const procurementItemSchema = z.object({

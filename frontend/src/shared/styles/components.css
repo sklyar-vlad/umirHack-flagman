@@ -381,3 +381,6 @@ form[role='search'] > .ui-button { flex: none; }
 .ui-calendar-grid > .ui-button { min-width: 0; padding: var(--space-8) 0; }
 .ui-calendar-time { display: grid; gap: var(--space-8); margin-block: var(--space-16); font: var(--text-label); }
 @media (max-width: 400px) { .ui-datetime { flex-wrap: wrap; } .ui-datetime > .ui-input { flex-basis: 100%; } }
+
+/* Stacked forms shared by integration and publication workflows. */
+.ui-form { display: grid; gap: var(--space-24); min-width: 0; }

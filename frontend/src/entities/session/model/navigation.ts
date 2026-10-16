@@ -16,21 +16,22 @@ export const sections: readonly Section[] = [
   { id: 'orders', path: '/orders', title: 'Заказы', icon: 'receipt', roles: sales, group: 'main' },
   { id: 'stop-list', path: '/stop-list', title: 'Стоп-лист', icon: 'stop', roles: sales, group: 'main' },
   { id: 'recommendations', path: '/recommendations', title: 'Рекомендации', icon: 'spark', roles: all, group: 'main' },
-  { id: 'offers', path: '/recommendations/offers', title: 'Продвигать блюда', icon: 'spark', roles: sales, group: 'recommendations' },
+  { id: 'offers', path: '/recommendations/offers', title: 'Горячие предложения', icon: 'spark', roles: sales, group: 'recommendations' },
   { id: 'procurement', path: '/recommendations/procurement', title: 'Закупить продукты', icon: 'truck', roles: stock, group: 'recommendations' },
   { id: 'write-offs', path: '/write-offs', title: 'Списания', icon: 'box', roles: stock, group: 'extra' },
   { id: 'movements', path: '/stock-movements', title: 'История движений', icon: 'adminHistory', roles: stock, group: 'extra' },
   { id: 'analytics', path: '/analytics', title: 'Аналитика', icon: 'grid', roles: management, group: 'extra' },
   { id: 'forecast', path: '/analytics/stop-list-forecast', title: 'Прогноз', icon: 'grid', roles: management, group: 'extra' },
-  { id: 'dishes', path: '/dishes', title: 'Рецепты', icon: 'adminBook', roles: sales, group: 'extra' },
+  { id: 'dishes', path: '/dishes', title: 'Меню', icon: 'adminBook', roles: sales, group: 'extra' },
   { id: 'products', path: '/admin/products', title: 'Продукты', icon: 'box', roles: admin, group: 'admin' },
   { id: 'categories', path: '/admin/categories', title: 'Категории', icon: 'adminBook', roles: admin, group: 'admin' },
   { id: 'recipes', path: '/admin/dishes', title: 'Рецептуры', icon: 'adminBook', roles: admin, group: 'admin' },
   { id: 'users', path: '/admin/users', title: 'Пользователи', icon: 'adminUsers', roles: admin, group: 'admin' },
   { id: 'settings', path: '/admin/settings', title: 'Настройки', icon: 'adminSettings', roles: admin, group: 'admin' },
+  { id: 'integrations', path: '/admin/integrations', title: 'Интеграции', icon: 'adminSettings', roles: admin, group: 'admin' },
   { id: 'audit', path: '/admin/audit-log', title: 'Журнал действий', icon: 'adminHistory', roles: admin, group: 'admin' },
 ]
-export const roleNames: Record<Role, string> = { admin: 'Администратор', manager: 'Менеджер', storekeeper: 'Кладовщик', order_operator: 'Оператор заказов' }
+export const roleNames: Record<Role, string> = { admin: 'Администратор', manager: 'Менеджер', storekeeper: 'Кладовщик', order_operator: 'Официант / оператор заказов' }
 export function canAccess(role: Role, section: Section) { return section.roles.includes(role) }
 export function visibleSections(role: Role, group: Section['group']) { return sections.filter((section) => section.group === group && canAccess(role, section)) }
 export function sectionForPath(path: string) {

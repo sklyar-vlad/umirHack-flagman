@@ -9,10 +9,18 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/dto"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
+	"github.com/sklyar-vlad/umirHack-flagman/internal/requestctx"
+	menuservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/menu"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
+const (
+	roleAdmin   = "admin"
+	roleManager = "manager"
+)
+
 type Repository interface {
+	Preferences(context.Context, repository.DBTX) (map[uuid.UUID]model.HotOfferPreference, error)
 	Load(context.Context, repository.DBTX, []uuid.UUID, time.Time) ([]model.OrderBatch, int, error)
 }
 
@@ -40,6 +48,7 @@ func (s *Service) List(ctx context.Context, filter model.HotOffersFilter) (dto.H
 	if err != nil {
 		return dto.HotOffersListResponse{}, err
 	}
+	var preferences map[uuid.UUID]model.HotOfferPreference
 	var dishes []model.Dish
 	var batches []model.OrderBatch
 	var hours int
@@ -56,6 +65,10 @@ func (s *Service) List(ctx context.Context, filter model.HotOffersFilter) (dto.H
 				return err
 			}
 			batches, hours, err = s.repo.Load(ctx, tx, ingredientProducts(dishes), now)
+			if err != nil {
+				return err
+			}
+			preferences, err = s.repo.Preferences(ctx, tx)
 			return err
 		},
 	)
@@ -63,6 +76,11 @@ func (s *Service) List(ctx context.Context, filter model.HotOffersFilter) (dto.H
 		return dto.HotOffersListResponse{}, err
 	}
 	items, err := BuildOffers(dishes, batches, now, hours)
+	if err != nil {
+		return dto.HotOffersListResponse{}, err
+	}
+	actor, _ := requestctx.Actor(ctx)
+	items, err = ApplyPreferences(items, dishes, preferences, actor.Role)
 	if err != nil {
 		return dto.HotOffersListResponse{}, err
 	}
@@ -114,4 +132,61 @@ func BuildOffers(dishes []model.Dish, batches []model.OrderBatch, now time.Time,
 		items = append(items, renderOffer(&scored[i], int64(i+1), now))
 	}
 	return items, nil
+}
+
+// ApplyPreferences is shared by the list and dashboard to enforce publication everywhere.
+func ApplyPreferences(
+	items []dto.HotOffer,
+	dishes []model.Dish,
+	preferences map[uuid.UUID]model.HotOfferPreference,
+	role string,
+) ([]dto.HotOffer, error) {
+	seen := map[uuid.UUID]bool{}
+	for i := range items {
+		item := items[i]
+		seen[item.Dish.ID] = true
+	}
+	for _, dish := range dishes {
+		pref, ok := preferences[dish.ID]
+		if !ok || !pref.Manual || seen[dish.ID] || dish.RecipeVersion == nil {
+			continue
+		}
+		availability, err := menuservice.CalculateAvailability(dish.IsActive, dish.Recipe)
+		if err != nil {
+			return nil, err
+		}
+		if !availability.IsAvailable {
+			continue
+		}
+		items = append(
+			items,
+			dto.HotOffer{
+				Dish:              dto.HotOfferDish{ID: dish.ID, Name: dish.Name, RecipeVersion: *dish.RecipeVersion},
+				Published:         true,
+				Manual:            true,
+				PriorityScore:     "0.0000",
+				PriorityLevel:     "low",
+				AvailablePortions: availability.AvailablePortions,
+				Reason:            "Выбор менеджера",
+				ProblemBatches:    []dto.HotOfferBatch{},
+			},
+		)
+	}
+	management := role == roleAdmin || role == roleManager
+	visible := make([]dto.HotOffer, 0, len(items))
+	for i := range items {
+		item := items[i]
+		if pref, ok := preferences[item.Dish.ID]; ok {
+			item.Published = pref.Published
+			item.Manual = pref.Manual
+			item.Message = pref.Message
+			item.PreferenceRevision = pref.Revision
+		}
+		if !item.Published && !management {
+			continue
+		}
+		item.Rank = int64(len(visible) + 1)
+		visible = append(visible, item)
+	}
+	return visible, nil
 }

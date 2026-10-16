@@ -150,13 +150,13 @@ func allowedAuditAction(action model.AuditAction, entity model.AuditEntity) bool
 	case model.AuditCreate:
 		switch entity {
 		case model.AuditProductCategory, model.AuditProduct, model.AuditDish,
-			model.AuditSupply, model.AuditOrder, model.AuditUser:
+			model.AuditSupply, model.AuditOrder, model.AuditUser, model.AuditIntegrationToken, model.AuditIncomingSupply, model.AuditHotOffer:
 			return true
 		}
 	case model.AuditUpdate:
 		switch entity {
 		case model.AuditProductCategory, model.AuditProduct, model.AuditDish,
-			model.AuditUser, model.AuditSettings:
+			model.AuditUser, model.AuditSettings, model.AuditIntegrationToken, model.AuditIncomingSupply, model.AuditHotOffer:
 			return true
 		}
 	case model.AuditPasswordChange:
@@ -183,6 +183,9 @@ func marshalAuditSnapshot(entity model.AuditEntity, snapshot model.AuditSnapshot
 
 func auditSnapshotMatches(entity model.AuditEntity, snapshot model.AuditSnapshot) bool {
 	switch value := snapshot.(type) {
+	case *model.WorkflowAuditSnapshot:
+		return value != nil &&
+			(entity == model.AuditIntegrationToken || entity == model.AuditIncomingSupply || entity == model.AuditHotOffer)
 	case *model.CategoryAuditSnapshot:
 		return value != nil && entity == model.AuditProductCategory
 	case *model.ProductAuditSnapshot:
@@ -235,6 +238,8 @@ func inventoryTopics() []model.EventTopic {
 
 func outboxTopics(event *model.OutboxEvent) ([]model.EventTopic, error) {
 	switch event.Type {
+	case model.IncomingSuppliesChanged:
+		return []model.EventTopic{model.TopicSupplies}, nil
 	case model.InventoryChanged:
 		topics := append(inventoryTopics(), model.TopicStockMovements)
 		if len(event.SupplyIDs) != 0 {

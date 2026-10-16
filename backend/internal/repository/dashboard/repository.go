@@ -53,9 +53,10 @@ func (r *Repository) Load(ctx context.Context, q repository.DBTX, now time.Time)
 	}
 	data := model.DashboardData{Stock: []model.ProcurementStock{}}
 	if err := tx.QueryRow(ctx, `SELECT
-		COALESCE(s.restaurant_name,''),COALESCE(s.timezone,'Europe/Moscow'),COALESCE(s.expiring_threshold_hours,24)
+		COALESCE(s.restaurant_name,''),COALESCE(s.timezone,'Europe/Moscow'),COALESCE(s.expiring_threshold_hours,24),
+ COALESCE((SELECT jsonb_object_agg(dish_id,jsonb_build_object('is_published',is_published,'is_manual',is_manual,'message',message,'revision',revision)) FROM hot_offer_preferences),'{}'::jsonb)
 		FROM (SELECT 1) singleton LEFT JOIN restaurant_settings s ON s.id=1`).Scan(
-		&data.Settings.RestaurantName, &data.Settings.Timezone, &data.Settings.ExpiringThresholdHours); err != nil {
+		&data.Settings.RestaurantName, &data.Settings.Timezone, &data.Settings.ExpiringThresholdHours, &data.Preferences); err != nil {
 		return model.DashboardData{}, fmt.Errorf("read dashboard settings: %w", err)
 	}
 	warningAt := now.Add(time.Duration(data.Settings.ExpiringThresholdHours) * time.Hour)

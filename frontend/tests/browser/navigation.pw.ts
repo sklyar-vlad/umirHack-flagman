@@ -70,7 +70,7 @@ for (const role of ['admin', 'manager', 'storekeeper', 'order_operator']) for (c
     await nav.getByRole('link', { name: 'Рекомендации', exact: true }).click()
     await expect(page).toHaveURL(role === 'storekeeper' ? '/recommendations/procurement' : '/recommendations/offers')
     const tabs = page.getByRole('navigation', { name: 'Вкладки рекомендаций' })
-    await expect(tabs.getByRole('link', { name: 'Продвигать блюда' })).toHaveCount(role === 'storekeeper' ? 0 : 1)
+    await expect(tabs.getByRole('link', { name: 'Горячие предложения' })).toHaveCount(role === 'storekeeper' ? 0 : 1)
     await expect(tabs.getByRole('link', { name: 'Закупить продукты' })).toHaveCount(role === 'order_operator' ? 0 : 1)
     await page.reload()
     await expect(page.getByRole('heading', { name: 'Рекомендации', exact: true })).toBeVisible()

@@ -119,6 +119,7 @@ func parseFilter(raw string) (model.AuditLogFilter, error) {
 			"stock_movement",
 			"user",
 			"settings",
+			"integration_token", "incoming_supply", "hot_offer",
 		)
 		if err != nil {
 			return f, err

@@ -143,11 +143,11 @@ test('real nginx: reception → two Margaritas → FEFO → write-off → atomic
     const receiptReplay = await loseSuccessfulResponse(page, '/supplies')
     await page.getByRole('button', { name: 'Принять поставку' }).click()
     await expect(page.getByRole('button', { name: 'Повторить исходный запрос' })).toBeVisible()
+    await expect.poll(() => notifications).toBeGreaterThan(0)
     await page.reload()
     const supply = await receiptReplay.retry() as Supply
     await expect(page.getByRole('heading', { name: 'Поставка принята' })).toBeVisible()
     const reads = new Client(page.request)
-    await expect.poll(() => notifications).toBeGreaterThan(0)
     expect((await reads.read<List<RecordWithId>>(`/supplies?search=F31-${suffix}`)).total).toBe(1)
     expect((await reads.read<List<Batch>>(`/products/${products[0].id}/batches?status=all`)).items.map((batch) => batch.remaining_quantity)).toEqual(['150.000', '450.000'])
     // Authenticated cookie without CSRF must fail at the same-origin server.

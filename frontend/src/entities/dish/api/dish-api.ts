@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { createDishSchema, updateDishSchema, previewDishSchema, recipeInputSchema, type CreateDish, type UpdateDish, type PreviewDish } from '@/shared/api/dish-work'
 import { parseQuantity } from '@/shared/lib/quantity'
 import { dishReadsChanged } from '../model/dish-changes'
@@ -8,6 +9,7 @@ import { hotOffersListSchema, type HotOffersList } from '../model/hot-offer-cont
 import type { HotOfferSearch } from '../model/hot-offer-search'
 import type { StopListSearch } from '../model/stop-list-search'
 
+const offerPreferenceSchema = z.object({ is_published:z.boolean(), is_manual:z.boolean(), message:z.string().max(500), revision:z.number().int().nonnegative().safe() })
 const invalid = (message = 'Некорректный ответ каталога блюд.'): ApiError => ({ status: 'INVALID_RESPONSE', code: 'INVALID_RESPONSE', message, details: {} })
 export const dishApi = baseApi.enhanceEndpoints({ addTagTypes: ['Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard', 'StopListForecast'] }).injectEndpoints({ endpoints: (build) => ({
   previewDish: build.mutation<DishPreview, PreviewDish>({
@@ -43,6 +45,24 @@ export const dishApi = baseApi.enhanceEndpoints({ addTagTypes: ['Dishes', 'StopL
       const parsed = dishSchema.safeParse(result.data)
       return parsed.success && parsed.data.id.toLowerCase() === id.toLowerCase() && parsed.data.revision > body.expected_revision && matchesDish(parsed.data, request.data) && (previousVersion === undefined || (body.recipe ? parsed.data.recipe_version !== null && parsed.data.recipe_version > (previousVersion ?? 0) : parsed.data.recipe_version === previousVersion)) ? { data: parsed.data } : { error: invalid() }
     },
+  }),
+  hotOfferPreference: build.query<{ is_published: boolean; is_manual: boolean; message: string; revision: number }, string>({
+    providesTags: ['HotOffers'],
+    queryFn: async (id,_api,_options,query) => {
+      const result = await query(`/hot-offers/${encodeURIComponent(id)}`)
+      if (result.error) return { error:result.error }
+      const parsed = offerPreferenceSchema.safeParse(result.data)
+      return parsed.success ? {data:parsed.data} : {error:invalid('Некорректные настройки предложения.')}
+    },
+  }),
+  updateHotOffer: build.mutation<{ is_published: boolean; is_manual: boolean; message: string; revision: number }, { id: string; is_published: boolean; is_manual: boolean; message: string; expected_revision: number }>({
+    queryFn: async ({id,...body},_api,_options,query) => {
+      const result = await query({ url:`/hot-offers/${encodeURIComponent(id)}`,method:'PATCH',body })
+      if (result.error) return {error:result.error}
+      const parsed = offerPreferenceSchema.safeParse(result.data)
+      return parsed.success && parsed.data.revision > body.expected_revision && parsed.data.is_published === body.is_published && parsed.data.is_manual === body.is_manual && parsed.data.message === body.message.trim() ? {data:parsed.data} : {error:invalid('Некорректный результат сохранения предложения.')}
+    },
+    invalidatesTags: ['HotOffers', 'Dashboard'],
   }),
   hotOffers: build.query<HotOffersList, HotOfferSearch>({
     providesTags: ['HotOffers', 'Dishes'],
@@ -93,7 +113,7 @@ export const dishApi = baseApi.enhanceEndpoints({ addTagTypes: ['Dishes', 'StopL
     },
   }),
 }) })
-export const { usePreviewDishMutation, useCreateDishMutation, useUpdateDishMutation, useAdminDishesQuery, useDishesQuery, useLazyDishQuery, useDishQuery, useStopListQuery, useHotOffersQuery } = dishApi
+export const { useLazyHotOfferPreferenceQuery, useUpdateHotOfferMutation, usePreviewDishMutation, useCreateDishMutation, useUpdateDishMutation, useAdminDishesQuery, useDishesQuery, useLazyDishQuery, useDishQuery, useStopListQuery, useHotOffersQuery } = dishApi
 
 function matchesDish(dish: Dish, body: Partial<CreateDish>) {
   return (body.name === undefined || dish.name === body.name) && (body.description === undefined || dish.description === body.description) && (body.is_active === undefined || dish.is_active === body.is_active) && (!body.recipe || body.recipe.length === dish.recipe.length && body.recipe.every((line) => dish.recipe.some((item) => item.product_id.toLowerCase() === line.product_id.toLowerCase() && parseQuantity(item.quantity_per_portion) === parseQuantity(line.quantity_per_portion))))

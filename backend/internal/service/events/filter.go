@@ -14,7 +14,7 @@ const (
 func Filter(e *model.PublishedEvent, role string) (model.OutboxPayload, bool) {
 	p := model.OutboxPayload{OccurredAt: e.Payload.OccurredAt, Topics: []model.EventTopic{}}
 	switch e.Type {
-	case model.InventoryChanged,
+	case model.IncomingSuppliesChanged, model.InventoryChanged,
 		model.InventoryTimeChanged,
 		model.ProductsChanged,
 		model.CategoriesChanged,

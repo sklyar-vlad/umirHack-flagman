@@ -142,6 +142,10 @@ func (s *Service) Get(ctx context.Context, role string) (dto.DashboardResponse, 
 		if err != nil {
 			return dto.DashboardResponse{}, err
 		}
+		offers, err = hotoffers.ApplyPreferences(offers, dishes, data.Preferences, role)
+		if err != nil {
+			return dto.DashboardResponse{}, err
+		}
 		result.HotOffers = offers[:min(3, len(offers))]
 	}
 	if role != "order_operator" {

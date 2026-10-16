@@ -1,3 +1,7 @@
+import { IncomingSuppliesPage } from '@/pages/incoming-supplies'
+import { IntegrationsPage } from '@/pages/integrations'
+import { MenuPage } from '@/pages/menu'
+import { ProductFlowPage } from '@/pages/product-flow'
 import { ForecastPage } from '@/pages/stop-list-forecast'
 import { IngredientShortagesPage } from '@/pages/ingredient-shortages'
 import { AnalyticsNavigation } from '@/widgets/analytics-navigation'
@@ -36,6 +40,8 @@ const users = sections.find((section) => section.id === 'users')!
 const supplies = sections.find((section) => section.id === 'supplies')!
 const orders = sections.find((section) => section.id === 'orders')!
 const protectedRoutes: RouteObject[] = [
+ { path: '/supplies/incoming', element: guarded(supplies,<IncomingSuppliesPage />) },
+  { path: '/analytics/product-flow', element: guarded(sections.find((section) => section.id === 'analytics')!, <><AnalyticsNavigation /><ProductFlowPage /></>) },
   { path: '/forecast', element: guarded(sections.find((section) => section.id === 'forecast')!, <><AnalyticsNavigation /><ForecastPage /></>) },
   { path: '/analytics/ingredient-shortages', element: guarded(sections.find((section) => section.id === 'analytics')!, <><AnalyticsNavigation /><IngredientShortagesPage /></>) },
   { path: '/analytics/write-offs', element: guarded(sections.find((section) => section.id === 'analytics')!, <><AnalyticsNavigation /><LossPage /></>) },
@@ -43,7 +49,7 @@ const protectedRoutes: RouteObject[] = [
   { path: '/admin/audit', element: guarded(sections.find((section) => section.id === 'audit')!, <><AdminNavigation /><AuditPage /></>) },
   ...sections.map((section): RouteObject => ({
     path: section.path,
-    element: guarded(section, <>{section.group === 'admin' && <AdminNavigation />}{section.id === 'forecast' ? <><AnalyticsNavigation /><ForecastPage /></> : section.id === 'write-offs' ? <WriteOffPage /> : section.id === 'analytics' ? <><AnalyticsNavigation /><LossPage /></> : section.id === 'movements' ? <MovementsPage /> : section.id === 'audit' ? <AuditPage /> : section.id === 'settings' ? <SettingsPage /> : section.id === 'users' ? <UsersPage /> : section.id === 'recipes' ? <DishesPage /> : section.id === 'products' ? <ProductsPage /> : section.id === 'categories' ? <CategoriesPage /> : section.id === 'overview' ? <DashboardPage /> : section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'offers' ? <HotOffersPage /> : section.id === 'procurement' ? <ProcurementPage /> : section.id === 'recommendations'
+    element: guarded(section, <>{section.group === 'admin' && <AdminNavigation />}{section.id === 'forecast' ? <><AnalyticsNavigation /><ForecastPage /></> : section.id === 'write-offs' ? <WriteOffPage /> : section.id === 'analytics' ? <><AnalyticsNavigation /><ProductFlowPage /></> : section.id === 'movements' ? <MovementsPage /> : section.id === 'audit' ? <AuditPage /> : section.id === 'integrations' ? <IntegrationsPage /> : section.id === 'settings' ? <SettingsPage /> : section.id === 'users' ? <UsersPage /> : section.id === 'recipes' ? <DishesPage /> : section.id === 'products' ? <ProductsPage /> : section.id === 'categories' ? <CategoriesPage /> : section.id === 'overview' ? <DashboardPage /> : section.id === 'inventory' ? <InventoryPage /> : section.id === 'supplies' ? <SuppliesPage /> : section.id === 'orders' ? <OrdersPage /> : section.id === 'stop-list' ? <StopListPage /> : section.id === 'dishes' ? <MenuPage /> : section.id === 'offers' ? <HotOffersPage /> : section.id === 'procurement' ? <ProcurementPage /> : section.id === 'recommendations'
       ? <RecommendationsLanding />
       : <SectionPage section={section} />}</>),
   })),

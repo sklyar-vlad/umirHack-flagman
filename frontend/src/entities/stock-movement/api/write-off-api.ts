@@ -4,7 +4,7 @@ import { writeOffRequestSchema, type WriteOffRequest } from '@/shared/api/write-
 import { parseMovementQuantity, parseQuantity, type Unit } from '@/shared/lib/quantity'
 import { movementSchema, type StockMovement } from '../model/contracts'
 
-export const writeOffTags = ['Supplies', 'Inventory', 'Batches', 'Dashboard', 'StopListForecast', 'Dishes', 'StopList', 'Recommendations', 'HotOffers', 'Procurement', 'StockMovements', 'WriteOffReport'] as const
+export const writeOffTags = ['Supplies', 'Inventory', 'Batches', 'Dashboard', 'StopListForecast', 'Dishes', 'StopList', 'Recommendations', 'HotOffers', 'Procurement', 'StockMovements', 'ProductFlow', 'WriteOffReport'] as const
 export const writeOffApi = baseApi.enhanceEndpoints({ addTagTypes: [...writeOffTags] }).injectEndpoints({
   endpoints: (build) => ({
     writeOff: build.mutation<StockMovement, { key: string; body: WriteOffRequest; productId: string; unit: Unit }>({

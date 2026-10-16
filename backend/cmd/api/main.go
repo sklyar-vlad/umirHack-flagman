@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sklyar-vlad/umirHack-flagman/database"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/config"
+	"github.com/sklyar-vlad/umirHack-flagman/internal/dto"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/handler"
 	analyticshandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/analytics"
 	auditloghandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/auditlog"
@@ -24,6 +25,7 @@ import (
 	eventhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/events"
 	forecasthandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/forecast"
 	offershandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/hotoffers"
+	integrationhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/integration"
 	inventoryhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/inventory"
 	menuhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/menu"
 	orderhandler "github.com/sklyar-vlad/umirHack-flagman/internal/handler/order"
@@ -67,6 +69,7 @@ import (
 	forecastservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/forecast"
 	offersservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/hotoffers"
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
+	integrationservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/integration"
 	inventoryservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/inventory"
 	menuservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/menu"
 	orderservice "github.com/sklyar-vlad/umirHack-flagman/internal/service/order"
@@ -184,11 +187,33 @@ func main() {
 	)
 	mux.NoRoute(handler.NotFound)
 
+	integrations := integrationhandler.NewHandler(
+		integrationservice.NewService(
+			repo,
+			catalog,
+			supplies,
+			func(ctx context.Context, q repository.DBTX, input dto.CreateSupplyRequest) error {
+				_, err := supplies.ValidateBasics(ctx, q, input)
+				return err
+			},
+		),
+	)
+	external := mux.Group("/api/v1/integration", integrations.RequireToken)
+	external.POST("/products", integrations.CreateProduct)
+	external.POST("/supplies", integrations.Submit)
+	external.GET("/products", producthandler.NewHandler(products).ListProducts)
+	external.GET("/product-categories", cataloghandler.NewHandler(catalog).ListCategories)
 	api := mux.Group("/api/v1", access.RequireRouteAccess)
 	api.GET("/ready", handler.Readiness(func(ctx context.Context) error { return database.CheckReady(ctx, pool) }))
+	api.GET("/integration-tokens", integrations.Tokens)
+	api.POST("/integration-tokens", integrations.CreateToken)
+	api.DELETE("/integration-tokens/:id", integrations.Revoke)
+	api.GET("/incoming-supplies", integrations.List)
+	api.POST("/incoming-supplies/:id/accept", integrations.Accept)
 	handler.RegisterStopListForecastRoutes(api, forecasthandler.NewHandler(forecast))
 	handler.RegisterIngredientShortageAnalyticsRoutes(api, analyticshandler.NewHandler(analytics))
 	handler.RegisterWriteOffAnalyticsRoutes(api, analyticshandler.NewHandler(analytics))
+	api.GET("/analytics/product-flow", analyticshandler.NewHandler(analytics).ProductFlow)
 	handler.RegisterStockMovementRoutes(api, writeoffhandler.NewHistoryHandler(stockMovements))
 	handler.RegisterWriteOffRoutes(api, writeoffhandler.NewHandler(writeOff))
 	handler.RegisterAuditLogRoutes(api, auditloghandler.NewHandler(auditLog))
@@ -211,6 +236,8 @@ func main() {
 	handler.RegisterOrderHistoryRoutes(api, orderhandler.NewHistoryHandler(orderHistory), access)
 	handler.RegisterProcurementRoutes(api, procurementhandler.NewHandler(procurement), access)
 	handler.RegisterHotOffersRoutes(api, offershandler.NewHandler(hotOffers), access)
+	api.GET("/hot-offers/:id", offershandler.NewPreferenceHandler(offersservice.NewPreferenceService(repo)).Get)
+	api.PATCH("/hot-offers/:id", offershandler.NewPreferenceHandler(offersservice.NewPreferenceService(repo)).Update)
 	handler.RegisterDashboardRoutes(api, dashboardhandler.NewHandler(dashboard), access)
 
 	telemetry.Default.RegisterSnapshot(func(ctx context.Context) (float64, float64, float64, error) {

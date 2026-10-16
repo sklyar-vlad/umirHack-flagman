@@ -17,7 +17,7 @@ func (r *Repository) HasHistory(ctx context.Context, q repository.DBTX, id uuid.
 		return false, err
 	}
 	var used bool
-	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM batches WHERE product_id=$1) OR EXISTS(SELECT 1 FROM recipe_items WHERE product_id=$1)`, id).
+	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM incoming_supply_items WHERE product_id=$1) OR EXISTS(SELECT 1 FROM batches WHERE product_id=$1) OR EXISTS(SELECT 1 FROM recipe_items WHERE product_id=$1)`, id).
 		Scan(&used)
 	if err != nil {
 		return false, fmt.Errorf("check catalog history: %w", err)

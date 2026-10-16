@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const eventTypes = ['inventory.changed', 'inventory.time_changed', 'products.changed', 'product_categories.changed', 'dishes.changed', 'settings.changed', 'users.changed', 'resync.required'] as const
+export const eventTypes = ['supplies.incoming_changed', 'inventory.changed', 'inventory.time_changed', 'products.changed', 'product_categories.changed', 'dishes.changed', 'settings.changed', 'users.changed', 'resync.required'] as const
 export const eventTopics = ['inventory', 'batches', 'dashboard', 'dishes', 'stop-list', 'hot-offers', 'procurement-recommendations', 'products', 'product-categories', 'settings', 'users', 'stock-movements', 'supplies', 'orders'] as const
 export type EventTopic = typeof eventTopics[number]
 const ids = z.array(z.string().uuid()).max(10_000).optional()
