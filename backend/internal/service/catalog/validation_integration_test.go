@@ -58,7 +58,7 @@ func TestProductValidationExactBoundsAndCompatibility(t *testing.T) {
 	if err != nil || *p.TargetStock != "0.000" {
 		t.Fatal("zero target", p, err)
 	}
-	// Validation applies to the merged PATCH state, not only supplied fields.
+
 	_, err = f.catalog.UpdateProduct(f.actor(), p.ID, &dto.UpdateProductRequest{Unit: ptr("ml"), ExpectedRevision: 1})
 	if err == nil {
 		t.Fatal("incompatible partial update")

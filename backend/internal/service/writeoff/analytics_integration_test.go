@@ -108,7 +108,7 @@ func TestWriteOffAnalyticsHistoricalGroupingFiltersAndPages(t *testing.T) {
 			t.Fatalf("filter %+v: %d %+v", tc.f, n, items)
 		}
 	}
-	// A historically incompatible unit must form a separate group, even for the same product.
+
 	f.exec(
 		t,
 		`INSERT INTO stock_movements(batch_id,type,delta_quantity,remaining_quantity_after,product_name_snapshot,unit_snapshot,occurred_at,note) VALUES($1,'manual_writeoff',-2,0,'Last historical name','pcs','2026-01-01T12:00:02Z','Damage')`,

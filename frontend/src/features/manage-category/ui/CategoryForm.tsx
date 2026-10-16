@@ -36,7 +36,6 @@ export function CategoryForm({ category, onSaved, onCancel, onDirty, onReload, r
   }
   return <>
     <form aria-label={category ? 'Переименование категории' : 'Создание категории'} onSubmit={handleSubmit(async (body) => {
-      // Keyboard submits follow the same revision/access lock as the button.
       if (busy || conflict || denied || missing || review || maxRevision || category && !isDirty) return
       const result = snapshot ? await update({ id: snapshot.id, body: { ...body, expected_revision: snapshot.revision } }) : await create(body)
       if (result.data) { reset({ name: result.data.name }); onDirty(false); onSaved(result.data) }

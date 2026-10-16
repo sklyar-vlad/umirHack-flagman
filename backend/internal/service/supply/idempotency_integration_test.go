@@ -22,8 +22,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// API response projections belong to the eventual supply HTTP handler. This
-// test renderer verifies that it can read the newly created data before commit.
 func renderTestSupply(ctx context.Context, tx repository.DBTX, created *model.CreatedSupply) (json.RawMessage, error) {
 	var number string
 	if err := tx.QueryRow(ctx, `SELECT number FROM supplies WHERE id = $1`, created.ID.String()).
@@ -87,8 +85,7 @@ func TestSupplyIdempotencyReplayIntegration(t *testing.T) {
 		headers["Location"] != first.Location {
 		t.Fatalf("headers must contain only Location: %s, %v", headerJSON, err)
 	}
-	// Retrying a completed receipt must not revalidate a later product state
-	// or an expiry that has since passed.
+
 	if _, err := f.pool.Exec(f.ctx, `UPDATE products SET is_active = false`); err != nil {
 		t.Fatal(err)
 	}

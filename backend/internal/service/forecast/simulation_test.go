@@ -21,7 +21,7 @@ func TestIngredientFEFOEventSimulation(t *testing.T) {
 			ReceivedAt:        now.Add(-time.Hour),
 		}
 	}
-	rate := new(big.Rat).SetFrac(big.NewInt(1000), big.NewInt(int64(time.Hour))) // 1 base unit / hour
+	rate := new(big.Rat).SetFrac(big.NewInt(1000), big.NewInt(int64(time.Hour)))
 	for _, tc := range []struct {
 		name    string
 		batches []model.OrderBatch
@@ -62,7 +62,7 @@ func TestIngredientFEFOEventSimulation(t *testing.T) {
 
 func TestIngredientSimulationHugeAndFractionalQuantities(t *testing.T) {
 	now := time.Now().UTC()
-	// No float rounding, int64 quantity overflow or rounded intermediate event.
+
 	batches := []model.OrderBatch{{RemainingQuantity: "99999999999999999.999", ExpiresAt: now.Add(100 * time.Hour)}}
 	required, _ := new(big.Int).SetString("99999999999999999998", 10)
 	rate := new(big.Rat).SetFrac(big.NewInt(3), big.NewInt(2))
@@ -70,8 +70,7 @@ func TestIngredientSimulationHugeAndFractionalQuantities(t *testing.T) {
 	if err != nil || cause != "estimated_demand" || !at.Equal(now.Add(1)) {
 		t.Fatal(at, cause, err)
 	}
-	// The first batch depletes at 2/3 ns. Rounding that intermediate event
-	// would change the result after consumption continues in the next batch.
+
 	batches = []model.OrderBatch{
 		{RemainingQuantity: "0.001", ExpiresAt: now.Add(time.Hour)},
 		{RemainingQuantity: "0.003", ExpiresAt: now.Add(2 * time.Hour)},

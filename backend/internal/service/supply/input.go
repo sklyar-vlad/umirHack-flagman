@@ -18,8 +18,6 @@ type preparedSupplyInput struct {
 	ProductIDs []uuid.UUID
 }
 
-// Pure checks use only request data. Time and product state are checked after
-// the idempotency lock, so a completed response can still be replayed later.
 func prepareSupplyInput(input dto.CreateSupplyRequest) (preparedSupplyInput, error) {
 	number := strings.TrimSpace(input.Number)
 

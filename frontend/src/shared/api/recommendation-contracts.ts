@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { attentionBatchSchema, productBriefSchema } from './warehouse-contracts'
 import { formatQuantity } from '@/shared/lib/quantity'
 
-// Published recommendation DTOs shared by individual reads and DashboardResponse.
 const positive = z.string().regex(/^\d{1,11}\.\d{3}$/).refine((value) => !/^0+\.0+$/.test(value))
 const integer = z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
 export const hotOfferBatchSchema = z.object({

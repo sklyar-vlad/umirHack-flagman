@@ -92,7 +92,7 @@ func TestDashboardReceiptOrderExpiryAndRecipeRecalculationIntegration(t *testing
 	f.receipt(t, p, "1.000", f.now.Add(72*time.Hour))
 	check(1, 1, 0, 0, "", "3")
 	f.order(t, dish, 2)
-	check(0, 1, 0, 0, "2.000", "") // remaining stock is available but outside threshold.
+	check(0, 1, 0, 0, "2.000", "")
 	f.order(t, dish, 1)
 	check(0, 1, 1, 1, "3.000", "")
 	f.receipt(t, p, "1.000", f.now.Add(time.Hour))

@@ -147,7 +147,7 @@ func TestAuditListsEveryImplementedBusinessMutationWithoutSecrets(t *testing.T) 
 	); err != nil {
 		t.Fatal(err)
 	}
-	// Refused and read-only operations belong outside the successful change log.
+
 	if _, err := catalog.UpdateProduct(
 		ctx,
 		product.ID,
@@ -209,8 +209,7 @@ func TestAuditListsEveryImplementedBusinessMutationWithoutSecrets(t *testing.T) 
 			t.Fatal("audit coverage", action, count)
 		}
 	}
-	// No dispatcher has run. A new connection pool must see all committed
-	// business notifications unchanged, with no early cursor assignment.
+
 	config := f.pool.Config()
 	var pendingBefore []byte
 	if err := f.pool.QueryRow(ctx, `SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM outbox_events e`).

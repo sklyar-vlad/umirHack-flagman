@@ -35,7 +35,7 @@ func TestLastAdminSingleAndConcurrentChanges(t *testing.T) {
 			if _, err := f.users.Update(f.actor(), f.user, input); !errors.Is(err, apperrors.ErrLastAdmin) {
 				t.Fatal("last admin changed", err)
 			}
-			// An inactive admin does not count as a surviving administrator.
+
 			f.exec(
 				t,
 				`INSERT INTO users(name,email,password_hash,role,is_active) VALUES('Inactive','inactive@example.test',$1,'admin',false)`,
@@ -364,7 +364,7 @@ func TestStaleAdminAfterAdministrationWait(t *testing.T) {
 		)
 		result <- err
 	}()
-	// Find the waiting administration transaction, not an arbitrary sleep.
+
 	deadline := time.Now().Add(5 * time.Second)
 	waiting := false
 	for time.Now().Before(deadline) {

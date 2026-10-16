@@ -6,7 +6,6 @@ import { getMockScenario } from './scenarios'
 import { mockSettings } from './settings-fixtures'
 let expiry: number | undefined
 export function resetHotOfferFixtures() { expiry = undefined }
-/** Synthetic server snapshots only; no browser-side production recommendation calculation. */
 export function hotOfferItems(): HotOffer[] {
   const scenario = getMockScenario(), now = Date.now()
   if (scenario === 'hot-offers-empty' || scenario === 'hot-offers-expired') return []

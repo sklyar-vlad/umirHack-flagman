@@ -137,13 +137,13 @@ func TestAnalyticsRealOrderRefusalReplayCheckAndBothWriteOffs(t *testing.T) {
 		t.Fatal("replay or check inflation", got, afterRefusal)
 	}
 	assertShortages(1, "2.006", "4.000")
-	// A different key is another real rejected request, even with the same body.
+
 	again, err := order.CreateIdempotent(f.actor(), f.user, uuid.New(), refusalBody)
 	if err != nil || again.Status != 409 {
 		t.Fatal(again, err)
 	}
 	assertShortages(2, "4.012", "8.000")
-	// Valid gram write-off and replay, followed by an expired pcs manual write-off.
+
 	offKey := uuid.New()
 	off := f.create(t, "1.001", offKey)
 	replay := f.create(t, "1.001", offKey)
@@ -183,7 +183,7 @@ func TestAnalyticsRealOrderRefusalReplayCheckAndBothWriteOffs(t *testing.T) {
 	if got := f.analyticsState(t, eggBatch); got != expired || got.Grams != "0.000" || got.Pieces != "0.000" {
 		t.Fatal("repeat expiry", got, expired)
 	}
-	// Catalog edits cannot alter report facts, and report reads cannot write facts.
+
 	f.exec(
 		t,
 		`UPDATE products SET name='Changed '||id::text,is_active=false WHERE id=ANY($1::uuid[])`,

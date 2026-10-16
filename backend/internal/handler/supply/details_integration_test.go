@@ -59,7 +59,7 @@ func (f *listFixture) getDetail(t *testing.T, id uuid.UUID) (int, []byte) {
 func TestSupplyDetailsHTTPIntegration(t *testing.T) {
 	f := newListFixture(t)
 	id := f.ids[1]
-	// Offset input and distinct dates catch substitutions between receipt and creation.
+
 	now := time.Now().In(time.FixedZone("MSK", 3*60*60)).Truncate(time.Microsecond)
 	created, received, batchCreated := now.Add(-time.Hour), now.Add(-2*time.Hour), now.Add(-30*time.Minute)
 	produced := now.Add(-12 * time.Hour)
@@ -141,7 +141,7 @@ func TestSupplyDetailsHTTPIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// PostgreSQL dates are nearby here; floor avoids truncating overdue fractions to zero.
+
 		seconds := int64(expires.Sub(serverTime) / time.Second)
 		if expires.Before(serverTime) && expires.Sub(serverTime)%time.Second != 0 {
 			seconds--
@@ -199,7 +199,7 @@ func TestSupplyDetailsNotFoundIntegration(t *testing.T) {
 
 func TestSupplyDetailsReadFailureIntegration(t *testing.T) {
 	f := newListFixture(t)
-	// Fail the second SELECT after a valid supply header was read.
+
 	if _, err := f.pool.Exec(f.ctx, `ALTER TABLE products RENAME COLUMN display_unit TO hidden_unit`); err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ type detailHookPool struct {
 	afterHeader func() error
 }
 
-//nolint:gocritic // The signature must match pgxpool.Pool.BeginTx.
+//nolint:gocritic
 func (p *detailHookPool) BeginTx(ctx context.Context, options pgx.TxOptions) (pgx.Tx, error) {
 	tx, err := p.Pool.BeginTx(ctx, options)
 	if err != nil {

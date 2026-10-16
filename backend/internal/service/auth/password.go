@@ -13,8 +13,6 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-// Verify accepts bounded PHC parameters before allocating memory. Invalid
-// encodings and mismatches have the same result and never expose stored hashes.
 func Verify(plain, encoded string) bool {
 	if !utf8.ValidString(plain) || utf8.RuneCountInString(plain) > 128 || len(encoded) > 512 {
 		return false

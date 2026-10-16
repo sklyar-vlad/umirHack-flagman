@@ -6,7 +6,6 @@ import { Button } from '@/shared/ui'
 import { WriteOffDialog } from './WriteOffDialog'
 import { WriteOffContext, type OpenWriteOff } from './write-off-context'
 
-/** Lives outside refreshed batch rows, retaining the pending request and result. */
 export function WriteOffWorkspace({ children }: { children: ReactNode }) {
   const session = useSelector(selectSession)
   return <OwnerWorkspace key={session.user?.id ?? 'anonymous'} session={session}>{children}</OwnerWorkspace>

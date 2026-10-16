@@ -8,7 +8,6 @@ import { categoryApi } from '@/entities/product-category'
 import { settingsApi } from '@/entities/restaurant-settings'
 import type { SessionState } from '@/entities/session'
 
-/** Stock checks must become stale even when notification delivery is unavailable. */
 export const liveMutations = createListenerMiddleware<{ session: SessionState }>()
 const writes = [supplyApi.endpoints.receiveSupply, orderApi.endpoints.createOrder, writeOffApi.endpoints.writeOff, productApi.endpoints.createProduct, productApi.endpoints.updateProduct, categoryApi.endpoints.createCategory, categoryApi.endpoints.updateCategory, settingsApi.endpoints.updateSettings] as const
 liveMutations.startListening({

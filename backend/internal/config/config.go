@@ -100,7 +100,6 @@ func getEnv(key, def string) string {
 	return def
 }
 
-// secretEnv accepts one runtime secret source without exposing its contents or path.
 func secretEnv(name string) (string, error) {
 	value := os.Getenv(name)
 	path := os.Getenv(name + "_FILE")

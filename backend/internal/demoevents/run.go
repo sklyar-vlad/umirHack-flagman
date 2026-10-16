@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Options bounds business mutations; reads and authentication do not count.
 type Options struct {
 	DishID   string
 	Scenario string
@@ -41,8 +40,6 @@ func (o Options) Validate() error {
 	return nil
 }
 
-// Run stops on technical errors; domain refusals count as emitted events.
-// It pins one dish for the scenario but refreshes its recipe/availability per step.
 func (c *Client) Run(ctx context.Context, password string, options Options, out io.Writer) (err error) {
 	if err := options.Validate(); err != nil {
 		return err

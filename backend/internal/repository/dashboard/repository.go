@@ -14,8 +14,6 @@ type Repository struct{}
 
 func NewRepository() *Repository { return &Repository{} }
 
-// LoadBatches reads positive warehouse batches once for both attention and FEFO.
-// Expired rows remain available to attention; the planner excludes them itself.
 func (r *Repository) LoadBatches(ctx context.Context, q repository.DBTX) ([]model.OrderBatch, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
@@ -44,8 +42,6 @@ func (r *Repository) LoadBatches(ctx context.Context, q repository.DBTX) ([]mode
 	return batches, nil
 }
 
-// Load reads each warehouse product aggregate once, including products without
-// stock or a target. Recipes and procurement reuse these exact quantities.
 func (r *Repository) Load(ctx context.Context, q repository.DBTX, now time.Time) (model.DashboardData, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
@@ -94,8 +90,6 @@ func (r *Repository) Load(ctx context.Context, q repository.DBTX, now time.Time)
 	return data, nil
 }
 
-// LoadRecipes reads current active recipes without repeating the stock aggregate.
-// Availability quantities are populated by the service from Load's snapshot.
 func (r *Repository) LoadRecipes(ctx context.Context, q repository.DBTX) ([]model.Dish, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {

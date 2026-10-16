@@ -64,8 +64,7 @@ func (s *CreateService) CreateIdempotent(
 	if err != nil {
 		return model.IdempotencyResponse{}, err
 	}
-	// Stable dish order also makes shared-batch allocation independent of the
-	// original basket order; inputIndex retains the original validation path.
+
 	slices.SortFunc(items, func(a, b basketItem) int { return slices.Compare(a.dishID[:], b.dishID[:]) })
 	scope := model.IdempotencyScope{UserID: actor, Method: http.MethodPost, Path: "/api/v1/orders", Key: key}
 	return s.idempotency.Execute(ctx, scope, body, func(tx repository.DBTX) (idempotency.Outcome, error) {

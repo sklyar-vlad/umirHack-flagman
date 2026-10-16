@@ -12,8 +12,6 @@ import (
 	supplydto "github.com/sklyar-vlad/umirHack-flagman/internal/dto/supply"
 )
 
-// Fixture writes model committed consumption until the write-off/order APIs exist.
-// Every balance change has a stock movement in the same transaction.
 func (f *listFixture) newConsumptionSupply(t *testing.T, expires time.Time) (uuid.UUID, []uuid.UUID) {
 	t.Helper()
 	tx, err := f.pool.Begin(f.ctx)
@@ -62,7 +60,7 @@ func (f *listFixture) consumeBatch(t *testing.T, id uuid.UUID, quantity string) 
 		t.Fatal(err)
 	}
 	defer tx.Rollback(f.ctx)
-	// Conditional subtraction and INSERT ... RETURNING use only PostgreSQL decimals.
+
 	tag, err := tx.Exec(f.ctx, `WITH consumed AS (
 		UPDATE batches SET remaining_quantity=remaining_quantity-$2::numeric
 		WHERE id=$1 AND $2::numeric>0 AND remaining_quantity >= $2::numeric
@@ -138,7 +136,7 @@ func TestSupplyDetailsAfterConsumptionIntegration(t *testing.T) {
 							item.Batch.Status != step.statuses[i] {
 							t.Fatalf("line %d after %s: %+v", i+1, step.name, item)
 						}
-						// Only balance, derived status and time-to-expiry may change.
+
 						copyItem := *item
 						copyItem.Batch.RemainingQuantity = before.Items[i].Batch.RemainingQuantity
 						copyItem.Batch.Status = before.Items[i].Batch.Status
@@ -157,7 +155,7 @@ func TestSupplyDetailsAfterConsumptionIntegration(t *testing.T) {
 					if mismatches != 0 {
 						t.Fatal("stock movement history does not match batch balances")
 					}
-					// A repeated GET must keep the committed balance and all original lines.
+
 					repeated := f.detail(t, id)
 					if len(repeated.Items) != len(before.Items) ||
 						!reflect.DeepEqual(before.SupplySummaryDTO, repeated.SupplySummaryDTO) {

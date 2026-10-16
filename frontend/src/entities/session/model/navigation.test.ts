@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { canAccess, permittedReturnPath, sections, startPath, visibleSections, type Role } from './navigation'
 
 const cases: { role: Role; main: string[]; recommendations: string[]; extra: string[] }[] = [
-  { role: 'admin', main: ['overview', 'inventory', 'supplies', 'orders', 'stop-list', 'recommendations'], recommendations: ['offers', 'procurement'], extra: ['write-offs', 'movements', 'analytics', 'forecast', 'dishes'] },
-  { role: 'manager', main: ['overview', 'inventory', 'supplies', 'orders', 'stop-list', 'recommendations'], recommendations: ['offers', 'procurement'], extra: ['write-offs', 'movements', 'analytics', 'forecast', 'dishes'] },
+  { role: 'admin', main: ['overview', 'inventory', 'supplies', 'orders', 'stop-list', 'recommendations'], recommendations: ['offers', 'procurement'], extra: ['write-offs', 'movements', 'analytics', 'forecast', 'dishes', 'menu'] },
+  { role: 'manager', main: ['overview', 'inventory', 'supplies', 'orders', 'stop-list', 'recommendations'], recommendations: ['offers', 'procurement'], extra: ['write-offs', 'movements', 'analytics', 'forecast', 'dishes', 'menu'] },
   { role: 'storekeeper', main: ['overview', 'inventory', 'supplies', 'recommendations'], recommendations: ['procurement'], extra: ['write-offs', 'movements'] },
-  { role: 'order_operator', main: ['overview', 'inventory', 'orders', 'stop-list', 'recommendations'], recommendations: ['offers'], extra: ['dishes'] },
+  { role: 'order_operator', main: ['overview', 'inventory', 'orders', 'stop-list', 'recommendations'], recommendations: ['offers'], extra: ['dishes', 'menu'] },
 ]
 describe('README role permissions', () => {
   for (const { role, main, recommendations, extra } of cases) {
@@ -25,6 +25,8 @@ describe('README role permissions', () => {
     expect(permittedReturnPath('storekeeper', '/recommendations/procurement')).toBe('/recommendations/procurement')
     expect(permittedReturnPath('order_operator', '/supplies')).toBe('/')
     expect(permittedReturnPath('order_operator', '/dishes/123')).toBe('/dishes/123')
+    expect(permittedReturnPath('order_operator', '/menu')).toBe('/menu')
+    expect(permittedReturnPath('storekeeper', '/menu')).toBe('/')
     expect(permittedReturnPath('storekeeper', '/dishes/123')).toBe('/')
     expect(permittedReturnPath('manager', '/admin/users')).toBe('/')
     expect(permittedReturnPath('admin', '/admin')).toBe('/admin/products')

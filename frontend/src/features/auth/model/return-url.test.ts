@@ -10,6 +10,9 @@ describe('safe login navigation and validation', () => {
     expect(safeReturnUrl('/inventory?password=secret#token')).toBe('/inventory')
     expect(loginUrl('/inventory?q=test')).toBe('/login?returnTo=%2Finventory')
   })
+  it('retains menu filters across login without carrying credentials', () => {
+    expect(safeReturnUrl('/menu?search=Soup&availability=available&page=2&token=secret#password')).toBe('/menu?search=Soup&availability=available&page=2')
+  })
   it('retains only the published inventory filters across login', () => {
     expect(safeReturnUrl('/inventory?search=%D0%9C%D0%BE%D0%BB%D0%BE%D0%BA%D0%BE&filter=expired&page=2&page_size=20&password=secret#token')).toBe('/inventory?search=%D0%9C%D0%BE%D0%BB%D0%BE%D0%BA%D0%BE&filter=expired&page=2&page_size=20')
     expect(safeReturnUrl('/inventory?sort=-name&category_id=invalid&page=0&filter=invalid')).toBe('/inventory')

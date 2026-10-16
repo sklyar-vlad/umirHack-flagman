@@ -30,11 +30,3 @@ func NewRepository(pool db, logger *zap.Logger) *repository {
 		logger: logger,
 	}
 }
-
-// func (r *repository) executor(tx DBTX) DBTX {
-// 	if tx != nil {
-// 		return tx
-// 	}
-
-// 	return r.pool
-// }

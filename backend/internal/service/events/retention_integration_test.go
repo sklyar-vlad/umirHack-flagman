@@ -13,7 +13,7 @@ func TestRetentionPublishedPrefixFloorAndRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.exec(t, `UPDATE outbox_events SET published_at=clock_timestamp()-interval '25 hours' WHERE cursor IN (1,3)`)
-	// Pending events older than a day must survive until their first publication.
+
 	pending := f.pending(t)
 	f.exec(t, `UPDATE outbox_events SET created_at=clock_timestamp()-interval '5 days' WHERE id=$1`, pending)
 	f.exec(
@@ -40,8 +40,7 @@ func TestRetentionPublishedPrefixFloorAndRollback(t *testing.T) {
 		page.Events[1].Cursor != 3 {
 		t.Fatal(page, err)
 	}
-	// The newer cursor with an older publication timestamp is held behind the
-	// retained row, rather than falsely invalidating its valid reconnect cursor.
+
 	f.exec(t, `UPDATE outbox_events SET published_at=clock_timestamp()-interval '25 hours'`)
 	if err := f.service().Dispatch(f.ctx); err != nil {
 		t.Fatal(err)

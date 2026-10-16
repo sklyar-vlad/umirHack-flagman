@@ -65,7 +65,6 @@ test('F17 fresh resource reads handle loading, failure, retry, missing and forbi
   await page.getByRole('link', { name: 'В каталог продуктов', exact: true }).click(); await expect(page.getByRole('article', { name: 'Продукт: Молоко' })).toBeVisible(); await scenario(page, 'products-error'); await page.getByRole('link', { name: 'Редактировать: Молоко' }).click(); await expect(page.getByRole('heading', { name: 'Не удалось прочитать продукт' })).toBeVisible(); await expect(name(page)).toHaveCount(0)
   await scenario(page, 'success'); await page.getByRole('button', { name: 'Попробовать снова' }).click(); await expect(name(page)).toHaveValue('Молоко'); await page.goto('/admin/products/00000000-0000-4000-8000-ffffffffffff/edit'); await expect(page.getByRole('heading', { name: 'Продукт не найден' })).toBeVisible()
   await scenario(page, 'forbidden')
-  // Direct SPA address entry keeps the selected MSW scenario (document reload resets it).
   await page.evaluate((id) => {
     const state = { ...history.state, idx: history.state.idx + 1 }
     history.pushState(state, '', `/admin/products/${id}/edit`)

@@ -50,7 +50,7 @@ func TestDashboardQueryCountIndependentOfDishCountIntegration(t *testing.T) {
 		}
 		for _, role := range []string{"admin", "manager", "storekeeper", "order_operator"} {
 			counter := &countedTransactions{Transactions: f.service.transactions, t: t}
-			// Keep wrappers independent across requests.
+
 			base := f.service.transactions
 			f.service.transactions = counter
 			f.get(t, role)

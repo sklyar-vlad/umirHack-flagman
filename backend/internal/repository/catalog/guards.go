@@ -9,8 +9,6 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 )
 
-// The caller holds FOR UPDATE on the product. Receipts and recipe writers must
-// acquire the same product lock before using its current units/activity.
 func (r *Repository) HasHistory(ctx context.Context, q repository.DBTX, id uuid.UUID) (bool, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {

@@ -7,14 +7,11 @@ import { restaurantDateTimeFromInput, restaurantDateTimeToInput } from '@/shared
 
 export const emptyReceptionLine = () => ({ productId: '', quantity: '', displayUnit: 'kg' as const, expiresAt: '' })
 export const emptyReception = (): ReceptionValues => ({ number: '', receivedAt: '', items: [emptyReceptionLine()] })
-/** Explicit review preserves instants; immutable pending request bodies are separate. */
 export function convertReceptionTimezone(values: ReceptionValues, from: string, to: string): ReceptionValues {
   const convert = (value: string) => {
     if (!value) return ''
     const instant = restaurantDateTimeFromInput(value, from)!
     const projected = restaurantDateTimeToInput(instant, to)!
-    // An overlap in the destination zone cannot be represented unambiguously by datetime-local.
-    // Reject the entire conversion before resetting/persisting any original date.
     if (compareSupplyInstants(restaurantDateTimeFromInput(projected, to)!, instant) !== 0) throw new Error('Не удалось сохранить исходный момент.')
     return projected
   }
@@ -55,9 +52,7 @@ export function receptionField(path: string, count: number): ReceptionField | nu
   return `items.${Number(match[1])}.${fields[match[2] as keyof typeof fields]}`
 }
 export function uncertainReception(error: ApiError) {
-  // Access/rate checks can reject a replay before reading its saved result.
   return typeof error.status !== 'number' || error.status >= 500 || [401, 403, 408, 429].includes(error.status) || error.code === 'IDEMPOTENCY_CONFLICT' || error.code === 'REQUEST_IN_PROGRESS' || error.code === 'SESSION_CHANGED'
 }
 export const fieldViolationsSchema = z.array(z.object({ path: z.string(), code: z.string(), message: z.string() }))
-/** Server promises at least 24h retention. Never replay automatically beyond that safety window. */
 export function canRetryReception(startedAt: number, now = Date.now()) { return now >= startedAt && now - startedAt < 23 * 60 * 60 * 1000 }

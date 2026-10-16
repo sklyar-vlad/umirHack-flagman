@@ -36,7 +36,6 @@ func ParsePagination(query url.Values) (dto.Pagination, error) {
 	return pagination, nil
 }
 
-// PaginationOffset guards the BIGINT offset before multiplying page and size.
 func PaginationOffset(pagination dto.Pagination) (int64, error) {
 	if pagination.Page < 1 {
 		return 0, &FieldError{Field: "page", Message: "Ожидается целое число больше нуля"}

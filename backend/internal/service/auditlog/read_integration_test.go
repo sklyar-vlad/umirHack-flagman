@@ -72,7 +72,7 @@ func seedAudit(t *testing.T, f *fixture) (uuid.UUID, time.Time) {
 		); err != nil {
 			return err
 		}
-		// A background operation has no user or request id and remains visible.
+
 		return base.AppendAudit(
 			f.ctx,
 			tx,
@@ -181,7 +181,7 @@ func TestAuditFiltersLiteralSearchAndStablePagination(t *testing.T) {
 		*user.EntityID != entity {
 		t.Fatal("human metadata", user)
 	}
-	// Every read leaves the source and events intact.
+
 	var count, events int
 	if err := f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM audit_log),(SELECT count(*) FROM outbox_events)`).
 		Scan(&count, &events); err != nil || count != 3 ||
@@ -272,7 +272,7 @@ func TestAuditReadRemovesUnexpectedSecretsIncludingNestedFields(t *testing.T) {
 		!strings.Contains(string(raw), "quantity_per_portion") {
 		t.Fatal("unsafe projection", string(raw))
 	}
-	// Unknown future/legacy entity types are safe too: no arbitrary snapshot JSON.
+
 	f.exec(
 		t,
 		`INSERT INTO audit_log(action,entity_type,created_at,after_data) VALUES('legacy','session',clock_timestamp(),'{"token":"private-marker"}')`,

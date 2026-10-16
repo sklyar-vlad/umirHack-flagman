@@ -36,8 +36,6 @@ async function login(page: Page,role: string,target: string,email?: string) {
 }
 test.use({ actionTimeout:15_000 })
 let supplier: Server, supplierOrigin: string
-// This origin is separate from the application, so native browser CORS and bearer
-// authentication are exercised by the actual standalone supplier page.
 test.beforeAll(async () => {
   supplier = createServer(async (request,response) => {
     const file = ({ '/':'index.html','/index.html':'index.html','/app.js':'app.js','/styles.css':'styles.css' } as Record<string,string>)[request.url ?? '']

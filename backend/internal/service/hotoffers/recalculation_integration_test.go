@@ -44,7 +44,7 @@ func TestOffersIntegrationReceiptOrderReplayAndRecipeRecalculate(t *testing.T) {
 	f := newOffersFixture(t)
 	p := f.product(t, "Ingredient")
 	other := f.product(t, "Later ingredient")
-	f.batch(t, p, "5.000", f.now) // expired stock cannot make the dish available.
+	f.batch(t, p, "5.000", f.now)
 	f.batch(t, other, "10.000", f.now.Add(72*time.Hour))
 	dish := f.dish(t, "Dish", true, testIngredient{p, "1.000"})
 	check := func(want int64, portions string) {
@@ -72,7 +72,7 @@ func TestOffersIntegrationReceiptOrderReplayAndRecipeRecalculate(t *testing.T) {
 	if err != nil || order.Status != http.StatusCreated {
 		t.Fatalf("order: %+v %v", order, err)
 	}
-	check(0, "") // still available, but no expiring batch is consumed.
+	check(0, "")
 	if replay, err := orders.CreateIdempotent(
 		f.ctx,
 		f.actor,
@@ -88,7 +88,7 @@ func TestOffersIntegrationReceiptOrderReplayAndRecipeRecalculate(t *testing.T) {
 	f.recipe(t, dish, 2, testIngredient{other, "1.000"})
 	check(0, "")
 	f.recipe(t, dish, 3, testIngredient{p, "5.000"})
-	check(0, "") // insufficient current stock, despite a consumed expiring ingredient.
+	check(0, "")
 	f.receipt(t, p, "1.000", f.now.Add(time.Hour))
 	check(1, "1")
 	result := f.list(t, "")

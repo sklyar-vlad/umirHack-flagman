@@ -1,4 +1,3 @@
-// Package demoevents creates demo traffic exclusively through the public API.
 package demoevents
 
 import (
@@ -20,7 +19,6 @@ import (
 
 const demoEmail = "manager@flagman.invalid"
 
-// Client retains credentials only in memory and never follows redirects.
 type Client struct {
 	base   string
 	origin string
@@ -28,7 +26,6 @@ type Client struct {
 	http   *http.Client
 }
 
-// APIError omits untrusted server messages, bodies and transport error details.
 type APIError struct {
 	Status  int
 	Code    string
@@ -244,7 +241,6 @@ func (c *Client) order(ctx context.Context, dish *dto.Dish, portions int, out io
 	return err
 }
 
-// Order creates one ordinary order with a fresh key; it never reserves stock.
 func (c *Client) Order(ctx context.Context, dishID string, out io.Writer) error {
 	dish, err := c.dish(ctx, dishID)
 	if err != nil {

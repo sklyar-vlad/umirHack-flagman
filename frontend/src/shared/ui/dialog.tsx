@@ -13,7 +13,7 @@ export type DialogProps = {
   returnFocusRef?: { current: HTMLElement | null }
 }
 
-function Modal({ open, onClose, title, description, children, actions, closeLabel = 'Закрыть', initialFocusRef, returnFocusRef, drawer = false }: DialogProps & { drawer?: boolean }) {
+function Modal({ open, onClose, title, description, children, actions, closeLabel = 'Закрыть', initialFocusRef, returnFocusRef, drawer = false, side = 'right' }: DialogProps & { drawer?: boolean; side?: 'left' | 'right' }) {
   const ref = useRef<HTMLDialogElement>(null)
   const id = useId()
   const focusTargets = useEffectEvent(() => ({ initial: initialFocusRef?.current, previous: returnFocusRef?.current ?? document.activeElement }))
@@ -32,7 +32,7 @@ function Modal({ open, onClose, title, description, children, actions, closeLabe
     }
   }, [open])
 
-  return <dialog ref={ref} className={`ui-dialog${drawer ? ' ui-drawer' : ''}`} aria-labelledby={`${id}-title`} aria-describedby={description ? `${id}-description` : undefined}
+  return <dialog ref={ref} className={`ui-dialog${drawer ? ` ui-drawer ui-drawer--${side}` : ''}`} aria-labelledby={`${id}-title`} aria-describedby={description ? `${id}-description` : undefined}
     onKeyDown={(event) => {
       if (event.key !== 'Tab' || event.defaultPrevented) return
       const dialog = event.currentTarget
@@ -56,6 +56,6 @@ export function Dialog(props: DialogProps) {
   return <Modal {...props} />
 }
 
-export function Drawer(props: DialogProps) {
+export function Drawer(props: DialogProps & { side?: 'left' | 'right' }) {
   return <Modal {...props} drawer />
 }

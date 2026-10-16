@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { batchSchema, productBriefSchema } from './warehouse-contracts'
 
-/** Published WriteOffRequest; quantities are in the batch's base unit. */
 export const writeOffRequestSchema = z.object({
   batch_id: z.uuid(),
   quantity: z.string().regex(/^\d{1,11}(?:\.\d{1,3})?$/).refine((value) => !/^0+(?:\.0+)?$/.test(value)),

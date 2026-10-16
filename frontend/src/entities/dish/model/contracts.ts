@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { basketDishSchema, shortageSchema, requirementSchema } from '@/shared/api/order-work'
 import { parseApiDateTime } from '@/shared/lib/restaurant-time'
 
-// Published Dish. Quantity strings and server availability are preserved verbatim.
 export const dishSchema = basketDishSchema.extend({
   description: z.string().nullable(), revision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   is_available: z.boolean(), available_portions: z.string().regex(/^\d+$/),

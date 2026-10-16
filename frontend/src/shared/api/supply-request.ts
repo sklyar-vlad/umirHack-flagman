@@ -3,7 +3,6 @@ import { parseApiDateTime } from '@/shared/lib/restaurant-time'
 import { isRestaurantTimezone } from './settings-contracts'
 
 const instant = z.string().refine((value) => { try { parseApiDateTime(value); return true } catch { return false } })
-/** Published CreateSupplyRequest: the reception UI uses only explicit expiry. */
 export const createSupplyRequestSchema = z.object({
   number: z.string().trim().min(1), received_at: instant,
   items: z.array(z.object({

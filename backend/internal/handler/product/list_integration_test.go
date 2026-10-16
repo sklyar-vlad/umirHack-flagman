@@ -312,7 +312,7 @@ type countHookPool struct {
 	afterCount func() error
 }
 
-//nolint:gocritic // The signature must match pgxpool.Pool.BeginTx.
+//nolint:gocritic
 func (p *countHookPool) BeginTx(ctx context.Context, options pgx.TxOptions) (pgx.Tx, error) {
 	tx, err := p.Pool.BeginTx(ctx, options)
 	if err != nil {

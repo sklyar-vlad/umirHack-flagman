@@ -250,7 +250,7 @@ func main() {
 		Addr:        net.JoinHostPort("", cfg.Server.Port),
 		Handler:     root,
 		ReadTimeout: time.Duration(cfg.Server.ReadTimeout) * time.Second,
-		// SSE replaces the whole-response timeout with renewed per-write deadlines.
+
 		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
 		IdleTimeout:  time.Duration(cfg.Server.IdleTimeout) * time.Second,
 	}

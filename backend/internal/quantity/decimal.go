@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-// ParseMilli parses nonnegative quantities exactly, including aggregate values
-// larger than a single NUMERIC(14,3) row.
 func ParseMilli(raw string) (*big.Int, error) {
 	whole, fraction, hasFraction := strings.Cut(raw, ".")
 	if whole == "" || len(fraction) > 3 || (hasFraction && fraction == "") {
@@ -25,7 +23,6 @@ func ParseMilli(raw string) (*big.Int, error) {
 	return value, nil
 }
 
-// FormatMilli renders a nonnegative scaled quantity with three decimal places.
 func FormatMilli(value *big.Int) string {
 	digits := value.String()
 	if len(digits) <= 3 {

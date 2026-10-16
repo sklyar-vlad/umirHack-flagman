@@ -26,7 +26,6 @@ export function AppShell() {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLButtonElement>(null)
-  // SessionGate owns loading, errors, expiration and logout.
   if (!user || !settings) return null
   return <div className={styles.shell}>
     <a className={styles.skip} href="#app-content">К содержимому</a>
@@ -44,7 +43,7 @@ export function AppShell() {
       </header>
       <main id="app-content" tabIndex={-1} className={styles.content}><Outlet /></main>
     </div>
-    <Drawer open={open} returnFocusRef={menuRef} onClose={() => setOpen(false)} title="Меню" closeLabel="Закрыть меню">
+    <Drawer side="left" open={open} returnFocusRef={menuRef} onClose={() => setOpen(false)} title="Меню" closeLabel="Закрыть меню">
       <p className={styles.restaurant}>{settings.restaurantName}</p>
       <Navigation role={user.role} onNavigate={() => setOpen(false)} />
     </Drawer>

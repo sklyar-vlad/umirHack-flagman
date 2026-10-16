@@ -1,7 +1,6 @@
 import type { SupplyDetail, SupplySummary } from '@/entities/supply'
 import { inventoryBatches, inventoryItems, inventoryServerTime, mockId } from './inventory-fixtures'
 
-/** One synthetic snapshot shared with the warehouse; repeated products keep every batch. */
 export function supplyDetailFixture(summary: SupplySummary): SupplyDetail {
   const batches = summary.id === mockId(100) ? inventoryBatches : Array.from({ length: summary.items_count }, (_, index) => ({
     ...inventoryBatches[0], id: mockId(10000 + index), line_number: index + 1,

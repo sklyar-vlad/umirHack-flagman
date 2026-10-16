@@ -37,8 +37,7 @@ func (r *Repository) FindOrder(ctx context.Context, q repository.DBTX, id uuid.U
 		positions[result.Items[i].ID] = i
 		result.Items[i].Allocations = make([]model.OrderHistoryAllocation, 0)
 	}
-	// Product labels and balances come from the immutable movement, never the
-	// current product or batch balance. Batch/supply joins provide source IDs.
+
 	rows, err := tx.Query(ctx, `SELECT sm.order_item_id,sm.id,b.product_id,
 		sm.product_name_snapshot,sm.unit_snapshot::text,b.id,s.id,s.number,b.line_number,
 		(-sm.delta_quantity)::text,sm.remaining_quantity_after::text

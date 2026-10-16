@@ -56,7 +56,7 @@ func TestReadyMigrationStateAndMissingSchema(t *testing.T) {
 
 func TestReadyUnavailableDatabaseAndBoundedWait(t *testing.T) {
 	f := newFixture(t)
-	// Exhaust every connection, exercising the real pool wait cancellation.
+
 	cfg := f.pool.Config()
 	held := make([]func(), 0, cfg.MaxConns)
 	for range cfg.MaxConns {

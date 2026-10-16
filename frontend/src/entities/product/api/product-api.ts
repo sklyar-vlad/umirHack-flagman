@@ -16,7 +16,6 @@ function matchesFields(product: Product, body: CreateProduct | UpdateProduct) {
 export const productApi = baseApi.enhanceEndpoints({ addTagTypes: ['Products', 'Inventory', 'Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard', 'StopListForecast'] }).injectEndpoints({
   endpoints: (build) => ({
     product: build.query<Product, string>({
-      // Editor revisions are fresh explicit reads, never silently invalidated by list refresh.
       queryFn: async (id, _api, _options, query) => {
         const result = await query(`/products/${encodeURIComponent(id)}`)
         if (result.error) return { error: result.error }

@@ -19,9 +19,7 @@ export function writeOffPayload(values: WriteOffValues, snapshot: Pick<WriteOffD
 }
 export const writeOffField = (path: string): keyof WriteOffValues | null => path === 'quantity' || path === 'reason' ? path : null
 export const writeOffViolations = z.array(z.object({ path: z.string(), code: z.string(), message: z.string() }))
-/** Access/rate errors can occur before a saved replay result is read. */
 export function uncertainWriteOff(error: ApiError) {
   return typeof error.status !== 'number' || error.status >= 500 || [401, 403, 408, 429].includes(error.status) || ['IDEMPOTENCY_CONFLICT', 'REQUEST_IN_PROGRESS', 'SESSION_CHANGED'].includes(error.code)
 }
-/** A safety margin inside the published 24-hour idempotency retention. */
 export function canRetryWriteOff(startedAt: number, now = Date.now()) { return now >= startedAt && now - startedAt < 23 * 3600000 }

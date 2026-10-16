@@ -7,7 +7,6 @@ import { ApiAccessBoundary } from '@/features/access'
 import { Button, ErrorState, FormField, Input, Select, Skeleton } from '@/shared/ui'
 import styles from './ProductCategoryDraft.module.css'
 
-/** F18 integration surface; F17 owns product validation and persistence. */
 export function ProductCategoryDraft() {
   const { register, setValue, control, formState: { isDirty } } = useForm({ defaultValues: { name: '', category_id: '' } })
   const [open, setOpen] = useState(false), [categoryDirty, setCategoryDirty] = useState(false), [notice, setNotice] = useState('')

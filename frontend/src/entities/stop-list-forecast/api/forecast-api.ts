@@ -16,7 +16,6 @@ export const forecastApi = baseApi.enhanceEndpoints({ addTagTypes: ['StopListFor
         if (!parsed.success) return { error: invalid }
         const data = parsed.data
         if (data.page !== values.page || data.page_size !== values.page_size || data.meta.lookback_days !== values.lookback_days || data.meta.horizon_hours !== values.horizon_hours || data.items.length > data.page_size || data.items.length > data.total || new Set(data.items.map((row) => row.dish_id.toLowerCase())).size !== data.items.length) return { error: invalid }
-        // Keep the server's estimated_stop_at ASC NULLS LAST order, including ties.
         return { data }
       },
     }),

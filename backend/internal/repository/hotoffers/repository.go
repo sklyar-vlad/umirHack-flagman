@@ -14,8 +14,6 @@ type Repository struct{}
 
 func NewRepository() *Repository { return &Repository{} }
 
-// Load reads all valid ingredient batches, including those beyond the warning
-// threshold: a one-portion plan may need both expiring and later batches.
 func (r *Repository) Load(
 	ctx context.Context,
 	q repository.DBTX,

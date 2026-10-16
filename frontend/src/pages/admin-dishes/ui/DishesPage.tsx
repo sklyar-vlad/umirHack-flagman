@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router'
 import { changeDishSearch, defaultDishSearch, dishSearchParams, readDishSearch, useAdminDishesQuery, type DishSearch } from '@/entities/dish'
 import { ApiAccessBoundary } from '@/features/access'
 import { Button, EmptyState, ErrorState, NoResults, Pagination, Skeleton } from '@/shared/ui'
-import { DishFilters } from './DishFilters'
+import { DishFilters } from '@/widgets/dish-filters'
 import { RecipeDialog } from './RecipeDialog'
 import styles from './AdminDishes.module.css'
 const reasons = { ingredient_shortage: 'Недостаточно годного остатка', only_expired_stock: 'Остались только просроченные партии', recipe_missing: 'Рецептура отсутствует', dish_inactive: 'Блюдо отключено' }

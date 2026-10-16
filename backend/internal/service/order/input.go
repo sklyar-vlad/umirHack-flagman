@@ -15,9 +15,6 @@ type basketItem struct {
 	inputIndex    int
 }
 
-// normalizeBasket preserves first-occurrence order and validates merged portions
-// before any repository reads. An omitted version accepts the explicit version
-// of another occurrence; conflicting explicit versions are invalid input.
 func normalizeBasket(request dto.OrderRequest) ([]basketItem, error) {
 	if err := validations.ValidateCount("items", len(request.Items)); err != nil {
 		return nil, err

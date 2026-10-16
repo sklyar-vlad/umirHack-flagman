@@ -37,8 +37,6 @@ type Service struct{ repo Repository }
 
 func NewService(repo Repository) *Service { return &Service{repo: repo} }
 
-// Outcome distinguishes completed domain refusals from technical errors. A
-// refusal can retain facts such as an order_attempt, or roll back domain writes.
 type Outcome struct {
 	Response model.IdempotencyResponse
 	Rollback bool
@@ -86,8 +84,7 @@ func (s *Service) Execute(
 		if err != nil {
 			return err
 		}
-		// A savepoint lets a completed refusal undo partial writes (including a
-		// PostgreSQL constraint error) while retaining the outer scope lock.
+
 		domainTx, err := tx.Begin(ctx)
 		if err != nil {
 			return fmt.Errorf("begin idempotent operation savepoint: %w", err)

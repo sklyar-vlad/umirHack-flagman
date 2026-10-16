@@ -238,7 +238,7 @@ func TestCreateDishHTTPRolesShapeAndCSRF(t *testing.T) {
 	}
 	in := dto.CreateDishRequest{Name: "Duplicate", Recipe: append(recipe(p, "1"), recipe(p, "2")...)}
 	data, _ := json.Marshal(in)
-	// Omit the optional nil is_active, since an explicit null is invalid.
+
 	var obj map[string]any
 	_ = json.Unmarshal(data, &obj)
 	delete(obj, "is_active")

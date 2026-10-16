@@ -22,7 +22,6 @@ func (r *Repository) LockProducts(ctx context.Context, q repository.DBTX, ids []
 	return lockRows(ctx, q, "products", ids)
 }
 
-// table is selected only by the two methods above, never from user input.
 func lockRows(ctx context.Context, q repository.DBTX, table string, ids []uuid.UUID) error {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
@@ -47,7 +46,7 @@ func (r *Repository) LockBatches(ctx context.Context, q repository.DBTX, ids []u
 	if err != nil {
 		return nil, err
 	}
-	// Include expired rows: expiry must be evaluated only after every lock wait.
+
 	rows, err := tx.Query(ctx, `SELECT b.id,b.product_id,b.supply_id,s.number,b.line_number,
 		b.remaining_quantity::text,b.expires_at,s.received_at FROM batches b JOIN supplies s ON s.id=b.supply_id
 		WHERE b.product_id=ANY($1::uuid[]) AND b.remaining_quantity>0

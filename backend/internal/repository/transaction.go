@@ -17,8 +17,6 @@ const rollbackTimeout = 5 * time.Second
 
 var ErrTransactionRequired = errors.New("an explicit transaction is required")
 
-// RequireTransaction rejects pools and nil transactions so row locks and writes
-// cannot accidentally escape the transaction owned by the service.
 func RequireTransaction(q DBTX) (pgx.Tx, error) {
 	tx, ok := q.(pgx.Tx)
 	if !ok || tx == nil {

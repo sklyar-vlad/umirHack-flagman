@@ -17,7 +17,6 @@ export function UsersPage() {
   const change = (patch: Partial<UserSearch>) => setParams(userSearchParams(changeUserSearch(values, patch)))
   const normalized = userSearchParams(values), returnTo = `/admin/users${normalized.size ? `?${normalized}` : ''}`
   const reset = () => setParams(userSearchParams(defaultUserSearch))
-  // Either resource may revoke access; never keep displaying cached personal records on a 403.
   const accessError = isApiError(roles.error) && roles.error.status === 403 ? roles.error : query.error
   return <div className={styles.page}>
     <h1>Пользователи и роли</h1>

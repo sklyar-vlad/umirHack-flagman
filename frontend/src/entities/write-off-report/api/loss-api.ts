@@ -14,7 +14,6 @@ export const lossApi = baseApi.enhanceEndpoints({ addTagTypes: ['WriteOffReport'
       const data = parsed.data
       if (data.page !== values.page || data.page_size !== values.page_size || data.items.length > data.page_size || data.items.length > data.total || new Set(data.items.map((row) => `${row.product_id}:${row.unit}`)).size !== data.items.length) return { error: invalid }
       if (data.items.some((row) => values.product_id && row.product_id !== values.product_id || values.reason === 'expiration' && lossQuantity(row.manual_written_off_quantity) !== 0n || values.reason === 'manual_writeoff' && lossQuantity(row.expired_written_off_quantity) !== 0n)) return { error: invalid }
-      // Preserve the server's name/product/unit ordering, including historical names.
       return { data }
     },
   }),

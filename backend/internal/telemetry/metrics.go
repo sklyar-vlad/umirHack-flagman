@@ -1,5 +1,3 @@
-// Package telemetry owns bounded technical metrics. Business identifiers, names,
-// credentials, request bodies and arbitrary errors must never become labels.
 package telemetry
 
 import (
@@ -184,8 +182,6 @@ func (m *Metrics) Worker(worker string, start time.Time, err error, canceled, re
 	}
 }
 
-// Handler is disabled unless a token is configured. Authentication occurs before
-// gathering, preventing unauthorized callers from executing collector queries.
 func (m *Metrics) Handler(token string) http.Handler {
 	handler := promhttp.HandlerFor(m.Registry, promhttp.HandlerOpts{Timeout: 4 * time.Second, MaxRequestsInFlight: 2})
 	expected := sha256.Sum256([]byte(token))
@@ -213,7 +209,6 @@ func (m *Metrics) Handler(token string) http.Handler {
 	})
 }
 
-// Snapshot is collected only at scrape time, independent of dispatch health.
 type (
 	Snapshot           func(context.Context) (pending, age, expiryAge float64, err error)
 	inventoryCollector struct {

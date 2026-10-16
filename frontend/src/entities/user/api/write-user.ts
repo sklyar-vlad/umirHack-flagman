@@ -5,7 +5,6 @@ import { userSchema, type User } from '../model/contracts'
 import { createUserSchema, updateUserSchema, resetUserPasswordSchema, type CreateUser, type UpdateUser, type ResetUserPassword } from '../model/user-work'
 import { userApi } from './user-api'
 export type UserWrite = { kind: 'create'; body: CreateUser } | { kind: 'update'; id: string; body: UpdateUser } | { kind: 'password'; id: string; body: ResetUserPassword }
-/** Closure thunk: credentials never enter an action, RTK Query argument or cache. */
 export function writeUser(input: UserWrite, signal: AbortSignal): ThunkAction<Promise<User>, unknown, ApiTransport, UnknownAction> {
   return async (dispatch, getState, extra) => {
     const schema = input.kind === 'create' ? createUserSchema : input.kind === 'update' ? updateUserSchema : resetUserPasswordSchema
@@ -14,7 +13,6 @@ export function writeUser(input: UserWrite, signal: AbortSignal): ThunkAction<Pr
     const result = await baseQuery({ url: input.kind === 'create' ? '/users' : `/users/${input.id}${input.kind === 'password' ? '/password' : ''}`, method: input.kind === 'update' ? 'PATCH' : 'POST', body: body.data },
       { signal, abort: () => {}, dispatch, getState, extra, endpoint: 'privateUserWrite', type: 'mutation' }, {})
     if (result.error) {
-      // Never retain server text/details: a rejected request may echo its password.
       const error = result.error
       const allowed = ['name', 'email', 'role', 'is_active', 'password']
       throw { status: error.status, code: ['CONFLICT', 'REVISION_CONFLICT', 'LAST_ADMIN_PROTECTED', 'LAST_ADMIN', 'VALIDATION_ERROR', 'FORBIDDEN', 'CSRF_INVALID', 'UNAUTHORIZED', 'NOT_FOUND'].includes(error.code) ? error.code : 'USER_WRITE_FAILED', message: 'Не удалось сохранить пользователя.', details: {

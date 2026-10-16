@@ -13,7 +13,6 @@ export interface SessionUser {
 }
 export interface SessionSettings { timezone: string; restaurantName: string; expiringThresholdHours: number; autoWriteoffExpired: boolean; revision: number }
 export interface SessionSnapshot { user: SessionUser; settings: SessionSettings; csrfToken: string; expiresAt: string }
-/** Only these non-secret fields may survive expiration; never store arbitrary form values. */
 export interface WorkDraft { title?: string; note?: string; reception?: ReceptionDraft; order?: OrderDraft; product?: ProductDraft; dish?: DishDraft; writeOff?: WriteOffDraft }
 export interface BasketLine { dishId: string; portions: number }
 export interface SessionState {
@@ -44,7 +43,6 @@ const slice = createSlice({
     saveWorkDraft: (state, { payload }: PayloadAction<{ key: string; draft: WorkDraft }>) => {
       if (state.status !== 'authenticated' || !state.user) return
       state.draftOwner = state.user.id
-      // Explicit allowlist also strips unexpected keys supplied by JS callers.
       const writeOff = writeOffDraftSchema.safeParse(payload.draft.writeOff)
       const reception = receptionDraftSchema.safeParse(payload.draft.reception)
       const order = orderDraftSchema.safeParse(payload.draft.order)

@@ -25,7 +25,6 @@ export function MockModeBanner() {
   function changeScenario(value: string) {
     setMockScenario(value)
     setScenario(getMockScenario())
-    // Обновляются только активные подписки, последний ответ не очищается.
     dispatch(baseApi.util.invalidateTags(['Healthcheck']))
     dispatch(auditApi.util.invalidateTags(['AuditLog']))
     dispatch(movementApi.util.invalidateTags(['StockMovements']))

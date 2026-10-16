@@ -13,8 +13,6 @@ import (
 
 const causeUnknown = "unknown"
 
-// BuildForecasts consumes one immutable snapshot. Product demand is warehouse
-// demand, not multiplied independently by the number of dishes being forecast.
 func BuildForecasts(
 	dishes []model.Dish,
 	batches []model.OrderBatch,

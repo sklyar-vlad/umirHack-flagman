@@ -14,7 +14,6 @@ export function DishEditor({ id, returnTo }: { id?: string; returnTo: string }) 
     void request.then((result) => {
       if (active) setInitial(result.error ? { error: isApiError(result.error) ? result.error : { status: 'NETWORK_ERROR', code: 'NETWORK_ERROR', message: 'Ошибка чтения', details: {} } } : { data: result.data })
     })
-    // The form receives a snapshot, never an invalidation subscription.
     request.unsubscribe()
     return () => { active = false }
   }, [id, attempt, read])

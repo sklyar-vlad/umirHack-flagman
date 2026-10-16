@@ -27,7 +27,6 @@ function wallTime(match: RegExpMatchArray): number {
   return date.getTime()
 }
 
-/** Requires RFC3339 with an explicit offset; Date itself has millisecond precision. */
 export function parseApiDateTime(raw: string): Date {
   const match = raw.match(apiPattern)
   if (!match || match[0] !== raw) return invalidDateTime()
@@ -42,7 +41,6 @@ export function parseApiDateTime(raw: string): Date {
 
 function formatter(timeZone: string): Intl.DateTimeFormat {
   try {
-    // Newer Intl implementations also accept fixed offsets, but settings require IANA names.
     if (/^[+-]/.test(timeZone)) throw new RangeError('Expected IANA timezone')
     return new Intl.DateTimeFormat('en-CA', {
       timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
@@ -58,7 +56,6 @@ function localValue(date: Date, format: Intl.DateTimeFormat): string {
   return `${parts.year.padStart(4, '0')}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`
 }
 
-/** Converts an API instant to datetime-local in the restaurant timezone, preserving fractional seconds. */
 export function restaurantDateTimeToInput(raw: string | null, timeZone = DEFAULT_RESTAURANT_TIMEZONE): string | null {
   if (raw === null) return null
   const date = parseApiDateTime(raw)
@@ -66,7 +63,6 @@ export function restaurantDateTimeToInput(raw: string | null, timeZone = DEFAULT
   return localValue(date, formatter(timeZone)) + (fraction ? `.${fraction}` : '')
 }
 
-/** Rejects DST gaps and overlaps instead of silently moving an entered wall time. */
 export function restaurantDateTimeFromInput(raw: string | null, timeZone = DEFAULT_RESTAURANT_TIMEZONE): string | null {
   if (raw === null || raw === '') return null
   const match = raw.match(localPattern)
@@ -75,7 +71,6 @@ export function restaurantDateTimeFromInput(raw: string | null, timeZone = DEFAU
   const format = formatter(timeZone)
   const expected = localValue(new Date(wall), formatter('UTC'))
   const offsets = new Set<number>()
-  // Sample both sides of nearby timezone transitions, including half-hour DST shifts.
   for (const hours of [-48, -24, -12, 0, 12, 24, 48]) {
     const sample = wall + hours * 3_600_000
     const local = localValue(new Date(sample), format).match(localPattern)!
@@ -89,7 +84,6 @@ export function restaurantDateTimeFromInput(raw: string | null, timeZone = DEFAU
   if (candidates.length > 1) {
     throw new RestaurantTimeError('ambiguous_time', 'Это время повторяется при смене часового пояса. Выберите однозначное время.')
   }
-  // Compose UTC separately so API nanoseconds survive a round trip through datetime-local.
   const fraction = match[7]
   return candidates[0].toISOString().slice(0, 19) + (fraction ? `.${fraction}` : '') + 'Z'
 }

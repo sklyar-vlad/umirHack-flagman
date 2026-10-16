@@ -28,8 +28,6 @@ func proxyPort(t *testing.T) int {
 	return port
 }
 
-// Opt in to standalone test containers using already present images; these
-// processes never connect to the application database or the Compose network.
 func TestCurlUnbufferedThroughNginxAndTraefik(t *testing.T) {
 	if os.Getenv("FLAGMAN_TEST_SSE_PROXIES") != "1" {
 		t.Skip("set FLAGMAN_TEST_SSE_PROXIES=1 with local nginx/frontend and Traefik images")
@@ -55,7 +53,7 @@ func TestCurlUnbufferedThroughNginxAndTraefik(t *testing.T) {
 	startProxy(t, dir, nginxImage, "nginx", "-c", "/test/nginx.conf", "-g", "daemon off;")
 	nginxURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 	waitProxy(t, nginxURL)
-	// Use the same streaming flags as Compose and proxy both direct and via nginx.
+
 	raw, err = os.ReadFile("../../../../infrastructure/compose.local.yaml")
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +75,6 @@ func TestCurlUnbufferedThroughNginxAndTraefik(t *testing.T) {
         servers:
           - url: "%s"
 `, nginxURL)
-	// Quoted rule uses plain path matching; no shell evaluation is involved.
 
 	if err := os.WriteFile(filepath.Join(dir, "dynamic.yaml"), []byte(dynamic), 0o600); err != nil {
 		t.Fatal(err)
@@ -122,7 +119,7 @@ func TestCurlUnbufferedThroughNginxAndTraefik(t *testing.T) {
 			if err != nil || line != ": connected\n" {
 				t.Fatal("buffered initial frame", line, err)
 			}
-			// The event arrives after Go's global 100 ms WriteTimeout has elapsed.
+
 			timer := time.NewTimer(200 * time.Millisecond)
 			defer timer.Stop()
 			<-timer.C

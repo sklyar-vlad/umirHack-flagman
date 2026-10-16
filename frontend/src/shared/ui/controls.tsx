@@ -35,7 +35,6 @@ type FieldControlProps = {
   'aria-invalid'?: true
 }
 
-/** Render props bind the label, hint and validation error to any native control. */
 export function FormField({ id, label, hint, error, required, children }: {
   id?: string
   label: ReactNode

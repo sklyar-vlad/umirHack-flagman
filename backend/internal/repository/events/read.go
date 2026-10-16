@@ -9,8 +9,6 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 )
 
-// State and page are read inside the caller's repeatable-read snapshot so
-// cleanup/publication cannot change the replay boundary between these reads.
 func (r *Repository) Read(ctx context.Context, q repository.DBTX, after int64) (model.EventPage, error) {
 	page := model.EventPage{Events: []model.PublishedEvent{}}
 	if err := q.QueryRow(ctx, `SELECT high_water,retention_floor FROM outbox_publication_state WHERE id=1`).

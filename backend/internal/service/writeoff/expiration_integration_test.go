@@ -39,7 +39,7 @@ func (f *fixture) enable(t *testing.T, enabled bool) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	// Keep fixture expectations focused on stock events.
+
 	f.exec(t, `DELETE FROM audit_log WHERE entity_type='settings'`)
 	f.exec(t, `DELETE FROM outbox_events WHERE event_type='settings.changed'`)
 }
@@ -211,7 +211,7 @@ func TestExpirationFreshBalanceExpiryAndSettingsAfterWait(t *testing.T) {
 
 func TestTimedExpirationWithinMinuteAndShutdown(t *testing.T) {
 	f := newFixture(t)
-	// Starts disabled. The next real 15-second pass must see the admin save.
+
 	f.exec(t, `UPDATE batches SET expires_at=clock_timestamp()+interval '500 milliseconds' WHERE id=$1`, f.batch)
 	base := repository.NewRepository(f.pool, zap.NewNop())
 	worker := expirationservice.NewWorker(settingsrepo.NewRepository(), base, f.expiry(), zap.NewNop())

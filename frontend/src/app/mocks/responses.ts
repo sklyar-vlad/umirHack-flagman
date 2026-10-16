@@ -26,7 +26,6 @@ export function createMockError(
   })
 }
 
-/** Ошибки здесь намеренно форсируются для проверки транспорта, не прав healthcheck. */
 export function createHealthcheckResponse(scenario: MockScenario): Response {
   switch (scenario) {
     case 'reception-too-large':

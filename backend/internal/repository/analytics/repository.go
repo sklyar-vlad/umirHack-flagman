@@ -15,8 +15,6 @@ type Repository struct{}
 
 func NewRepository() *Repository { return &Repository{} }
 
-// ProductFlow counts committed ledger entries, including historical products.
-// Grouping by snapshot unit prevents adding incompatible quantities after edits.
 func (r *Repository) ProductFlow(
 	ctx context.Context,
 	q repository.DBTX,
@@ -132,7 +130,7 @@ func (r *Repository) WriteOffs(
 		return nil, 0, err
 	}
 	where, args := conditions(f, true)
-	// Names are historical labels: a rename must not split a product/unit group.
+
 	cte := `WITH grouped AS (SELECT b.product_id,m.unit_snapshot::text AS unit,
  (array_agg(m.product_name_snapshot ORDER BY m.occurred_at DESC,m.id DESC))[1] AS product_name,
  COALESCE(sum(-m.delta_quantity) FILTER (WHERE m.type='expiration'),0.000)::text AS expired,

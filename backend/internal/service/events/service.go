@@ -53,7 +53,6 @@ func (s *Service) Dispatch(ctx context.Context) error {
 	})
 }
 
-// The lifecycle owner cancels and joins this worker before closing PostgreSQL.
 func (s *Service) Run(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -108,7 +107,6 @@ func (s *Service) Read(ctx context.Context, after int64) (model.EventPage, error
 	return page, nil
 }
 
-// Durable time invalidations continue even when no business write occurs.
 func (s *Service) TimeTick(ctx context.Context) error {
 	return s.transactions.WithinTx(ctx, &pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx repository.DBTX) error {
 		if err := s.repo.Lock(ctx, tx); err != nil {

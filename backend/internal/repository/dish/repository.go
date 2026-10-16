@@ -81,7 +81,7 @@ func (r *Repository) Products(
 			return nil, err
 		}
 	}
-	// A fresh statement after all lock waits sees current catalog facts.
+
 	rows, err := tx.Query(ctx, `SELECT p.id,p.name,p.unit::text,p.is_active,
 		COALESCE(SUM(b.remaining_quantity) FILTER (WHERE b.expires_at>$2),0.000)::text,
 		COALESCE(SUM(b.remaining_quantity) FILTER (WHERE b.expires_at<=$2),0.000)::text

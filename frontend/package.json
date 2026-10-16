@@ -11,7 +11,7 @@
     "typecheck": "tsc -b --noEmit && tsc -p tsconfig.acceptance.json",
     "test": "vitest run",
     "test:browser": "playwright test",
-    "test:acceptance": "playwright test reception new-order write-off product-editor dish-editor auth navigation live-updates ui-stability acceptance",
+    "test:acceptance": "playwright test reception new-order write-off product-editor dish-editor auth navigation live-updates ui-stability recipes acceptance",
     "test:production": "bash ../scripts/integration-checks.sh frontend"
   },
   "dependencies": {

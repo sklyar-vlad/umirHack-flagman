@@ -19,8 +19,6 @@ const (
 	management
 )
 
-// Each implemented business operation is listed explicitly. A future route
-// must declare its policy before it can be used, including by an administrator.
 var routePermissions = map[string]permission{
 	"GET /integration-tokens":             administration,
 	"POST /integration-tokens":            administration,
@@ -103,7 +101,7 @@ func (s *Service) AuthorizeRoute(ctx context.Context, token, method, path, origi
 	if !exists || !roleAllowed(session.Actor.Role, permission) {
 		return model.Session{}, apperrors.ErrForbidden
 	}
-	// The basket check is an explicitly read-only POST; it never changes state.
+
 	if method != http.MethodGet && method != http.MethodHead && path != "/orders/check" &&
 		!s.ValidMutation(&session, origin, csrf) {
 		return model.Session{}, apperrors.ErrForbidden

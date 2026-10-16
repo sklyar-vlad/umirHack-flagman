@@ -32,8 +32,6 @@ func (r *Repository) FindCredentials(ctx context.Context, email string) (model.C
 	return credentials, nil
 }
 
-// A single statement serializes with user security updates, rechecks the password
-// and active flag after lock waits, and commits last_login_at with the session.
 func (r *Repository) CreateSession(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -93,8 +91,7 @@ func authError(operation string, err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperrors.ErrUnauthorized
 	}
-	// PostgreSQL messages can contain values supplied by triggers or constraints.
-	// Log only the operation and SQLSTATE, never credential-bearing details.
+
 	var databaseError *pgconn.PgError
 	if errors.As(err, &databaseError) {
 		return fmt.Errorf("%s: database error (SQLSTATE %s)", operation, databaseError.Code)

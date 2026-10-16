@@ -10,7 +10,6 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
-// parseExpiryInput validates the shape and dates without consulting the clock or products.
 func parseExpiryInput(
 	path string,
 	item dto.CreateSupplyItem,
@@ -118,8 +117,6 @@ func resolveExpiry(
 
 		actualHours := *hours
 
-		// В UTC сутки равны 24 часам.
-		// Деление на дни предотвращает переполнение time.Duration.
 		expiresAt := result.ProducedAt.
 			AddDate(0, 0, actualHours/24).
 			Add(time.Duration(actualHours%24) * time.Hour)

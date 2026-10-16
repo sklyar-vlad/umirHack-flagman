@@ -44,7 +44,6 @@ export function normalizeApiError(
   const response = meta?.response
   const context = {
     request_id: response?.headers.get('X-Request-ID') ?? undefined,
-    // Сохраняется исходное значение: число секунд или HTTP-date.
     retry_after: response?.headers.get('Retry-After') ?? undefined,
   }
 
@@ -84,7 +83,6 @@ export function normalizeApiError(
     }
   }
 
-  // Не возвращаем HTML прокси, текст парсера или внутренние исключения в UI/cache.
   return {
     ...context,
     status: 'INVALID_RESPONSE',

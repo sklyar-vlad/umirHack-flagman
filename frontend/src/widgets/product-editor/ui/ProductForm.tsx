@@ -54,7 +54,6 @@ export function ProductForm({ product, returnTo, onReload }: { product?: Product
   const submit = async (input: ProductValues) => {
       if (locked || categoryOpen || submitting.current || choices.error || choices.isFetching || !choices.currentData?.some((category) => category.id === input.category_id) || product && !changed) return
       submitting.current = true; setUncertain(true)
-      // Persist before sending so reload/expiration cannot turn an unknown write into an automatic replay.
       dispatch(saveWorkDraft({ key, draft: { product: { resourceId, values: input, baseline, uncertain: true, review } } }))
       try {
         const result = product && baseline ? await update({ id: product.id, body: productPatch(input, baseline) }) : await create(productFields(input))

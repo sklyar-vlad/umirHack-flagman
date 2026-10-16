@@ -18,7 +18,6 @@ type Repository struct{ *orderrepository.Repository }
 
 func NewRepository() *Repository { return &Repository{orderrepository.NewRepository()} }
 
-// Keep current warehouse rights through all inventory lock waits.
 func (r *Repository) LockActor(ctx context.Context, q repository.DBTX, id uuid.UUID) (dto.ActorBrief, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
@@ -47,7 +46,7 @@ func (r *Repository) LockBatch(ctx context.Context, q repository.DBTX, id uuid.U
 		return model.WriteOffBatch{}, err
 	}
 	b := model.WriteOffBatch{ID: id}
-	// Read only the immutable product identity before following S10 lock ordering.
+
 	err = tx.QueryRow(ctx, `SELECT product_id FROM batches WHERE id=$1`, id).Scan(&b.ProductID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return b, apperrors.ErrNotFound

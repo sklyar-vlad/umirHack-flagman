@@ -33,8 +33,6 @@ func NewService(repo Repository, transactions Transactions, events EventWriter, 
 	return &Service{repo: repo, transactions: transactions, events: events, logger: logger}
 }
 
-// Independent transactions let a failed batch roll back without losing other
-// expirations. A locked batch has a bounded wait and is retried on the next pass.
 func (s *Service) Expire(ctx context.Context) error {
 	var ids []uuid.UUID
 	err := s.transactions.WithinTx(ctx, &pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx repository.DBTX) error {

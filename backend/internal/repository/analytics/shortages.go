@@ -24,8 +24,7 @@ func (r *Repository) IngredientShortages(
 		return nil, 0, err
 	}
 	where, args := conditions(f, false)
-	// Read persisted refusal facts, never current recipes, inventory or product units.
-	// Counting distinct attempts also keeps a product represented once per refusal.
+
 	cte := `WITH facts AS (
  SELECT a.id,a.created_at,s.product_id,s.product_name,s.unit,s.missing_quantity::numeric AS missing
  FROM order_attempts a CROSS JOIN LATERAL jsonb_to_recordset(a.shortages)

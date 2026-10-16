@@ -90,8 +90,6 @@ func (s *Service) CreateProduct(ctx context.Context, input *dto.CreateProductReq
 	return result, err
 }
 
-// The integration uses the same validation and audit as local product creation,
-// while committing its permanent external identity in the same transaction.
 func (s *Service) CreateProductWithinTransaction(
 	ctx context.Context,
 	tx repository.DBTX,

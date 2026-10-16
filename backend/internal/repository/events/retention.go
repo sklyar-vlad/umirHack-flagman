@@ -6,9 +6,6 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 )
 
-// Delete only an expired published prefix. Keeping newer cursors behind a
-// retained row prevents clock adjustments from making the replay floor skip it.
-// The caller holds the publication lock; floor and deletion commit together.
 func (r *Repository) Cleanup(ctx context.Context, q repository.DBTX) error {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {

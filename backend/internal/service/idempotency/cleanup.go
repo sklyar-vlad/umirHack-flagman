@@ -23,8 +23,6 @@ func (s *Service) CleanupExpired(ctx context.Context) (int64, error) {
 	return deleted, nil
 }
 
-// Cleanup is bounded and uses row locks, allowing independent application
-// instances to run it without waiting for each other's batches or writes.
 func (s *Service) RunCleanup(ctx context.Context, logger *zap.Logger) {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()

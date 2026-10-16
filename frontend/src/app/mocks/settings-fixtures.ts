@@ -3,7 +3,7 @@ import { settingsSchema, type RestaurantSettings, type UpdateSettings } from '@/
 const initial: RestaurantSettings = { restaurant_name: 'Тестовый ресторан', timezone: 'Europe/Moscow', expiring_threshold_hours: 24, auto_writeoff_expired: false, revision: 1 }
 const key = 'flagman.mock-settings.v1'
 export function mockSettings(): RestaurantSettings {
-  try { const saved = settingsSchema.safeParse(JSON.parse(sessionStorage.getItem(key) ?? 'null')); if (saved.success) return saved.data } catch { /* Explicit mock storage can be disabled. */ }
+  try { const saved = settingsSchema.safeParse(JSON.parse(sessionStorage.getItem(key) ?? 'null')); if (saved.success) return saved.data } catch {  }
   return { ...initial }
 }
 export function saveMockSettings(body: UpdateSettings): RestaurantSettings {

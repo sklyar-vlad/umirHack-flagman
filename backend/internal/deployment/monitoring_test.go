@@ -174,7 +174,7 @@ func TestPrometheusScrapesProtectedBackend(t *testing.T) {
 		return body.Status == "success" && len(body.Data.Result) == 1 && body.Data.Result[0].Value[1] == "1"
 	}
 	wait(t, query)
-	// A non-authenticated request never exposes metrics.
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	r, _ := http.NewRequestWithContext(ctx, http.MethodGet, api.URL, http.NoBody)

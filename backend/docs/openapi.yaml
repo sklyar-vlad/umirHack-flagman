@@ -20,7 +20,7 @@ info:
     После защиты добавлены /analytics/product-flow, управление публикацией /hot-offers/{id},
     /incoming-supplies, /integration-tokens и Bearer API /integration/* для внешнего поставщика.
     Все описанные операции реализованы. Воспроизводимая чистая демонстрация:
-    task seed; устройство проекта и сценарии — DEFENSE_GUIDE.md.
+    task seed; архитектура проекта и API — README.md в корне репозитория.
 
     Даты: RFC 3339 с timezone; ответы сервера — UTC.
     Количества: точные десятичные JSON-строки в базовых единицах g/ml/pcs,

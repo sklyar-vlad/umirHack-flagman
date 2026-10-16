@@ -16,7 +16,6 @@ function renderApp() {
 }
 
 if (import.meta.env.DEV && env.mockModeEnabled) {
-  // Первый запрос из React выполняется только после готовности перехвата.
   import('@/app/mocks/browser')
     .then(({ startMocking }) => startMocking())
     .then(renderApp)

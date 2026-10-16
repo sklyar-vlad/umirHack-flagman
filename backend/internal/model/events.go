@@ -196,7 +196,6 @@ type OutboxPayload struct {
 	UserIDs     []uuid.UUID  `json:"user_ids,omitempty"`
 }
 
-// Workflow snapshots deliberately exclude bearer tokens and token hashes.
 const (
 	AuditIntegrationToken AuditEntity = "integration_token"
 	AuditIncomingSupply   AuditEntity = "incoming_supply"

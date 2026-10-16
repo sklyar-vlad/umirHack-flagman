@@ -23,7 +23,6 @@ export interface ErrorDetails {
   [key: string]: unknown
 }
 
-/** JSON-ответ backend; ошибки транспорта могут не иметь такого тела. */
 export interface ErrorResponse {
   error: {
     code: string
@@ -33,7 +32,6 @@ export interface ErrorResponse {
   request_id: string
 }
 
-/** Единая безопасная ошибка, возвращаемая baseQuery в RTK Query. */
 export interface ApiError {
   status: number | 'NETWORK_ERROR' | 'TIMEOUT_ERROR' | 'INVALID_RESPONSE'
   code: string

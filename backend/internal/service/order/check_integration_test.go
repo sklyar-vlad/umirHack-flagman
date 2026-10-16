@@ -362,8 +362,7 @@ func (p snapshotProbe) Load(
 	if err != nil {
 		return nil, err
 	}
-	// Another connection commits a recipe and stock change while the check's
-	// read-only transaction remains open. Its snapshot must not change.
+
 	p.fixture.recipe(p.t, p.dish, 2, map[uuid.UUID]string{p.product: "2.000"})
 	p.fixture.exec(p.t, `UPDATE batches SET remaining_quantity='0.000' WHERE product_id=$1`, p.product)
 	after, err := repo.Load(ctx, q, filter, now)

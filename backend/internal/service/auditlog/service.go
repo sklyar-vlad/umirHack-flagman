@@ -89,8 +89,6 @@ func (s *Service) List(ctx context.Context, f *model.AuditLogFilter) ([]dto.Audi
 	return result, total, nil
 }
 
-// Decode through the same typed allowlist as the writer, including nested
-// recipes and batches. Extra legacy fields can never expose credentials.
 func safeSnapshot(entity model.AuditEntity, raw json.RawMessage) (json.RawMessage, error) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil, nil

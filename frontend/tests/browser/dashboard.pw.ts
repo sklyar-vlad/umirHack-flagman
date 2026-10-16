@@ -111,7 +111,6 @@ test('dashboard reflects reception and order through shared synthetic storage', 
 })
 test('dashboard time event refreshes expiry without mutation', async ({ page }) => {
   await page.clock.install(); await login(page); await expect(metric(page, 'Истекающие партии')).toHaveText('1')
-  // A time-only notification refreshes when a known cached batch crosses expiry.
   await page.evaluate(async () => {
     const path = '/src/app/mocks/inventory-fixtures.ts'
     const { inventoryBatches } = await import(path)

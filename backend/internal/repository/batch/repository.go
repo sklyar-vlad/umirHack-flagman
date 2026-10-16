@@ -70,7 +70,7 @@ func (r *Repository) List(
 		args = append(args, filter.SupplyID.String())
 		supplyCondition = " AND b.supply_id=$4"
 	}
-	// Depleted takes precedence over expiry, including exactly expires_at = now.
+
 	cte := `WITH selected AS (
 		SELECT b.*,p.unit::text AS unit,s.number AS supply_number,s.received_at,
 			CASE WHEN b.remaining_quantity=0 THEN 'depleted'

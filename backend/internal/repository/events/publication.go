@@ -14,8 +14,6 @@ type Repository struct{}
 
 func NewRepository() *Repository { return &Repository{} }
 
-// Lock serializes publishers across processes. Business writers never acquire
-// this advisory lock, and uncommitted business rows are invisible to Pending.
 func (r *Repository) Lock(ctx context.Context, q repository.DBTX) error {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {
@@ -46,8 +44,6 @@ func (r *Repository) Pending(ctx context.Context, q repository.DBTX) ([]uuid.UUI
 	return ids, rows.Err()
 }
 
-// Each assignment is invisible until the serialized publication transaction
-// commits. Sequence gaps from rollback are legal; cursor order never reverses.
 func (r *Repository) Publish(ctx context.Context, q repository.DBTX, ids []uuid.UUID) error {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {

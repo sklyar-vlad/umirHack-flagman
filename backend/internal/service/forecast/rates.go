@@ -19,8 +19,6 @@ type productUnit struct {
 	unit string
 }
 
-// rates are milli-units per nanosecond over the FULL lookback, including days
-// without orders. Absence is unknown demand rather than a known zero rate.
 func consumptionRates(totals []model.ConsumptionTotal, days int) (map[productUnit]*big.Rat, error) {
 	if days < 1 || days > 90 {
 		return nil, &validations.FieldError{Field: fieldLookbackDays, Message: "Допустимо от 1 до 90 дней"}

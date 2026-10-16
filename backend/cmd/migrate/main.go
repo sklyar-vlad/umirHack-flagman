@@ -31,7 +31,6 @@ func run() error {
 	}
 	defer pool.Close()
 	if err := database.Migrate(ctx, pool); err != nil {
-		// PostgreSQL errors may contain credentials; initialization logs no DSN.
 		return errors.New("database initialization failed; check schema compatibility")
 	}
 	return nil

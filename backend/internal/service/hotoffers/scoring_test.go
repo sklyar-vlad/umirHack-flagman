@@ -25,8 +25,8 @@ func TestScoresExactMaximumAndUrgency(t *testing.T) {
 		got[0].level != "low" {
 		t.Fatalf("exact sample: %+v, %v", got, err)
 	}
-	offer = scoreFixture(uuid.New(), now.Add(6*time.Hour), "3.000", "1.000")   // 25
-	later := scoreFixture(uuid.New(), now.Add(12*time.Hour), "5.000", "3.000") // 30
+	offer = scoreFixture(uuid.New(), now.Add(6*time.Hour), "3.000", "1.000")
+	later := scoreFixture(uuid.New(), now.Add(12*time.Hour), "5.000", "3.000")
 	offer.problems = append(offer.problems, later.problems...)
 	got, err = scoreOffers([]simulatedOffer{offer}, now, 24)
 	if err != nil || got[0].score.Cmp(big.NewRat(30, 1)) != 0 || got[0].level != "high" ||
@@ -77,7 +77,7 @@ func TestScoresSortWithoutDisplayRounding(t *testing.T) {
 	if err != nil || got[0].dish.ID != id2 || got[0].score.FloatString(4) != got[1].score.FloatString(4) {
 		t.Fatalf("rounded sort: %+v, %v", got, err)
 	}
-	// Exact equal scores: the earlier expiry wins, then the lower dish ID.
+
 	a := scoreFixture(id2, now.Add(12*time.Hour), "2.000", "1.000")
 	b := scoreFixture(id1, now.Add(18*time.Hour), "1.000", "1.000")
 	c := scoreFixture(id1, now.Add(12*time.Hour), "2.000", "1.000")

@@ -116,8 +116,6 @@ func ingredientProducts(dishes []model.Dish) []uuid.UUID {
 	return products
 }
 
-// BuildOffers independently simulates each dish and returns the full ranked list
-// from the caller's snapshot and timestamp, without reads or stock mutation.
 func BuildOffers(dishes []model.Dish, batches []model.OrderBatch, now time.Time, hours int) ([]dto.HotOffer, error) {
 	offers, err := simulate(dishes, batches, now, hours)
 	if err != nil {
@@ -134,7 +132,6 @@ func BuildOffers(dishes []model.Dish, batches []model.OrderBatch, now time.Time,
 	return items, nil
 }
 
-// ApplyPreferences is shared by the list and dashboard to enforce publication everywhere.
 func ApplyPreferences(
 	items []dto.HotOffer,
 	dishes []model.Dish,

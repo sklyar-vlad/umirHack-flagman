@@ -4,7 +4,6 @@ import { UnsavedChangesGuard } from '@/features/unsaved-changes'
 import { useHealthcheckQuery } from '@/shared/api'
 import { Button, ErrorState, FormField, Input, Skeleton } from '@/shared/ui'
 
-/** Development probe: exercises server 403 and real router blocking without inventing a business form. */
 export function AccessCheckPage() {
   const { error, isLoading, refetch } = useHealthcheckQuery()
   const [note, setNote] = useState('')

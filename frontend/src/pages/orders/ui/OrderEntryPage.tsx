@@ -4,7 +4,6 @@ import { safeOrderListUrl } from '@/entities/order'
 import { ErrorState } from '@/shared/ui'
 import styles from './OrdersPage.module.css'
 
-/** F09 destinations; detail and creation business behavior belongs to subsequent stories. */
 export function OrderEntryPage() {
   const { id } = useParams(), [params] = useSearchParams()
   const invalid = id !== undefined && !z.uuid().safeParse(id).success

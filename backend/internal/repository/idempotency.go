@@ -17,8 +17,7 @@ func (r *repository) TryIdempotencyLock(ctx context.Context, q DBTX, scope *mode
 	if err != nil {
 		return false, err
 	}
-	// The lock belongs to the transaction, including requests without a stored
-	// result. All application instances derive the same key; no local mutex.
+
 	identity := "flagman:idempotency:v1\x00" + scope.UserID.String() + "\x00" + scope.Endpoint() + "\x00" + scope.Key.String()
 	hash := sha256.Sum256([]byte(identity))
 	lockID := int64(binary.BigEndian.Uint64(hash[:8]))
@@ -71,8 +70,7 @@ func (r *repository) SaveIdempotencyResult(
 	if err != nil {
 		return model.IdempotencyResponse{}, err
 	}
-	// Only Location is persisted: authorization, cookies and per-request
-	// headers must never be replayed from an idempotency record.
+
 	headers := map[string]string{}
 	if response.Location != "" {
 		headers["Location"] = response.Location
@@ -105,8 +103,7 @@ func (r *repository) SaveIdempotencyResult(
 	if err != nil {
 		return model.IdempotencyResponse{}, fmt.Errorf("save idempotency result: %w", err)
 	}
-	// Return PostgreSQL's JSONB representation on the first request as well,
-	// so a retry receives exactly the same bytes, not just equivalent JSON.
+
 	if err := restoreResponseHeaders(&saved, savedHeaders); err != nil {
 		return model.IdempotencyResponse{}, err
 	}
@@ -125,8 +122,6 @@ func restoreResponseHeaders(response *model.IdempotencyResponse, raw []byte) err
 	return nil
 }
 
-// DeleteExpiredIdempotencyResults removes only the response cache. Domain
-// history (including order_attempts), audit and outbox have independent lifetimes.
 func (r *repository) DeleteExpiredIdempotencyResults(ctx context.Context, q DBTX, limit int) (int64, error) {
 	if limit < 1 || limit > 1000 {
 		return 0, fmt.Errorf("idempotency cleanup limit must be between 1 and 1000")

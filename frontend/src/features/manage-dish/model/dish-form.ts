@@ -40,7 +40,6 @@ export function dishPatch(values: DishValues, baseline: NonNullable<DishDraft['b
   if (!sameRecipe(fields.recipe, baseline.fields.recipe)) result.recipe = fields.recipe
   return result
 }
-/** Maps only published field paths; unknown server details remain in the general error. */
 export function dishFieldPath(raw: string): 'name' | 'description' | 'is_active' | `recipe.${number}.product_id` | `recipe.${number}.quantity_per_portion` | undefined {
   const path = raw.replace(/^\/?body[./]/, '').replace(/^\//, '').replace(/\[(\d+)\]/g, '.$1').replaceAll('/', '.')
   return /^(name|description|is_active|recipe\.\d+\.(product_id|quantity_per_portion))$/.test(path) ? path as ReturnType<typeof dishFieldPath> : undefined

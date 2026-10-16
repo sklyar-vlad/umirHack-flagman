@@ -40,8 +40,6 @@ func (r *Repository) Candidates(ctx context.Context, q repository.DBTX) ([]uuid.
 	return ids, rows.Err()
 }
 
-// Lock in the same order as orders and manual write-offs. Recheck settings only
-// after stock waits, holding the share lock until this movement is committed.
 func (r *Repository) LockExpired(ctx context.Context, q repository.DBTX, id uuid.UUID) (*dto.StockMovement, error) {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {

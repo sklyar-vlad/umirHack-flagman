@@ -13,7 +13,6 @@ umask 077
 test_dir=$(mktemp -d "${TMPDIR:-/tmp}/flagman-tests.XXXXXXXX")
 project="flagman-test-$(python3 -c 'import secrets; print(secrets.token_hex(6))')"
 password=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
-# The same standalone local configuration is exercised with private test values.
 unset POSTGRES_URL POSTGRES_DB POSTGRES_USER POSTGRES_PASS POSTGRES_VOLUME
 unset HTTP_BIND HTTP_PORT POSTGRES_PORT GRAFANA_PORT PROMETHEUS_PORT TRAEFIK_PORT FRONTEND_ORIGIN
 unset FLAGMAN_DOMAIN METRICS_TOKEN GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD GRAFANA_PG_PASSWORD ENV

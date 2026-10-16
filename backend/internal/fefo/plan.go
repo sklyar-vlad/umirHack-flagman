@@ -1,5 +1,3 @@
-// Package fefo plans exact stock allocation without database writes. Orders and
-// recommendation simulations can use the same expiry and tie-breaking rules.
 package fefo
 
 import (
@@ -28,9 +26,6 @@ type Allocation struct {
 	Quantity, RemainingQuantityAfter string
 }
 
-// Plan preserves demand order and uses expiry, receipt time, then batch ID. A batch
-// shared by multiple items has one running balance. Insufficient stock returns
-// no partial plan. Neither input slice is mutated; now is fixed by the caller.
 func Plan(demands []Demand, batches []model.OrderBatch, now time.Time) ([]Allocation, error) {
 	ordered := slices.Clone(batches)
 	sort.Slice(ordered, func(i, j int) bool { return CompareBatches(&ordered[i], &ordered[j]) < 0 })
@@ -97,8 +92,6 @@ func Plan(demands []Demand, batches []model.OrderBatch, now time.Time) ([]Alloca
 	return plan, nil
 }
 
-// CompareBatches is the shared allocation order for orders and read-only
-// simulations: expiry, supply receipt time, then batch identity.
 func CompareBatches(a, b *model.OrderBatch) int {
 	if order := a.ExpiresAt.Compare(b.ExpiresAt); order != 0 {
 		return order

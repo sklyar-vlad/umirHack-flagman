@@ -11,7 +11,6 @@ import (
 //go:embed seeds/001_catalog.sql seeds/002_inventory.sql
 var demoSeeds embed.FS
 
-// SeedDemo adds missing fixtures; the SQL preserves existing balances and dates.
 func SeedDemo(ctx context.Context, pool *pgxpool.Pool) error {
 	for _, name := range []string{"seeds/001_catalog.sql", "seeds/002_inventory.sql"} {
 		data, err := demoSeeds.ReadFile(name)

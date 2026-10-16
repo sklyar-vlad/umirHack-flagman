@@ -97,8 +97,6 @@ func TestMonitoringViewsCurrentStockRecipesAndHistoricalUnits(t *testing.T) {
 	}
 }
 
-// The opt-in test executes the actual operator provisioning script through psql,
-// on an isolated schema in the inherited dedicated local test database.
 func TestMonitoringRoleProvisioningAndForbiddenWrites(t *testing.T) {
 	if os.Getenv("FLAGMAN_TEST_MONITORING") != "1" {
 		t.Skip("set FLAGMAN_TEST_MONITORING=1 for psql container checks")
@@ -163,7 +161,7 @@ func TestMonitoringRoleProvisioningAndForbiddenWrites(t *testing.T) {
 		"PGOPTIONS=-c search_path="+schema,
 		"FLAGMAN_GRAFANA_PASSWORD="+password,
 	)
-	// Register before invoking; failed setup can leave a role if psql disconnects.
+
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -341,8 +339,6 @@ func verifyGrafana(t *testing.T, f *fixture, role, password, schema string) {
 		}
 		resp, err := client.Do(r)
 		if err != nil {
-			// Provisioning can still hold Grafana's database after health is ready.
-			// Let the bounded dashboard readiness loop retry transport timeouts.
 			if method == http.MethodGet && path == "/api/dashboards/uid/flagman" {
 				return 0, nil
 			}

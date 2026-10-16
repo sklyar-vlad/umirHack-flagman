@@ -4,7 +4,6 @@ import { Dialog } from '@/shared/ui'
 import { CategoryForm, type CategoryFormHandle } from './CategoryForm'
 import { CategoryEditor } from './CategoryEditor'
 
-// Mount only while open, so every editor starts with its own fresh revision.
 export function CategoryDialog({ id, onSaved, onClose, onDirty, returnFocusRef, actions }: {
   id?: string
   actions?: ReactNode

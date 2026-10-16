@@ -62,8 +62,6 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, input dto.UpdateDish
 				return err
 			}
 		} else if next.IsActive {
-			// Activation must not bypass S17's guard by reusing an inactive
-			// ingredient from a previously disabled dish.
 			if len(before.Recipe) == 0 {
 				return field("recipe")
 			}

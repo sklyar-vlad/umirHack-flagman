@@ -49,7 +49,7 @@ func TestSupplyPreflightBeforeDatabaseAccess(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			// Nil dependencies ensure an early rejection never attempts a transaction or cache lookup.
+
 			s := NewService(nil, nil, nil)
 			response, err := s.CreateIdempotent(context.Background(), uuid.New(), uuid.New(), body,
 				func(context.Context, repository.DBTX, *model.CreatedSupply) (json.RawMessage, error) {

@@ -13,8 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Migrate applies embedded SQL once per version before the API starts. The
-// ledger is compatible with databases previously initialized by Goose.
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	tx, err := pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
@@ -25,7 +23,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		defer cancel()
 		_ = tx.Rollback(cleanup)
 	}()
-	// Concurrent startup containers read the ledger only after taking this lock.
+
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(40402)`); err != nil {
 		return err
 	}

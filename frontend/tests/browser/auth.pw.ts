@@ -91,12 +91,10 @@ test('expired cookie sends a restored session to login once and permits login ag
   await fillLogin(page)
   await page.getByRole('button', { name: 'Войти', exact: true }).click()
   await expect(page).toHaveURL('/')
-  // Finish login and the SSE-open confirmation before removing this session.
   await expect.poll(() => confirmed.length).toBe(2)
   await context.clearCookies()
   const me: string[] = []
   let restoredDocument = false
-  // Exclude the departing document's independent SSE confirmation.
   page.on('framenavigated', (frame) => { if (frame === page.mainFrame()) restoredDocument = true })
   page.on('request', (request) => { if (restoredDocument && new URL(request.url()).pathname === '/api/v1/auth/me') me.push(request.url()) })
   await page.reload()

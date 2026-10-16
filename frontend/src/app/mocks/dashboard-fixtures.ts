@@ -12,15 +12,12 @@ import { stopListDishes } from './stop-list-fixtures'
 import { getMockScenario } from './scenarios'
 import { mockSettings } from './settings-fixtures'
 
-/** Synthetic snapshot only; production never computes dashboard counters in the browser. */
 export function dashboardSnapshot(role: Role = 'manager'): Dashboard {
   const scenario = getMockScenario(), now = Date.now(), server_time = new Date(now).toISOString()
   const { restaurant_name, timezone, expiring_threshold_hours } = mockSettings()
   const settings = { restaurant_name, timezone, expiring_threshold_hours }
   if (scenario === 'dashboard-empty') return { expiring_batches_count: 0, expired_batches_count: 0, stop_list_dishes_count: 0, out_of_stock_products_count: 0, attention_batches: [], attention_total: 0, hot_offers: [], procurement_recommendations: [], settings, meta: { server_time } }
   const consumed = consumedCompositionAmounts()
-  // Base fixtures use a deliberately fixed snapshot. Move their relative deadlines
-  // to this single synthetic server_time without mixing browser-derived UI counts.
   const base = inventoryBatches.map((batch) => ({ ...batch, expires_at: new Date(now + (scenario === 'dashboard-expired' && batch.id === mockId(202) ? -1 : batch.remaining_seconds) * 1000).toISOString() }))
   const receipts = receivedSupplies().flatMap((supply) => supply.items.map((line) => line.batch))
   const batches = [...base, ...receipts].map(applyBatchWriteOff).map((batch) => ({ ...batch, remaining_quantity: serializeQuantity(parseQuantity(batch.remaining_quantity)! - parseQuantity(String(consumed[batch.id] ?? 0))!)! }))

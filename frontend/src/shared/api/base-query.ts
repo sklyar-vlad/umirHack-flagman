@@ -25,7 +25,6 @@ const fetchQuery = fetchBaseQuery({
   },
 })
 
-// Один вызов fetch на попытку: мутации автоматически не повторяются.
 export const baseQuery: BaseQueryFn<string | FetchArgs, unknown, ApiError, object, FetchBaseQueryMeta> = async (
   args,
   api,

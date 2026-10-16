@@ -40,8 +40,6 @@ type Service struct {
 	frontendOrigin string
 }
 
-// Authenticate does not return the raw token in an API response. The handler
-// places it only in a host-only session cookie.
 func (s *Service) Authenticate(ctx context.Context, email, password string) (model.Session, string, error) {
 	credentials, err := s.repo.FindCredentials(ctx, strings.ToLower(strings.TrimSpace(email)))
 	if err != nil && !errors.Is(err, apperrors.ErrUnauthorized) {
@@ -49,7 +47,6 @@ func (s *Service) Authenticate(ctx context.Context, email, password string) (mod
 	}
 	encoded := credentials.PasswordHash
 	if errors.Is(err, apperrors.ErrUnauthorized) {
-		// Same Argon2id work for an unknown email; this is not a login credential.
 		encoded = "$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 	}
 	valid := Verify(password, encoded)
@@ -163,8 +160,6 @@ func (s *Service) activeSession(ctx context.Context, token string) (model.Sessio
 	return s.repo.FindActiveSession(ctx, SessionTokenHash(token))
 }
 
-// The configured public frontend scheme also covers HTTPS terminated by a proxy.
-// Arbitrary forwarding headers cannot change the cookie security policy.
 func (s *Service) SecureCookies() bool { return strings.HasPrefix(s.frontendOrigin, "https://") }
 
 func (s *Service) AllowedOrigin(origin string) bool { return origin == s.frontendOrigin }

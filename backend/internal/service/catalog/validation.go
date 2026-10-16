@@ -57,7 +57,6 @@ func mutationError(err error) error {
 	return databaseError(err)
 }
 
-// Database messages can contain submitted values or trigger details.
 func databaseError(err error) error {
 	var pg *pgconn.PgError
 	if errors.As(err, &pg) {

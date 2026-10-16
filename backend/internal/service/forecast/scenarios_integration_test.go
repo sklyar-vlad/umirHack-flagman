@@ -14,7 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Snapshot all inventory and write-side facts, not just one batch balance.
 func (f *fixture) state(t *testing.T) string {
 	t.Helper()
 	var s string
@@ -183,13 +182,13 @@ func TestForecastLimitingProductTieAndPartialHistory(t *testing.T) {
 	if i.Confidence != "insufficient_data" || i.Cause != "estimated_demand" || *i.LimitingProductID != f.product {
 		t.Fatal(i)
 	}
-	// Equal expiry stops are stable regardless of recipe/product name order.
+
 	f.exec(t, `UPDATE batches SET expires_at=$1`, f.now.Add(time.Hour))
 	i = f.forecast(t)
 	if i.Cause != "expiry" || *i.LimitingProductID != other {
 		t.Fatal(i)
 	}
-	// One snapshot timestamp across a non-UTC input clock.
+
 	s := f.service()
 	s.now = func() time.Time { return f.now.In(time.FixedZone("MSK", 3*3600)) }
 	got, err := s.List(f.actor(), filter())

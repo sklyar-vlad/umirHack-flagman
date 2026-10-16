@@ -57,7 +57,7 @@ func TestForecastConfidenceAssumptionsAndContractCodes(t *testing.T) {
 		!slices.Contains(i.Assumptions, "unknown_demand_no_expiry_stop_within_horizon") {
 		t.Fatal(i)
 	}
-	// Wrong historical units cannot turn unknown demand into a precise prediction.
+
 	f.consumption(t, "700", "ml", f.now.Add(-time.Hour))
 	if got := f.forecast(t); got.Confidence != "insufficient_data" || got.EstimatedStopAt != nil {
 		t.Fatal(got)
@@ -81,7 +81,7 @@ func TestForecastConfidenceAssumptionsAndContractCodes(t *testing.T) {
 	if i.Cause != "already_unavailable" || !i.EstimatedStopAt.Equal(f.now) {
 		t.Fatal(i)
 	}
-	// The service protects direct callers before starting transactions.
+
 	if _, err := f.service().List(context.Background(), filter()); err == nil {
 		t.Fatal("missing actor accepted")
 	}
@@ -200,7 +200,7 @@ func TestForecastSortBeforePaginationWithStableTiesAndNullLast(t *testing.T) {
 			t.Fatal(p, r, err)
 		}
 	}
-	// Null estimates come after dated estimates regardless of their ID.
+
 	dishes := []model.Dish{
 		{
 			ID:       uuid.MustParse("00000000-0000-4000-8000-000000000001"),

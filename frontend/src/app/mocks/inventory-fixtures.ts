@@ -1,6 +1,5 @@
 import type { Batch, Category, InventoryItem } from '@/entities/inventory'
 
-// Synthetic fixtures only. A fixed server snapshot deliberately differs from the browser clock.
 export const inventoryServerTime = '2026-10-11T12:00:00Z'
 export const mockId = (number: number) => `00000000-0000-4000-8000-${String(number).padStart(12, '0')}`
 export const inventoryCategories: Category[] = [

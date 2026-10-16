@@ -196,8 +196,6 @@ func write(controller *http.ResponseController, w http.ResponseWriter, data stri
 	return controller.Flush()
 }
 
-// Zero is a valid start cursor. Gaps caused by sequence rollback are valid too.
-// Reject signs, whitespace, duplicate headers, overflow and non-decimal forms.
 func cursor(headers http.Header) (int64, bool, error) {
 	values := headers.Values("Last-Event-ID")
 	if len(values) == 0 {

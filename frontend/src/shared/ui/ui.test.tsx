@@ -8,7 +8,6 @@ import { paginationItems } from './pagination'
 
 afterEach(cleanup)
 beforeAll(() => {
-  // jsdom has no native top layer; real focus trapping is tested in Chromium.
   HTMLDialogElement.prototype.showModal = function () { this.open = true }
   HTMLDialogElement.prototype.close = function () { this.open = false }
 })

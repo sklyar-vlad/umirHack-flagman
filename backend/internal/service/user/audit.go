@@ -7,8 +7,6 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 )
 
-// The shared helper accepts only this typed allowlist; neither credentials nor
-// session secrets can be included in an administration audit snapshot.
 func userSnapshot(u *model.User) *model.UserAuditSnapshot {
 	return &model.UserAuditSnapshot{
 		Name:     u.Name,

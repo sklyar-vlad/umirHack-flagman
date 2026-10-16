@@ -1,6 +1,5 @@
 import type { OrderDetail } from '@/entities/order'
 
-/** Published OpenAPI OrderDetail example; synthetic data, never a real server result. */
 export const orderDetailFixture: OrderDetail = {
   id: '77777777-7777-4777-8777-777777777777', number: '247', status: 'completed', created_at: '2026-10-09T09:00:00Z',
   created_by: { id: '88888888-8888-4888-8888-888888888888', name: 'Оператор' },

@@ -11,12 +11,12 @@ interface SavedReception { key: string; body: string; supply: SupplyDetail }
 let saved: SavedReception[] = []
 const storageKey = 'flagman.mock.received.v1'
 function read(): SavedReception[] {
-  try { saved = JSON.parse(sessionStorage.getItem(storageKey) ?? '[]') as SavedReception[] } catch { /* Node tests use memory. */ }
+  try { saved = JSON.parse(sessionStorage.getItem(storageKey) ?? '[]') as SavedReception[] } catch {  }
   return saved
 }
 export function receivedSupplies() { return read().map((item) => item.supply) }
 export function savedReception(key: string) { return read().find((item) => item.key === key) }
-export function resetReceptionFixtures() { saved = []; try { sessionStorage.removeItem(storageKey) } catch { /* Node tests. */ } }
+export function resetReceptionFixtures() { saved = []; try { sessionStorage.removeItem(storageKey) } catch {  } }
 export function acceptReception(key: string, body: CreateSupplyRequest): SupplyDetail {
   const now = new Date().toISOString(), id = crypto.randomUUID()
   const supply: SupplyDetail = {
@@ -30,6 +30,6 @@ export function acceptReception(key: string, body: CreateSupplyRequest): SupplyD
     }),
   }
   saved.push({ key, body: JSON.stringify(body), supply })
-  try { sessionStorage.setItem(storageKey, JSON.stringify(saved)) } catch { /* Node tests. */ }
+  try { sessionStorage.setItem(storageKey, JSON.stringify(saved)) } catch {  }
   return supply
 }

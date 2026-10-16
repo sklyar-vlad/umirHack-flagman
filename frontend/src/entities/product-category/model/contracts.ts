@@ -1,5 +1,4 @@
 import { z } from 'zod'
-// The server counts Unicode characters after trim, rather than UTF-16 code units.
 export const categoryNameSchema = z.string().trim().refine((value) => [...value].length >= 1 && [...value].length <= 200, 'Введите название от 1 до 200 символов.')
 export const categorySchema = z.object({ id: z.uuid(), name: z.string().min(1), revision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER) })
 export const categoryListSchema = z.object({ items: z.array(categorySchema), total: z.number().int().nonnegative(), page: z.number().int().positive(), page_size: z.number().int().min(1).max(100), meta: z.object({}).passthrough() })

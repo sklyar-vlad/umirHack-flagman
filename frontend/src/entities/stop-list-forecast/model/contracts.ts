@@ -6,7 +6,6 @@ export const forecastRowSchema = z.object({
   dish_id: z.uuid(), dish_name: z.string(), estimated_stop_at: instant.nullable(),
   cause: z.enum(['already_unavailable', 'expiry', 'estimated_demand', 'unknown']),
   limiting_product_id: z.uuid().nullable(), confidence: z.enum(['low', 'insufficient_data']),
-  // Published strings are extensible; unknown assumptions remain visible as text.
   assumptions: z.array(z.string()),
 }).strict()
 const integer = z.number().int().safe()

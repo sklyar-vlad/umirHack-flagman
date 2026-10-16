@@ -49,8 +49,7 @@ func (r *Repository) Consume(ctx context.Context, q repository.DBTX, movement *m
 	if err != nil {
 		return err
 	}
-	// Verify the planner's running balance against the locked row. Both the
-	// guarded update and movement insert are inside the outer transaction.
+
 	tag, err := tx.Exec(ctx, `UPDATE batches SET remaining_quantity=remaining_quantity-$2::numeric
 		WHERE id=$1 AND remaining_quantity>=$2::numeric
 		AND remaining_quantity-$2::numeric=$3::numeric AND expires_at>$4`,

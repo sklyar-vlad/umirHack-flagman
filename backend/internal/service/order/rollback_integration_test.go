@@ -21,8 +21,7 @@ func TestOrderCreateIntegrationRollsBackEveryWriteFailure(t *testing.T) {
 			before := f.snapshot(t)
 			key := uuid.New()
 			body := orderBody(t, dto.OrderRequestItem{DishID: dish.String(), Portions: 1})
-			// Only this fixture's isolated schema is modified. NOT VALID permits
-			// fixture rows but rejects the next write, even after earlier writes.
+
 			f.exec(t, "ALTER TABLE "+table+" ADD CONSTRAINT test_reject_write CHECK(false) NOT VALID")
 			response := f.createRequest(body, key)
 			if response.Code != http.StatusInternalServerError {

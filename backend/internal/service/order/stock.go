@@ -39,7 +39,7 @@ func lockBasket(
 	if err := repo.LockDishes(ctx, tx, ids); err != nil {
 		return lockedStock{}, err
 	}
-	// Dish locks stabilize the latest recipe while discovering product locks.
+
 	dishes, err := repo.Load(ctx, tx, &model.DishFilter{IDs: ids}, time.Time{})
 	if err != nil {
 		return lockedStock{}, err

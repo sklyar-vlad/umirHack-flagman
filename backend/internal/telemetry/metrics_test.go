@@ -89,7 +89,7 @@ func TestAuthenticationPrecedesSnapshotAndFailureDoesNotReportZeroLag(t *testing
 		}
 		return 0, 0, 0, errors.New("secret")
 	})
-	// Registration invokes Describe, never a DB query.
+
 	for _, token := range []string{"", "Bearer wrong", "bearer test-secret"} {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, "/metrics", http.NoBody)

@@ -5,7 +5,6 @@ const invalid: ApiError = { status: 'INVALID_RESPONSE', code: 'INVALID_RESPONSE'
 export const settingsApi = baseApi.enhanceEndpoints({ addTagTypes: ['Settings', 'Inventory', 'Batches', 'Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard'] }).injectEndpoints({
   endpoints: (build) => ({
     restaurantSettings: build.query<RestaurantSettings, void>({
-      // Detached editor revision: background refresh must not replace a dirty form.
       queryFn: async (_arg, _api, _options, query) => {
         const result = await query({ url: '/settings', cache: 'no-store' })
         if (result.error) return { error: result.error }

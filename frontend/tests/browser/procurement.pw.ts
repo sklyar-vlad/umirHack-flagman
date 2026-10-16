@@ -97,7 +97,6 @@ test('reception reduces procurement and a confirmed order increases it', async (
 test('time event updates expiration without a mutation', async ({ page }) => {
   await page.clock.install(); await login(page, '/inventory?search=Молоко')
   await expect(page.getByRole('article', { name: 'Молоко' })).toBeVisible()
-  // The warehouse snapshot supplies the known expiry boundary for this time event.
   await page.evaluate(async () => {
     const path = '/src/app/mocks/inventory-fixtures.ts'
     const { inventoryItems } = await import(path)

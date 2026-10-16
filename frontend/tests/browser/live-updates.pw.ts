@@ -117,7 +117,6 @@ test('F30 online recovery refreshes the active snapshot without duplicate subscr
   const counters = await observed(page); expect(counters.sources - counters.closed).toBe(1)
 })
 test('F30 native reconnect sends Last-Event-ID and refreshes on the same controller', async ({ page }) => {
-  // Isolate native transport from the service worker; other tests exercise MSW + REST.
   const headers: string[] = [], urls: string[] = []
   const server = createServer((request, response) => {
     if (request.url === '/native-sse.html') { response.writeHead(200, { 'Content-Type': 'text/html' }); response.end('<!doctype html><title>Local SSE transport fixture</title>'); return }

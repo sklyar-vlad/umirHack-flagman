@@ -85,8 +85,6 @@ async function loseSuccessfulResponse(page: Page, path: string) {
 }
 
 test.beforeEach(async ({ request, page }) => {
-  // The real server allows 10 requests/sec with a burst of 20. Refill its global
-  // bucket between independent UI scenarios rather than disabling rate limits.
   await new Promise((resolve) => setTimeout(resolve, 2_000))
   const statuses: string[] = []
   observations.set(page, statuses)
@@ -136,7 +134,6 @@ test('real nginx: reception → two Margaritas → FEFO → write-off → atomic
       if (index) await page.getByRole('button', { name: 'Добавить строку' }).click()
       await page.getByLabel(`Продукт, строка ${index + 1}`, { exact: false }).selectOption(row.product.id)
       await page.getByLabel(`Количество, строка ${index + 1}`, { exact: false }).fill(row.quantity)
-      // Restaurant local time far enough in the future; production server owns expiry.
       const date = new Date(Date.now() + row.days * 86_400_000 + 3 * 3_600_000).toISOString().slice(0, 16)
       await page.getByLabel(`Годен до, строка ${index + 1}`, { exact: false }).fill(date)
     }
@@ -150,7 +147,6 @@ test('real nginx: reception → two Margaritas → FEFO → write-off → atomic
     const reads = new Client(page.request)
     expect((await reads.read<List<RecordWithId>>(`/supplies?search=F31-${suffix}`)).total).toBe(1)
     expect((await reads.read<List<Batch>>(`/products/${products[0].id}/batches?status=all`)).items.map((batch) => batch.remaining_quantity)).toEqual(['150.000', '450.000'])
-    // Authenticated cookie without CSRF must fail at the same-origin server.
     const missingCsrf = await page.request.post('/api/v1/write-offs', { headers: { Origin: origin, 'Idempotency-Key': randomUUID() }, data: { batch_id: supply.items[0].batch.id, quantity: '1', reason: 'CSRF must reject this write' } })
     expect(missingCsrf.status()).toBe(403)
     await page.goto(`/orders/new?search=${encodeURIComponent(dishName)}`)
@@ -193,7 +189,6 @@ test('real nginx: reception → two Margaritas → FEFO → write-off → atomic
     await page.getByLabel(`Порции: ${dishName}`, { exact: false }).fill('2')
     await expect(page.getByText('Корзину нельзя оформить.', { exact: true })).toBeVisible()
     await expect(submit).toBeDisabled()
-    // Final POST tests server atomic refusal independently of the non-reserving check.
     const managerContext = await playwright.request.newContext({ baseURL: origin })
     try {
       const manager = new Client(managerContext); await manager.login('manager')
@@ -225,6 +220,26 @@ for (const [role, width, blocked] of [
     await page.goto('/admin/users?page=1')
     await page.reload()
     await expect(page.getByRole('heading', { name: 'Пользователи и роли', exact: true })).toBeVisible()
+  }
+  await new Promise((resolve) => setTimeout(resolve, 2_000))
+  await page.goto('/dishes')
+  if (role === 'storekeeper') {
+    await expect(page.getByRole('heading', { name: 'Недостаточно прав' })).toBeVisible()
+  } else {
+    await expect(page.getByRole('heading', { name: 'Рецептуры', exact: true })).toBeVisible()
+    const first = page.getByRole('article', { name: /^Рецептура:/ }).first()
+    await expect(first).toBeVisible()
+    await first.getByRole('link', { name: /^Открыть рецептуру/ }).click()
+    await expect(page.getByRole('region', { name: 'Состав на одну порцию' })).toBeVisible()
+    await page.reload()
+    await expect(page.getByRole('region', { name: 'Состав на одну порцию' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Редактировать рецептуру' })).toHaveCount(role === 'admin' ? 1 : 0)
+  }
+  if (width < 768) {
+    await page.getByRole('button', { name: 'Открыть меню' }).click()
+    const box = (await page.getByRole('dialog', { name: 'Меню', exact: true }).boundingBox())!
+    expect(box.x).toBe(0); expect(box.width).toBe(320)
+    await page.keyboard.press('Escape')
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.getByRole('button', { name: 'Выйти', exact: true }).click()

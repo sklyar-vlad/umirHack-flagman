@@ -23,7 +23,6 @@ export const movementApi = baseApi.enhanceEndpoints({ addTagTypes: ['StockMoveme
   }),
   movementSupply: build.query<z.infer<typeof batchSchema> | null, Pick<StockMovement, 'product_id' | 'batch_id'>>({
     providesTags: ['Batches'],
-    // StockMovement has no supply_id. Resolve only the selected batch through the published batches API.
     queryFn: async ({ product_id, batch_id }, _api, _options, query) => {
       let total: number | undefined
       const seen = new Set<string>()

@@ -5,7 +5,6 @@ const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 function calendarDate(value: string) { const [year, month, day] = value.split('-').map(Number); return new Date(Date.UTC(year, month - 1, day, 12)) }
 const isoDay = (value: Date) => value.toISOString().slice(0, 10)
 
-/** Native value/ref keeps RHF and the existing timezone conversion contract intact. */
 export function DateTimeInput({ ref, className = '', ...props }: ComponentPropsWithRef<'input'>) {
   const input = useRef<HTMLInputElement>(null), trigger = useRef<HTMLButtonElement>(null), selected = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false), [date, setDate] = useState(''), [time, setTime] = useState('00:00'), [month, setMonth] = useState('2000-01-01')

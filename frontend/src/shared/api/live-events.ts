@@ -47,7 +47,6 @@ export function createLiveEvents(ports: LivePorts) {
   }
   function connect() {
     if (source || stopped || !ports.online()) return
-    // New instances have no replay cursor: refresh REST, then consume the fresh tail.
     cursor = -1n
     const current = ports.connect()
     source = current
@@ -62,7 +61,6 @@ export function createLiveEvents(ports: LivePorts) {
     current.addEventListener('error', () => {
       if (stopped || source !== current) return
       connected = false; failures++; confirm(); fallback()
-      // Native reconnect preserves Last-Event-ID until this bounded outage ends.
       if (failures >= 5 || current.readyState === 2) { current.close(); source = null }
     })
     for (const type of eventTypes) current.addEventListener(type, (message) => {

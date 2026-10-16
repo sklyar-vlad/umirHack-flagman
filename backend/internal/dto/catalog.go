@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Nullable distinguishes a missing PATCH field from an explicit null.
 type Nullable[T any] struct {
 	Set   bool
 	Value *T

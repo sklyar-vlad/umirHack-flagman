@@ -7,7 +7,6 @@ import { formatRestaurantDateTime } from '@/shared/lib/restaurant-time'
 import { Badge, DataTable } from '@/shared/ui'
 import styles from './OrderDetailPage.module.css'
 
-/** Historical server snapshot, shared by the creation result and detail read. */
 export function OrderSnapshot({ order, loading = false }: { order: OrderDetail; loading?: boolean }) {
   const session = useSelector(selectSession)
   const allowed = (path: string) => !!session.user && canAccess(session.user.role, sectionForPath(path)!)

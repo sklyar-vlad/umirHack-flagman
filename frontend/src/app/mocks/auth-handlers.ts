@@ -16,14 +16,12 @@ function sessionCookie(value: string, expired = false) {
 }
 function roleFixture() {
   const scenario = getMockScenario()
-  // Role belongs to the mock cookie session and survives reload; never used by production.
   const stored = document.cookie.split(';').find((value) => value.trim().startsWith('flagman_mock_role='))?.split('=')[1]
   const selected = scenario === 'role-admin' ? 'admin' : scenario === 'role-storekeeper' ? 'storekeeper' : scenario === 'role-order-operator' ? 'order_operator' : null
   const role = selected ?? (['admin', 'storekeeper', 'order_operator'].includes(stored ?? '') ? stored : 'manager')
   return { ...fixture, settings: mockSettings(), user: getMockSessionUser() ?? { ...fixture.user, role } }
 }
 function hasSession() {
-  // Deliberately readable mock-only cookie, never a replacement for server HttpOnly auth.
   return document.cookie.split(';').some((value) => value.trim() === `${cookieName}=active`)
 }
 export const authHandlers = [
@@ -47,8 +45,6 @@ export const authHandlers = [
     const body = await request.json() as { email?: string; password?: string }
     if (scenario === 'invalid-password' || body.email !== fixture.user.email || body.password !== 'local-test-only') return createMockError(401, 'UNAUTHORIZED', 'Неверные данные')
     if (scenario === 'invalid-schema') return Response.json({ user: {} })
-    // Synthetic Set-Cookie is held in MSW's virtual jar, not browser cookies.
-    // Use this explicit mock-only browser cookie to model reload and expiration.
     document.cookie = sessionCookie('active')
     const { user, csrf_token, session_expires_at } = roleFixture()
     document.cookie = `flagman_mock_role=${user.role}; Path=/; SameSite=Lax; Max-Age=3600`

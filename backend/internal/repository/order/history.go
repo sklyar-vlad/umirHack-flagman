@@ -73,8 +73,6 @@ func (r *Repository) ListOrders(
 	return result, total, nil
 }
 
-// historyConditions only accepts SQL expressions from this package. User input
-// is always bound, with LIKE metacharacters escaped for literal substring search.
 func historyConditions(filter model.OrderHistoryFilter, searchSQL string) (string, []any) {
 	conditions := make([]string, 0)
 	args := make([]any, 0)
@@ -97,8 +95,6 @@ func historyConditions(filter model.OrderHistoryFilter, searchSQL string) (strin
 	return "WHERE " + strings.Join(conditions, " AND "), args
 }
 
-// PostgreSQL timestamps have microsecond precision. Ceiling preserves both
-// comparisons when an RFC3339Nano boundary lies between stored timestamps.
 func historyDateBoundary(value time.Time) time.Time {
 	truncated := value.UTC().Truncate(time.Microsecond)
 	if truncated.Before(value) {

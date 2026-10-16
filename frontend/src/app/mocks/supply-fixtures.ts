@@ -2,7 +2,6 @@ import type { SupplySummary } from '@/entities/supply'
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const actor = { id: id(900), name: 'Тестовый кладовщик' }
-// Synthetic history: created_at deliberately differs from the actual reception time.
 export const supplyFixtures: SupplySummary[] = [
   { id: id(100), number: 'ТЕСТ-101', created_at: '2026-10-10T09:05:00Z', received_at: '2026-10-10T09:00:00Z', items_count: 27, created_by: actor, status: 'received' },
   { id: id(601), number: 'ГРАНИЦА-С', created_at: '2026-10-09T21:00:00Z', received_at: '2026-10-08T10:00:00Z', items_count: 1, created_by: actor, status: 'received' },

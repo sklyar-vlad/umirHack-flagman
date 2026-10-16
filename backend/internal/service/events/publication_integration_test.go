@@ -61,7 +61,7 @@ func TestPublicationCommitOrderRestartAndConcurrentDispatch(t *testing.T) {
 	if err := first.Commit(f.ctx); err != nil {
 		t.Fatal(err)
 	}
-	// Restart: a fresh service recovers the older-created, later-committed row.
+
 	if err := f.service().Dispatch(f.ctx); err != nil {
 		t.Fatal(err)
 	}

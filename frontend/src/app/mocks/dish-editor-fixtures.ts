@@ -4,16 +4,15 @@ import { catalogInventoryItems, catalogProducts } from './catalog-fixtures'
 
 let saved: Dish[] = []
 const key = 'flagman.mock.dishes.v1'
-function read() { try { saved = JSON.parse(sessionStorage.getItem(key) ?? JSON.stringify(saved)) as Dish[] } catch { /* Node tests use memory. */ } return saved }
-export function saveEditorDish(dish: Dish) { saved = [...read().filter((item) => item.id !== dish.id), dish]; try { sessionStorage.setItem(key, JSON.stringify(saved)) } catch { /* Node tests. */ } }
-export function resetDishEditorFixtures() { saved = []; try { sessionStorage.removeItem(key) } catch { /* Node tests. */ } }
+function read() { try { saved = JSON.parse(sessionStorage.getItem(key) ?? JSON.stringify(saved)) as Dish[] } catch {  } return saved }
+export function saveEditorDish(dish: Dish) { saved = [...read().filter((item) => item.id !== dish.id), dish]; try { sessionStorage.setItem(key, JSON.stringify(saved)) } catch {  } }
+export function resetDishEditorFixtures() { saved = []; try { sessionStorage.removeItem(key) } catch {  } }
 export function applyEditorDishes(dishes: Dish[]) {
   const changed = read()
   return [...dishes.map((dish) => changed.find((item) => item.id === dish.id) ?? dish), ...changed.filter((dish) => !dishes.some((item) => item.id === dish.id))]
 }
 const amount = (raw: string) => { const [whole, fraction = ''] = raw.split('.'); return BigInt(whole) * 1000n + BigInt(fraction.padEnd(3, '0')) }
 const decimal = (value: bigint) => `${value / 1000n}.${String(value % 1000n).padStart(3, '0')}`
-/** Synthetic server calculation only; quantities use exact thousandths including large aggregates. */
 export function editorPreview(recipe: PreviewDish['recipe'], stock = catalogInventoryItems()): DishPreview {
   let portions: bigint | undefined
   const requirements = recipe.map((line) => {

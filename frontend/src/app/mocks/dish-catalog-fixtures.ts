@@ -2,7 +2,6 @@ import { applyEditorDishes } from './dish-editor-fixtures'
 import type { Dish } from '@/entities/dish'
 import { compositionDishes } from './order-composition-fixtures'
 import { mockId } from './inventory-fixtures'
-/** Synthetic F19 records are isolated from the existing order basket fixtures. */
 export function dishCatalog(newVersion = false): Dish[] {
   const dishes = compositionDishes(), soup = dishes[0]
   const extra: Dish[] = Array.from({ length: 21 }, (_, index) => ({ ...soup, id: mockId(850 + index), name: `Тестовое блюдо ${String(index + 1).padStart(2, '0')}`, description: null }))

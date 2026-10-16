@@ -33,7 +33,6 @@ type Handler struct{ service Service }
 
 func NewHandler(service Service) *Handler { return &Handler{service: service} }
 
-// Inspect keys before decoding so nullable PATCH fields retain their semantics.
 func decode(c *gin.Context, dst any, product bool) error {
 	data, err := io.ReadAll(c.Request.Body)
 	if err != nil {

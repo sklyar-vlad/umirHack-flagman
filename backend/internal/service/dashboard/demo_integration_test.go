@@ -16,7 +16,7 @@ func TestDashboardDemoDataAndReadOnlyIntegration(t *testing.T) {
 		}
 		f.exec(t, string(data))
 	}
-	// Seed expiry dates are relative to its own database clock.
+
 	if err := f.pool.QueryRow(f.ctx, `SELECT received_at FROM supplies WHERE number='105'`).Scan(&f.now); err != nil {
 		t.Fatal(err)
 	}

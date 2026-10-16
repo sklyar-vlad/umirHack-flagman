@@ -9,8 +9,6 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
-// decodeRequest distinguishes malformed JSON from a valid JSON value with an
-// invalid basket shape. Numeric portions and versions must be JSON integers.
 func decodeRequest(body []byte) (dto.OrderRequest, error) {
 	if !json.Valid(body) {
 		return dto.OrderRequest{}, apperrors.ErrInvalidJSON

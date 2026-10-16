@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { quantityToInput } from '@/shared/lib/quantity'
 
-// AggregateQuantity has no numeric(14,3) bound: a report can span many attempts.
 export const shortageRowSchema = z.object({
   product_id: z.uuid(), product_name: z.string(), unit: z.enum(['g', 'ml', 'pcs']),
   rejected_attempts_count: z.number().int().positive().safe(),

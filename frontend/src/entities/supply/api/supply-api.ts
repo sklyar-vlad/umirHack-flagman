@@ -45,5 +45,4 @@ export const supplyApi = baseApi.enhanceEndpoints({ addTagTypes: ['Supplies', 'I
   }),
 })
 export const { useSuppliesQuery, useSupplyQuery, useReceiveSupplyMutation } = supplyApi
-/** Dispatch after a successful reception, including when its response is replayed. */
 export const invalidateSupplies = () => supplyApi.util.invalidateTags(['Supplies'])

@@ -73,7 +73,6 @@ test('time event reads expiration without a write or scenario invalidation', asy
   await page.clock.install()
   await login(page, '/inventory?search=Молоко')
   await expect(page.getByRole('article', { name: 'Молоко' })).toBeVisible()
-  // Stop-list has no expiry timestamps. Cache a known warehouse boundary first.
   await page.evaluate(async () => {
     const path = '/src/app/mocks/inventory-fixtures.ts'
     const { inventoryItems } = await import(path)

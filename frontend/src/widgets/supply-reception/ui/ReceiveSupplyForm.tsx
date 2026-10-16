@@ -72,7 +72,6 @@ export function ReceiveSupplyForm({ onReceived, initialProductId }: { initialPro
       attempt.current = undefined
       dispatch(clearWorkDraft('reception'))
       form.reset(emptyReception())
-      // reset emits watch notifications; confirmed success must clear that draft too.
       dispatch(clearWorkDraft('reception'))
       onReceived(supply)
     } catch (error) {

@@ -15,7 +15,6 @@ export const categoryApi = baseApi.enhanceEndpoints({ addTagTypes: ['ProductCate
       },
     }),
     category: build.query<Category, string>({
-      // An editor owns a fresh revision. List invalidation must not replace a dirty edit.
 
       queryFn: async (id, _api, _options, query) => {
         const result = await query(`/product-categories/${encodeURIComponent(id)}`)
@@ -25,7 +24,6 @@ export const categoryApi = baseApi.enhanceEndpoints({ addTagTypes: ['ProductCate
       },
     }),
     createCategory: build.mutation<Category, CreateCategory>({
-      // Even an indeterminate write may have reached the server; refresh reads, never auto-retry it.
       invalidatesTags: ['ProductCategories', 'Products', 'Inventory', 'Dishes', 'StopList', 'HotOffers', 'Procurement', 'Dashboard'],
       queryFn: async (body, _api, _options, query) => {
         const request = createCategorySchema.safeParse(body)

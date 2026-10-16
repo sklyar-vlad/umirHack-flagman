@@ -12,11 +12,18 @@ export function dishSearchParams(values: DishSearch) {
 }
 export function changeDishSearch(values: DishSearch, patch: Partial<DishSearch>): DishSearch { return { ...values, ...patch, page: patch.page ?? 1 } }
 
-/** A list return destination contains published filters only. */
 export function safeDishListUrl(value: string | null | undefined) {
   if (!value || !value.startsWith('/') || value.startsWith('//')) return '/admin/dishes'
   const url = new URL(value, 'https://internal.invalid')
   if (url.origin !== 'https://internal.invalid' || url.pathname !== '/admin/dishes') return '/admin/dishes'
+  const params = dishSearchParams(readDishSearch(url.searchParams))
+  return url.pathname + (params.size ? `?${params}` : '')
+}
+
+export function safeRecipeListUrl(value: string | null | undefined) {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/dishes'
+  const url = new URL(value, 'https://internal.invalid')
+  if (url.origin !== 'https://internal.invalid' || url.pathname !== '/dishes') return '/dishes'
   const params = dishSearchParams(readDishSearch(url.searchParams))
   return url.pathname + (params.size ? `?${params}` : '')
 }

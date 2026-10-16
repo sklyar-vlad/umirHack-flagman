@@ -3,7 +3,6 @@ import { parseApiDateTime } from '@/shared/lib/restaurant-time'
 
 export const userRoleSchema = z.enum(['admin', 'manager', 'storekeeper', 'order_operator'])
 const dateTime = z.string().refine((value) => { try { parseApiDateTime(value); return true } catch { return false } })
-/** Published AuthUser only. Reject unexpected secrets before the response enters query cache. */
 export const userSchema = z.object({
   id: z.uuid(), name: z.string(), email: z.string(), role: userRoleSchema,
   is_active: z.boolean(), revision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),

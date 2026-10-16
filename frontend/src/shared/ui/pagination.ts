@@ -1,4 +1,3 @@
-/** A bounded page window avoids rendering thousands of buttons for large lists. */
 export function paginationItems(page: number, pageCount: number): (number | 'start-gap' | 'end-gap')[] {
   if (!Number.isSafeInteger(pageCount) || pageCount < 1 || !Number.isSafeInteger(page) || page < 1 || page > pageCount) throw new RangeError('Invalid pagination range')
   const pages = [...new Set([1, pageCount, page - 1, page, page + 1].filter((value) => value >= 1 && value <= pageCount))].sort((a, b) => a - b)

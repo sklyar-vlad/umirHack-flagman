@@ -141,8 +141,6 @@ func (f *inventoryFixture) product(t *testing.T, name, unit string, target *stri
 	return id
 }
 
-// Every batch has its own supply, including repeated lines for the same product.
-// Expired stock is a fixture; receipt validation is deliberately not bypassed in production.
 func (f *inventoryFixture) batch(t *testing.T, product uuid.UUID, quantity string, expiry time.Time) uuid.UUID {
 	t.Helper()
 	f.sequence++
@@ -272,7 +270,7 @@ func TestInventoryAggregationAndExpiryBoundariesIntegration(t *testing.T) {
 		result.AttentionBatches[2].Status != "expiring" {
 		t.Fatalf("incorrect overlapping counts/attention: %+v", result)
 	}
-	// Time alone expires another batch; physical stock and batch count stay unchanged.
+
 	f.clockMu.Lock()
 	f.now = f.now.Add(time.Microsecond)
 	f.clockMu.Unlock()
@@ -281,7 +279,7 @@ func TestInventoryAggregationAndExpiryBoundariesIntegration(t *testing.T) {
 		item.PhysicalQuantity != "16.000" || item.BatchesCount != 5 {
 		t.Fatalf("expiry was not recalculated: %+v", item)
 	}
-	// A product's standard shelf life must never replace the batch's actual expiry.
+
 	f.exec(t, `UPDATE products SET standard_shelf_life_hours=1 WHERE id=$1`, product.String())
 	if got := f.list(t, nil).Items[0].AvailableQuantity; got != "4.250" {
 		t.Fatalf("product settings changed actual batch expiry: %s", got)
@@ -417,7 +415,7 @@ func TestInventoryThresholdFiltersAndPaginationIntegration(t *testing.T) {
 		result.Items[2].NearestExpiresAt != nil {
 		t.Fatal("nearest expiry sort or NULLS LAST is incorrect")
 	}
-	// At an identical nearest expiry the ID determines page order.
+
 	f.exec(t, `UPDATE batches SET expires_at=$1 WHERE product_id=$2`, f.now.Add(48*time.Hour), literal.String())
 	result = f.list(t, url.Values{"sort": {"nearest_expires_at"}, "page_size": {"1"}})
 	next := f.list(t, url.Values{"sort": {"nearest_expires_at"}, "page_size": {"1"}, "page": {"2"}})
@@ -479,7 +477,7 @@ type countHookPool struct {
 	afterCount func() error
 }
 
-//nolint:gocritic // The signature must match pgxpool.Pool.BeginTx.
+//nolint:gocritic
 func (p *countHookPool) BeginTx(ctx context.Context, options pgx.TxOptions) (pgx.Tx, error) {
 	tx, err := p.Pool.BeginTx(ctx, options)
 	if err != nil {

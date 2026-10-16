@@ -24,7 +24,6 @@ apiTransport.onUnauthorized = authController.expire
 apiTransport.getSessionVersion = authController.getVersion
 apiTransport.hasSessionAccess = authController.hasAccess
 
-// Only non-secret work draft allowlists are persisted; session tokens and CSRF stay in memory.
 if (typeof window !== 'undefined') {
-  try { persistWriteOff(store, window.sessionStorage); persistReception(store, window.sessionStorage); persistOrder(store, window.sessionStorage); persistProducts(store, window.sessionStorage); persistDishes(store, window.sessionStorage) } catch { /* Browser storage disabled. */ }
+  try { persistWriteOff(store, window.sessionStorage); persistReception(store, window.sessionStorage); persistOrder(store, window.sessionStorage); persistProducts(store, window.sessionStorage); persistDishes(store, window.sessionStorage) } catch {  }
 }

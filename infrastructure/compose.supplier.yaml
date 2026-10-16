@@ -1,4 +1,3 @@
-# Optional standalone supplier UI; it talks to the app only through bearer API.
 services:
   supplier-demo:
     build: ../supplier-demo

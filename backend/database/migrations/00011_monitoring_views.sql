@@ -1,5 +1,5 @@
 -- +goose Up
--- Reporting views intentionally omit actors, notes, auth and audit data.
+
 CREATE VIEW monitoring_stock AS
  SELECT p.id AS product_id,p.name AS product_name,p.unit::text AS unit,p.is_active,p.target_stock,
  COALESCE(sum(b.remaining_quantity) FILTER (WHERE b.expires_at>statement_timestamp()),0) AS valid_quantity,

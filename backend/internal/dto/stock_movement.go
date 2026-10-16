@@ -12,8 +12,6 @@ type WriteOffRequest struct {
 	Reason   string `json:"reason"`
 }
 
-// StockMovement carries recorded facts; later catalog and balance edits cannot
-// replace the name, unit, delta or remaining balance.
 type StockMovement struct {
 	ID                     uuid.UUID   `json:"id"`
 	BatchID                uuid.UUID   `json:"batch_id"`

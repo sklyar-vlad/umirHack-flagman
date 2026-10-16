@@ -113,7 +113,7 @@ func validate(input *dto.UpdateSettingsRequest) error {
 	}
 	if input.Timezone != nil {
 		zone := *input.Timezone
-		// Local depends on the host. Absolute paths and path traversal are not IANA names.
+
 		if zone == "" || zone == "Local" || len(zone) > 100 || strings.Contains(zone, "..") ||
 			strings.HasPrefix(zone, "/") ||
 			strings.ContainsAny(zone, "\\\x00") {

@@ -31,8 +31,6 @@ func NewService(repo Repository, transactions Transactions) *Service {
 	return &Service{repo: repo, transactions: transactions, now: time.Now}
 }
 
-// Check reads recipes and stock from one consistent snapshot. It neither
-// reserves ingredients nor records a successful or refused order.
 func (s *Service) Check(ctx context.Context, request dto.OrderRequest) (dto.OrderCheck, error) {
 	items, err := normalizeBasket(request)
 	if err != nil {

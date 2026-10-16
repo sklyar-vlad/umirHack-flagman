@@ -14,7 +14,6 @@ export default defineConfig({
   use: {
     baseURL: process.env.FRONTEND_TEST_ORIGIN,
     headless: true,
-    // No traces, request attachments or video containing generated credentials.
     launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {},
   },
 })

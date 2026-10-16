@@ -61,8 +61,6 @@ type OrderCheckHandler interface {
 	Check(*gin.Context)
 }
 
-// Basket checks only read data, so they use session read access. The order
-// handler restricts the roles to admin, manager and order_operator.
 func RegisterOrderCheckRoutes(group *gin.RouterGroup, h OrderCheckHandler, access ProductAccess) {
 	group.POST("/orders/check", access.RequireProductReadAccess, h.Check)
 }

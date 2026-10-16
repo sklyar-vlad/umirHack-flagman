@@ -32,8 +32,7 @@ func (r *Repository) InsertSupply(
 	).Scan(&createdAt)
 	if err != nil {
 		var pgErr *pgconn.PgError
-		// Different products need not share locks. The unique constraint is the
-		// final authority if concurrent supplies pass the number precheck.
+
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "supplies_number_key" {
 			return time.Time{}, fmt.Errorf("%w: supply number already exists", apperrors.ErrConflict)
 		}

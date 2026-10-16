@@ -45,7 +45,7 @@ func TestStreamRefreshesChangedRoleBeforeFurtherDelivery(t *testing.T) {
 	if got := next(t, bufio.NewReader(resp.Body)); got.ID != visible {
 		t.Fatal("stale role delivered forbidden event", got)
 	}
-	// Native EventSource is cookie-authenticated; neither CSRF nor custom headers.
+
 	resp.Body.Close()
 	f.exec(
 		t,

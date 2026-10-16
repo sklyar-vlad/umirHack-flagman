@@ -105,8 +105,6 @@ func (r *Repository) Revoke(ctx context.Context, q repository.DBTX, id uuid.UUID
 	return nil
 }
 
-// Token-scoped external identities are permanent. Retrying an unchanged request
-// returns the original result; reusing an identity with another body conflicts.
 func (r *Repository) LockExternal(ctx context.Context, q repository.DBTX, token uuid.UUID, kind, id string) error {
 	_, err := q.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, token.String()+":"+kind+":"+id)
 	return err

@@ -13,7 +13,6 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 )
 
-// Cancel from a flushed frame to test a live retention change without socket timers.
 type backlogWriter struct {
 	*httptest.ResponseRecorder
 	cancel context.CancelFunc
@@ -35,7 +34,7 @@ func (r *backlogReader) Read(context.Context, int64) (model.EventPage, error) {
 	if r.calls == 1 {
 		return model.EventPage{HighWater: 100}, nil
 	}
-	// Retention moves past the connection's current cursor between two polls.
+
 	return model.EventPage{HighWater: 200, RetentionFloor: 150}, nil
 }
 

@@ -6,7 +6,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// MetricsSnapshot executes one read-only statement using one database timestamp.
 func MetricsSnapshot(ctx context.Context, pool *pgxpool.Pool) (pending, age, expiryAge float64, err error) {
 	err = pool.QueryRow(ctx, `WITH t AS (SELECT statement_timestamp() AS now)
  SELECT (SELECT count(*)::float8 FROM outbox_events WHERE published_at IS NULL),

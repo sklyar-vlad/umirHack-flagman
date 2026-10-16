@@ -6,8 +6,6 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 )
 
-// The publication lock serializes the due check across workers. The caller
-// appends the system outbox event in this same transaction, so failures retry.
 func (r *Repository) TimeEventDue(ctx context.Context, q repository.DBTX) (bool, error) {
 	var due bool
 	err := q.QueryRow(ctx, `WITH due AS (

@@ -4,7 +4,6 @@ ALTER TABLE outbox_events ADD CONSTRAINT outbox_publication_pair
 CREATE INDEX outbox_pending_idx ON outbox_events(created_at,id) WHERE published_at IS NULL;
 CREATE INDEX outbox_retention_idx ON outbox_events(published_at,cursor) WHERE published_at IS NOT NULL;
 
--- Cursor state survives deletion of every retained event and sequence gaps.
 CREATE TABLE outbox_publication_state (
     id SMALLINT PRIMARY KEY CHECK (id = 1),
     high_water BIGINT NOT NULL DEFAULT 0 CHECK (high_water >= 0),

@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react'
 import { useBlocker } from 'react-router'
 import { Button, Dialog } from '@/shared/ui'
 
-/** Mount once per editable route, using the form's subscribed isDirty value. */
 export function UnsavedChangesGuard({ dirty, pending = false, onDiscard }: { dirty: boolean; pending?: boolean; onDiscard?: () => void }) {
   const blocker = useBlocker(dirty)
   const stayRef = useRef<HTMLButtonElement>(null)
@@ -15,7 +14,6 @@ export function UnsavedChangesGuard({ dirty, pending = false, onDiscard }: { dir
     window.addEventListener('beforeunload', beforeUnload)
     return () => window.removeEventListener('beforeunload', beforeUnload)
   }, [dirty])
-  // If a save resolves while navigation is blocked, the pending navigation is safe.
   useEffect(() => {
     if (!dirty && blocker.state === 'blocked') blocker.proceed()
   }, [dirty, blocker])

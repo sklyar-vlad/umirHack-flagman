@@ -30,12 +30,9 @@ export function UiKitPage() {
   const [recovered, setRecovered] = useState(false)
   const [query, setQuery] = useState('несуществующий продукт')
   const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<DemoForm>({ resolver: zodResolver(schema), defaultValues: defaults })
-  // Register in visual order, before FormField render callbacks run, so RHF
-  // focuses the first invalid field rather than the inline checkbox.
   const fields = { name: register('name'), category: register('category'), note: register('note'), agreed: register('agreed'), enabled: register('enabled') }
   const save = async (values: DemoForm) => {
     setSubmitting(true)
-    // This showcase simulates local loading only; it does not save backend data.
     await new Promise<void>((resolve) => { setTimeout(resolve, 600) })
     reset(values)
     setSubmitting(false)

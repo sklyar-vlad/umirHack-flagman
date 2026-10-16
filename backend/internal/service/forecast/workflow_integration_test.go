@@ -57,8 +57,7 @@ func TestForecastRealOrdersReplayRefusalCheckAndWriteOff(t *testing.T) {
 	if err != nil || created.Status != 201 {
 		t.Fatal(created, err)
 	}
-	// Use a time strictly after both real consumption facts; the history upper
-	// boundary excludes records at the snapshot timestamp itself.
+
 	if err := f.pool.QueryRow(f.ctx, `SELECT MAX(occurred_at) FROM stock_movements WHERE type='order_consumption'`).
 		Scan(&f.now); err != nil {
 		t.Fatal(err)

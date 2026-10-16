@@ -170,8 +170,6 @@ func (r *Repository) SetPassword(
 	return result, nil
 }
 
-// The two-int advisory namespace is distinct from the bigint idempotency locks.
-// Every administration write acquires this lock before any user row lock.
 func (r *Repository) LockAdministration(ctx context.Context, q repository.DBTX) error {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {

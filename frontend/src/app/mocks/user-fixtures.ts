@@ -1,5 +1,4 @@
 import type { User, RoleList, UserSearch } from '@/entities/user'
-/** Synthetic published DTOs, loaded only in explicit development/test mock mode. */
 export const mockRoles: RoleList = { items: [
   { code: 'admin', name: 'Администратор' }, { code: 'manager', name: 'Менеджер' },
   { code: 'storekeeper', name: 'Кладовщик' }, { code: 'order_operator', name: 'Оператор заказов' },

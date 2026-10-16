@@ -57,7 +57,7 @@ func protectedRouter(f *fixture) http.Handler {
 	basehandler.RegisterProcurementRoutes(api, probe, access)
 	basehandler.RegisterHotOffersRoutes(api, probe, access)
 	basehandler.RegisterDashboardRoutes(api, probe, access)
-	// Fail closed when a new operation has not declared its role policy.
+
 	api.GET("/new-business-route", probe.ok)
 	return router
 }

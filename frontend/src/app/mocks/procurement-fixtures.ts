@@ -7,14 +7,12 @@ import { receivedSupplies } from './reception-fixtures'
 import { stopListDishes } from './stop-list-fixtures'
 import { getMockScenario } from './scenarios'
 const decimal = (value: bigint) => `${value / 1000n}.${String(value % 1000n).padStart(3, '0')}`
-/** Synthetic server computation only; no business arithmetic is used by the UI. */
 export function procurementItems(): ProcurementItem[] {
   if (getMockScenario() === 'procurement-empty') return []
   const now = new Date().toISOString(), dishes = stopListDishes()
   const consumed = Object.values(consumedCompositionAmounts()).reduce((sum, raw) => sum + parseQuantity(String(raw))!, 0n)
   const changed = changedCatalogProducts()
   const candidates = catalogInventoryItems().map((item, index) => {
-    // Dedicated demo targets exercise pagination and an inactive product with a goal.
     const target = changed.some((product) => product.id === item.product.id) ? item.target_stock : index === 1 ? '3000.000' : index >= 5 ? '1000.001' : item.target_stock
     if (target === null || parseQuantity(target) === 0n) return null
     const receipts = receivedSupplies().flatMap((supply) => supply.items).filter((line) => line.product.id === item.product.id && line.batch.expires_at > now).reduce((sum, line) => sum + parseQuantity(line.batch.remaining_quantity)!, 0n)

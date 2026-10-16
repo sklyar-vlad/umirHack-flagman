@@ -7,8 +7,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// OrderBatch is a locked stock row, including the supply labels needed for
-// allocations. Quantities stay decimal strings until exact arithmetic.
 type OrderBatch struct {
 	ID, ProductID, SupplyID uuid.UUID
 	SupplyNumber            string

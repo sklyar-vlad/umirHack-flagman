@@ -39,8 +39,6 @@ func NewWorker(settings Settings, transactions Transactions, processor Processor
 	return &Worker{settings: settings, transactions: transactions, processor: processor, logger: logger}
 }
 
-// Run performs an immediate pass, then polls well within the one-minute expiry SLA.
-// The caller owns the goroutine and must cancel and join it before closing the DB.
 func (w *Worker) Run(ctx context.Context) { w.run(ctx, pollInterval) }
 
 func (w *Worker) run(ctx context.Context, interval time.Duration) {
@@ -81,7 +79,6 @@ func (w *Worker) pass(ctx context.Context) error {
 	return w.processor.Expire(ctx)
 }
 
-// Database messages can contain secrets. Emit only a safe operation and SQLSTATE.
 func logFailure(logger *zap.Logger, operation string, err error) {
 	var pg *pgconn.PgError
 	if errors.As(err, &pg) {

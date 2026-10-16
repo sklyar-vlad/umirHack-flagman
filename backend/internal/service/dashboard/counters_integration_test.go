@@ -11,7 +11,7 @@ func TestWarehouseCountersIntegration(t *testing.T) {
 	expired := f.product(t, "Expired only")
 	empty := f.product(t, "Empty inactive")
 	f.exec(t, `UPDATE products SET is_active=false WHERE id=$1`, empty)
-	// Counters cover the whole warehouse, including batches outside the preview.
+
 	for range 30 {
 		f.batch(t, stocked, "1.000", f.now.Add(time.Hour))
 	}

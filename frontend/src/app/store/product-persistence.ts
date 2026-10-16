@@ -5,13 +5,12 @@ import type { AppStore } from './store'
 
 const storageKey = 'flagman.products.v1'
 const storedSchema = z.object({ owner: z.uuid(), products: z.record(z.string(), productDraftSchema) })
-/** Only product form data is persisted; credentials and API cache never enter storage. */
 export function persistProducts(store: AppStore, storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>) {
   let restored = false, writing = false
   return store.subscribe(() => {
     if (writing) return
     const state = store.getState().session
-    if (state.status === 'signing-out') { restored = true; try { storage.removeItem(storageKey) } catch { /* Memory remains available. */ } return }
+    if (state.status === 'signing-out') { restored = true; try { storage.removeItem(storageKey) } catch {  } return }
     if (state.status !== 'authenticated' || !state.user) return
     if (!restored) {
       restored = true
@@ -31,6 +30,6 @@ export function persistProducts(store: AppStore, storage: Pick<Storage, 'getItem
     try {
       if (Object.keys(products).length) storage.setItem(storageKey, JSON.stringify({ owner: state.user.id, products }))
       else storage.removeItem(storageKey)
-    } catch { /* Storage unavailable: owner-scoped memory still retains the draft. */ }
+    } catch {  }
   })
 }

@@ -30,8 +30,6 @@ func invalid(field string) error {
 	return &validations.FieldError{Field: field, Message: "Некорректные поля или типы"}
 }
 
-// Inspect every object before decoding: encoding/json otherwise accepts duplicate
-// keys, case aliases and null values for scalar recipe fields.
 func object(data []byte, allowed map[string]bool) (map[string]json.RawMessage, error) {
 	d := json.NewDecoder(bytes.NewReader(data))
 	token, err := d.Token()

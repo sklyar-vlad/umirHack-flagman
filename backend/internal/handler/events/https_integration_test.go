@@ -39,7 +39,7 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 	}
 	f.exec(t, `UPDATE users SET password_hash=$1 WHERE email='user@example.test'`, hash)
 	dir := t.TempDir()
-	// A local trusted certificate verifies SNI and the handshake without -k.
+
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatal(err)
@@ -86,7 +86,7 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 	)
 	startProxy(t, dir, "flagman-frontend:latest", "nginx", "-c", "/test/nginx.conf", "-g", "daemon off;")
 	waitProxy(t, fmt.Sprintf("http://127.0.0.1:%d", nginxPort))
-	// Render the actual standalone deployment. Only ports/provider change for isolation.
+
 	command := exec.Command(
 		"docker",
 		"compose",
@@ -237,8 +237,7 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 		!strings.HasPrefix(res.Header.Get("Location"), "https://") {
 		t.Fatal("HTTP did not redirect to TLS", res.StatusCode)
 	}
-	// The redirect router can appear before file-provider TLS configuration.
-	// Wait for the actual trusted handshake and application route, not just TCP.
+
 	readyReq, _ := http.NewRequest(http.MethodGet, base+"/api/v1/auth/me", http.NoBody)
 	readyReq.Host = "flagman.example"
 	deadline = time.Now().Add(5 * time.Second)
@@ -311,7 +310,7 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 			t.Fatal("technical endpoint exposed", path)
 		}
 	}
-	// The admin API is available solely on its separate loopback entrypoint.
+
 	res, err = client.Get(fmt.Sprintf("http://127.0.0.1:%d/api/rawdata", adminPort))
 	if err != nil {
 		t.Fatal(err)
@@ -329,7 +328,7 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 	if line, err := reader.ReadString('\n'); err != nil || line != ": connected\n" {
 		t.Fatal("buffered first SSE frame", err)
 	}
-	time.Sleep(200 * time.Millisecond) // Beyond the backend's ordinary response deadline.
+	time.Sleep(200 * time.Millisecond)
 	cursor := f.append(
 		t,
 		service,
@@ -355,7 +354,7 @@ func TestHTTPSDeploymentCookiesCORSAndStreaming(t *testing.T) {
 	if res.StatusCode != http.StatusUnauthorized {
 		t.Fatal("revoked cookie accepted")
 	}
-	// Unknown SNI must be refused, rather than serving an unrelated certificate.
+
 	badTransport := &http.Transport{TLSClientConfig: &tls.Config{RootCAs: roots, ServerName: "unknown.example"}}
 	defer badTransport.CloseIdleConnections()
 	bad := &http.Client{Transport: badTransport, Timeout: time.Second}

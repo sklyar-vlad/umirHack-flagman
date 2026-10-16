@@ -19,7 +19,6 @@ for (const width of [360, 390, 1024, 1440]) {
     const writes: { path: string; body: unknown; key: string | null }[] = [], errors: string[] = []
     page.on('pageerror', (error) => errors.push(error.message)); page.on('request', (request) => { if (request.method() === 'POST' && request.url().includes('/api/v1/dishes')) writes.push({ path: new URL(request.url()).pathname, body: request.postDataJSON(), key: request.headers()['idempotency-key'] ?? null }) })
     await page.setViewportSize({ width, height: 1000 }); await login(page); await recipe(page)
-    // Preview needs a valid recipe but does not require a name or save a record.
     await preview(page).focus(); await page.keyboard.press('Enter'); await expect(page.getByRole('region', { name: 'Проверка рецептуры' })).toContainText('Доступные порции: 15')
     await page.getByLabel(/^Название блюда(?:$|\s)/).fill(`Новое блюдо ${width}`); await expect(page.getByRole('region', { name: 'Проверка рецептуры' })).toHaveCount(0)
     await page.getByLabel('Описание блюда').fill('Описание тестовой рецептуры'); await page.getByRole('button', { name: 'Добавить ингредиент' }).click(); await page.getByLabel(/^Продукт 2(?:$|\s)/).selectOption(sugar); await page.getByLabel(/^Расход 2(?:$|\s)/).fill('0,001')

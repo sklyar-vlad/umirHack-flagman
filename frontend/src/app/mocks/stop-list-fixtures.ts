@@ -8,7 +8,6 @@ import { receivedSupplies } from './reception-fixtures'
 import { getMockScenario } from './scenarios'
 
 const decimal = (value: bigint) => `${value / 1000n}.${String(value % 1000n).padStart(3, '0')}`
-/** Synthetic per-portion snapshots, shared with F08/F10 saved mock mutations. */
 export function stopListDishes(): Dish[] {
   const scenario = getMockScenario(), now = new Date().toISOString()
   if (scenario === 'stop-list-empty') return []

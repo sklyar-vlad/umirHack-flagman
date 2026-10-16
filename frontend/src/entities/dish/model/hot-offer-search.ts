@@ -1,7 +1,6 @@
 export interface HotOfferSearch { search: string; page: number; page_size: number }
 export const defaultHotOfferSearch: HotOfferSearch = { search: '', page: 1, page_size: 50 }
 const positive = (raw: string | null, fallback: number, max = Number.MAX_SAFE_INTEGER) => raw && /^\d+$/.test(raw) && Number.isSafeInteger(Number(raw)) && Number(raw) >= 1 && Number(raw) <= max ? Number(raw) : fallback
-/** Published HotOffer list parameters; server ranking never accepts a client sort. */
 export function readHotOfferSearch(params: URLSearchParams): HotOfferSearch {
   return { search: params.get('search') ?? '', page: positive(params.get('page'), 1), page_size: positive(params.get('page_size'), 50, 100) }
 }

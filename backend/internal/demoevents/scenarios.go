@@ -23,8 +23,6 @@ func validScenario(scenario string) bool {
 	return false
 }
 
-// Step emits at most one business mutation. Reads always refresh recipe and stock.
-// Depletion consumes up to the API portion limit, then emits ordinary refusals.
 func (c *Client) Step(ctx context.Context, dishID, scenario string, expiry time.Duration, out io.Writer) error {
 	if !validScenario(scenario) {
 		return errors.New("scenario must be normal, depletion, replenishment or expiring")

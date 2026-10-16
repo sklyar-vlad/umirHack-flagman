@@ -115,7 +115,7 @@ func newListFixture(t *testing.T) *listFixture {
 		id := uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", i+1))
 		f.ids = append(f.ids, id)
 		created := f.base.Add(time.Duration(hours[i]) * time.Hour)
-		// Different receipt dates detect accidental filtering/sorting by received_at.
+
 		received := f.base.Add(-time.Duration(i) * time.Hour)
 		if _, err := pool.Exec(ctx, `INSERT INTO supplies (id,number,created_at,received_at,created_by)
 			VALUES ($1,$2,$3,$4,$5)`, id.String(), number, created, received, f.actor.String()); err != nil {
@@ -243,7 +243,7 @@ func TestSupplyListHTTPIntegration(t *testing.T) {
 			}
 		})
 	}
-	// Equal creation times are split across pages in a repeatable ID order.
+
 	for range 2 {
 		page := f.list(t, url.Values{"page": {"2"}, "page_size": {"3"}})
 		if len(page.Items) != 3 || page.Items[0].ID != f.ids[2] || page.Items[1].ID != f.ids[1] {
@@ -257,7 +257,7 @@ type countHookPool struct {
 	afterCount func() error
 }
 
-//nolint:gocritic // The signature must match pgxpool.Pool.BeginTx.
+//nolint:gocritic
 func (p *countHookPool) BeginTx(ctx context.Context, options pgx.TxOptions) (pgx.Tx, error) {
 	tx, err := p.Pool.BeginTx(ctx, options)
 	if err != nil {

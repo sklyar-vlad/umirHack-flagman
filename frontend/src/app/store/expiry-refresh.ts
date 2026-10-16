@@ -1,4 +1,3 @@
-/** Clock notifications only need REST when a displayed batch crosses a boundary. */
 export function expiryBoundaryCrossed(data: unknown, now: number, since: number, thresholdHours: number): boolean {
   if (!data || typeof data !== 'object') return false
   if (Array.isArray(data)) return data.some((item) => expiryBoundaryCrossed(item, now, since, thresholdHours))

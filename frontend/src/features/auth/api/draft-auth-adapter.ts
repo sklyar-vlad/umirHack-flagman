@@ -2,7 +2,6 @@ import { z } from 'zod'
 import type { SessionSnapshot } from '@/entities/session'
 import { normalizeApiError, type ApiError } from '@/shared/api'
 
-/** Published OpenAPI auth fields; the legacy adapter name remains compatible. */
 const draftUserSchema = z.object({
   id: z.string().uuid(), name: z.string().min(1), email: z.email(), role: z.enum(['admin', 'manager', 'storekeeper', 'order_operator']),
   is_active: z.boolean(), revision: z.number().int().positive(), created_at: z.iso.datetime({ offset: true }), last_login_at: z.iso.datetime({ offset: true }).nullable(),
@@ -36,7 +35,6 @@ async function request(path: string, signal: AbortSignal, init?: RequestInit): P
   const body: unknown = await response.json().catch(() => null)
   if (!response.ok) {
     const error = normalizeApiError({ status: response.status, data: body }, { request: new Request(response.url || 'http://localhost'), response })
-    // Auth responses must never expose echoed credentials or server details to UI/state.
     throw { ...error, details: {}, message: authErrorMessage(error) }
   }
   return body
@@ -65,7 +63,6 @@ export const draftAuthAdapter: AuthAdapter = {
   login: async (credentials, signal) => {
     const result = draftLoginSchema.safeParse(await request('login', signal, { method: 'POST', body: JSON.stringify(credentials) }))
     if (!result.success) throw invalidResponse
-    // Login does not publish settings; only me yields a complete session snapshot.
     const snapshot = decode(await request('me', signal))
     if (snapshot.user.id !== result.data.user.id) throw invalidResponse
     return snapshot

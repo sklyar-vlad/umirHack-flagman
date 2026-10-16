@@ -5,7 +5,6 @@ export type OrderTab = 'orders' | 'attempts'
 export interface AttemptSearch extends HistorySearch { reason_code: OrderReason | '' }
 export interface OrderSearch { tab: OrderTab; orders: HistorySearch; attempts: AttemptSearch }
 export const defaultOrderSearch: OrderSearch = { tab: 'orders', orders: { ...defaultHistorySearch }, attempts: { ...defaultHistorySearch, reason_code: '' } }
-// Namespaced UI parameters keep both independent lists across back/forward/reload.
 export function readOrderSearch(params: URLSearchParams): OrderSearch {
   const read = (tab: OrderTab) => {
     const inner = new URLSearchParams()

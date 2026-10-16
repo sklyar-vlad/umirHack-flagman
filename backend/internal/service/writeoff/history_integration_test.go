@@ -103,7 +103,7 @@ func TestMovementHistorySnapshotsFiltersAndStablePages(t *testing.T) {
 			t.Fatalf("filter %+v: %d %v", test.f, n, items)
 		}
 	}
-	// System expiration actors are represented by null, with no user secrets.
+
 	f.exec(
 		t,
 		`INSERT INTO stock_movements(batch_id,type,delta_quantity,remaining_quantity_after,product_name_snapshot,unit_snapshot,occurred_at) VALUES($1,'expiration',-7,0,'Old name','ml',clock_timestamp())`,

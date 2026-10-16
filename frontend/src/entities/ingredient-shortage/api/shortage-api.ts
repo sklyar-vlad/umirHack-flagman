@@ -19,7 +19,6 @@ export const shortageApi = baseApi.enhanceEndpoints({ addTagTypes: ['IngredientS
         if (!parsed.success) return { error: invalid }
         const data = parsed.data
         if (data.page !== values.page || data.page_size !== values.page_size || data.items.length > data.page_size || data.items.length > data.total || new Set(data.items.map((row) => `${row.product_id.toLowerCase()}:${row.unit}`)).size !== data.items.length) return { error: invalid }
-        // Do not reorder the published priority or replace historical names/units.
         return { data }
       },
     }),

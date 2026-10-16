@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { quantityToInput } from '@/shared/lib/quantity'
 
-// PostgreSQL sum(numeric) can exceed the maximum quantity of an individual movement.
 export const aggregateQuantitySchema = z.string().regex(/^\d+(?:\.\d{1,3})?$/)
 export function lossQuantity(raw: string): bigint {
   const [whole, fraction = ''] = raw.split('.')

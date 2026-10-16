@@ -83,7 +83,7 @@ func TestTimeEventRefreshesRealMenuExpiryAndWarningWithoutBusinessWrites(t *test
 	if firstEvent.Type != "inventory.time_changed" {
 		t.Fatal(firstEvent)
 	}
-	secondEvent := next(t, r) // Actual next 30-second timer; heartbeat is a comment.
+	secondEvent := next(t, r)
 	if secondEvent.Type != "inventory.time_changed" || secondEvent.ID <= firstEvent.ID ||
 		len(secondEvent.Payload.ProductIDs) != 0 {
 		t.Fatal(secondEvent)
@@ -92,7 +92,7 @@ func TestTimeEventRefreshesRealMenuExpiryAndWarningWithoutBusinessWrites(t *test
 	if err != nil || after.Availability.IsAvailable {
 		t.Fatal(after, err)
 	}
-	// The other batch entered the 1-hour warning threshold without a mutation.
+
 	nowOffers, err := offers.List(f.ctx, model.HotOffersFilter{Page: 1, PageSize: 10})
 	if err != nil || len(nowOffers.Items) != 1 || nowOffers.Items[0].Dish.ID != dishes[1] {
 		t.Fatal(nowOffers, err)

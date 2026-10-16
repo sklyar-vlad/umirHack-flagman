@@ -14,7 +14,6 @@ export function SuppliesPage() {
   const { settings, user } = useSelector(selectSession)
   const timezone = settings?.timezone ?? DEFAULT_RESTAURANT_TIMEZONE
   const query = useSuppliesQuery(values, { skip: !!periodError, refetchOnMountOrArgChange: true })
-  // currentData belongs only to these filters. It survives a failed refresh but never leaks another list.
   const data = query.currentData
   const change = (patch: Partial<SupplySearch>) => setParams(supplySearchParams(changeSupplySearch(values, patch)))
   const reset = () => setParams(supplySearchParams(defaultSupplySearch))

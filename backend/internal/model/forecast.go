@@ -7,8 +7,6 @@ type ForecastFilter struct {
 	Page, PageSize             int
 }
 
-// ConsumptionTotal preserves the recorded unit; incompatible history cannot
-// provide a rate for the current ingredient.
 type ConsumptionTotal struct {
 	ProductID      uuid.UUID
 	Unit, Quantity string

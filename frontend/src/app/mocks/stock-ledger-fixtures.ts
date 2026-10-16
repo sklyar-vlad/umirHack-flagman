@@ -2,7 +2,6 @@ import type { StockMovement } from '@/entities/stock-movement'
 import { inventoryBatches, mockId } from './inventory-fixtures'
 import { orderDetailFixture } from './order-detail-fixtures'
 
-// Synthetic historical snapshots deliberately differ from today's inventory names and balances.
 export const mockMovements: StockMovement[] = Array.from({ length: 65 }, (_, index) => {
   const type = (['receipt', 'order_consumption', 'manual_writeoff', 'expiration'] as const)[index % 4]
   const batch = inventoryBatches[type === 'receipt' ? index / 4 : index % 3]
@@ -14,7 +13,6 @@ export const mockMovements: StockMovement[] = Array.from({ length: 65 }, (_, ind
     occurred_at: new Date(Date.UTC(2026, 9, 10, 9) - index * 60000).toISOString(), note: type === 'expiration' ? 'Истечение срока годности' : type === 'manual_writeoff' ? 'Повреждена упаковка' : null }
 })
 
-// Synthetic operations include incompatible historical units for one product and large sums.
 export const mockStockLedger = [...mockMovements, ...Array.from({ length: 24 }, (_, index) => ({
   ...mockMovements[2], id: mockId(4000 + index), product_id: mockId(4100 + index), batch_id: mockId(5000 + index),
   product_name: `Продукт ${String(index + 1).padStart(2, '0')}`, unit: 'g' as const,

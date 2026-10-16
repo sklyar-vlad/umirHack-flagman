@@ -54,7 +54,6 @@ for (const width of [360, 390, 1024, 1440]) {
     await expect(row).toContainText('0,198875 л')
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     expect(errors).toEqual([])
-    // Existing F26 receives the new server movement; its historical rows stay unchanged.
     await page.goto('/stock-movements?batch_id=00000000-0000-4000-8000-000000000201&type=manual_writeoff')
     await expect(page.getByText('Повреждена упаковка', { exact: true }).filter({ visible: true }).first()).toBeVisible()
     await page.goto('/analytics/write-offs?product_id=00000000-0000-4000-8000-000000000010&reason=manual_writeoff&from=2026-10-11T00%3A00%3A00Z')

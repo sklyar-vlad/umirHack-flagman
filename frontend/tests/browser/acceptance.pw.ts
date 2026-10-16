@@ -65,7 +65,6 @@ test('F31 recipe changes after a successful check: final refusal retains basket 
   page.on('request', (request) => {
     if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/v1/orders') posts.push(request.postDataJSON())
   })
-  // Change the synthetic server after check without banner-triggered client invalidation.
   await page.evaluate(async () => {
     const path = '/src/app/mocks/scenarios.ts'
     const { setMockScenario } = await import(path)

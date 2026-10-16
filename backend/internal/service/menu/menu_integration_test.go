@@ -217,8 +217,7 @@ func TestMenuIntegrationLatestRecipeAndFilters(t *testing.T) {
 	expired := f.dish(t, "C cream", true)
 	empty := f.dish(t, "D no recipe", true)
 	inactive := f.dish(t, "E inactive", false)
-	// Version 2 is inserted before version 1 to exercise selection by version,
-	// rather than created_at or insertion order.
+
 	f.recipe(t, available, 2, cheese, "300.000")
 	f.recipe(t, available, 1, chicken, "100.000")
 	f.recipe(t, missing, 1, chicken, "100.000")
@@ -312,7 +311,7 @@ func TestMenuIntegrationStopListRecalculatesOnReceiptAndExpiry(t *testing.T) {
 		initial.Items[0].Shortages[0].ReasonCode != "ingredient_shortage" {
 		t.Fatalf("initial: %+v", initial)
 	}
-	// A new supply batch is visible on the next read without a cached stop-list.
+
 	f.batch(t, product, "300.000", f.now.Add(time.Hour))
 	if supplied := f.list(t, "/stop-list"); supplied.Total != 0 || supplied.Items == nil {
 		t.Fatalf("after receipt: %+v", supplied)
@@ -324,7 +323,7 @@ func TestMenuIntegrationStopListRecalculatesOnReceiptAndExpiry(t *testing.T) {
 		dishes.Items[0].AvailablePortions != "3" {
 		t.Fatalf("after receipt menu: %+v", dishes)
 	}
-	// Advance the calculation clock without changing a single database row.
+
 	f.now = f.now.Add(time.Hour)
 	expired := f.list(t, "/stop-list")
 	if expired.Total != 1 || expired.Items[0].ID != active ||
@@ -336,7 +335,7 @@ func TestMenuIntegrationStopListRecalculatesOnReceiptAndExpiry(t *testing.T) {
 		expired.Items[0].Meta["server_time"] != expired.Meta["server_time"] {
 		t.Fatal("inconsistent calculation time")
 	}
-	// Mixed valid stock remains usable, while expired stock never fills a deficit.
+
 	f.batch(t, product, "50.000", f.now.Add(time.Hour))
 	if mixed := f.list(
 		t,

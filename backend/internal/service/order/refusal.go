@@ -53,8 +53,7 @@ func (s *CreateService) saveRefusal(
 	if err != nil {
 		return idempotency.Outcome{}, err
 	}
-	// Keep the refusal facts; the shared executor persists this response in the
-	// same outer transaction. A technical error rolls both records back.
+
 	return idempotency.Outcome{Response: model.IdempotencyResponse{Status: http.StatusConflict, Body: body}}, nil
 }
 

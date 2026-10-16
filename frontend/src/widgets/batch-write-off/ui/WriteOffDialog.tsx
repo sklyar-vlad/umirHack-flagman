@@ -38,7 +38,7 @@ export function WriteOffDialog({ initial, returnFocusRef, onClose }: { initial: 
   useEffect(() => {
     const current = store.getState().session
     if (!result && current.status === 'authenticated' && current.user?.id === owner.current) dispatch(saveWorkDraft({ key: 'writeOff', draft: { writeOff: { ...snapshot, values: { quantity: values.quantity ?? '', reason: values.reason ?? '' }, attempt } } }))
-  }, [values.quantity, values.reason, snapshot, attempt, result, dispatch, store]) // Owner stays fixed for the mounted dialog.
+  }, [values.quantity, values.reason, snapshot, attempt, result, dispatch, store])
   useEffect(() => { if (focusField && !mutation.isLoading) form.setFocus(focusField) }, [focusField, mutation.isLoading, form])
   const locked = !!attempt || mutation.isLoading || reloading || error?.code === 'INSUFFICIENT_BATCH_STOCK' || error?.status === 404
   async function send(body?: WriteOffRequest) {
@@ -75,7 +75,6 @@ export function WriteOffDialog({ initial, returnFocusRef, onClose }: { initial: 
     busy.current = true; setReloading(true); setReloadError('')
     try {
       let fresh: Batch | undefined
-      // There is no published GET /batches/:id. Search the existing complete product history.
       for (let page = 1; ; page++) {
         const query = dispatch(inventoryApi.endpoints.productBatches.initiate({ productId: snapshot.product.id, status: 'all', sort: 'expires_at', page, page_size: 100 }, { subscribe: false, forceRefetch: true }))
         request.current = query

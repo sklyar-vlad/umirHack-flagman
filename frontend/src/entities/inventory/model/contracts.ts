@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { batchSchema, attentionBatchSchema } from '@/shared/api'
 import { parseApiDateTime } from '@/shared/lib/restaurant-time'
 
-// Published backend/docs/openapi.yaml: InventoryItem, Batch, CategoryListResponse.
 const id = z.uuid()
 const integer = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const instant = z.string().refine((value) => {

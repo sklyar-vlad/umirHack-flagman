@@ -14,8 +14,6 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
-// Validate shape before decoding: nulls, repeated keys and unknown fields must
-// never silently erase fields or override a concurrency version.
 func decode(c *gin.Context, destination any) error {
 	data, err := io.ReadAll(c.Request.Body)
 	if err != nil {

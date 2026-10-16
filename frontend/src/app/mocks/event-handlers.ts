@@ -1,7 +1,6 @@
 import { http } from 'msw/http'
 import { getMockScenario } from './scenarios'
 
-/** Only registered by the explicit development/test MSW worker. No production fallback. */
 export function createMockEventResponse(request: Request) {
   let timer: ReturnType<typeof setInterval> | undefined
   const encoder = new TextEncoder()
@@ -9,7 +8,7 @@ export function createMockEventResponse(request: Request) {
     start(controller) {
       let cursor = BigInt(request.headers.get('Last-Event-ID') ?? '100'), previous = '', previousScenario = '', ticks = 0
       controller.enqueue(encoder.encode(': mock heartbeat\n\n'))
-      const stop = () => { clearInterval(timer); try { controller.close() } catch { /* Already cancelled. */ } }
+      const stop = () => { clearInterval(timer); try { controller.close() } catch {  } }
       request.signal.addEventListener('abort', stop, { once: true })
       timer = setInterval(() => {
         const scenario = getMockScenario()

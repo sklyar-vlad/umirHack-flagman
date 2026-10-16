@@ -60,7 +60,7 @@ func TestHTTPRestartPublishesCommittedPendingAfterReversedBusinessCommits(t *tes
 	if err := first.Commit(f.ctx); err != nil {
 		t.Fatal(err)
 	}
-	// Stop the old HTTP server before this committed event has been published.
+
 	cancel()
 	response.Body.Close()
 	server.Close()
@@ -87,7 +87,7 @@ func TestHTTPRestartPublishesCommittedPendingAfterReversedBusinessCommits(t *tes
 		t.Fatal("late commit missed after restart", after, before)
 	}
 	response.Body.Close()
-	// A second reconnect may deliver the same event; its cursor/payload stay fixed.
+
 	response = open(t, restarted, token, strconv.FormatInt(before.ID, 10))
 	duplicate := next(t, bufio.NewReader(response.Body))
 	left, _ := json.Marshal(after)

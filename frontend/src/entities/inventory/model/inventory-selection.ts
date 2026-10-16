@@ -1,6 +1,5 @@
 import { z } from 'zod'
 
-/** UI selection only; these identifiers are never inventory API filter parameters. */
 export function readInventorySelection(params: URLSearchParams) {
   const product = params.get('product_id'), supply = params.get('supply_id')
   return {

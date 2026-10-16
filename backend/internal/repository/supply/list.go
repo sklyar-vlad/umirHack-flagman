@@ -85,8 +85,6 @@ func (r *Repository) List(
 	return supplies, total, nil
 }
 
-// PostgreSQL stores microseconds. Rounding bounds upward preserves both >= from
-// and < to for fractional seconds finer than this grid.
 func supplyDateBoundary(value time.Time) time.Time {
 	boundary := value.Truncate(time.Microsecond)
 	if !boundary.Equal(value) {

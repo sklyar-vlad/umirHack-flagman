@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { parseApiDateTime } from '@/shared/lib/restaurant-time'
 
-// Published ProductBrief and Batch DTOs, reused across warehouse read endpoints.
 const id = z.uuid()
 const integer = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const instant = z.string().refine((value) => {

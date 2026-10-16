@@ -19,7 +19,6 @@ type Repository struct{}
 
 func NewRepository() *Repository { return &Repository{} }
 
-// Hold actor rights for the mutation, including all subsequent catalog lock waits.
 func (r *Repository) LockActor(ctx context.Context, q repository.DBTX, id uuid.UUID) error {
 	tx, err := repository.RequireTransaction(q)
 	if err != nil {

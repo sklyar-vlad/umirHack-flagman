@@ -4,7 +4,6 @@ import "github.com/google/uuid"
 
 const ErrUnitLocked CatalogConflict = "unit is locked by history"
 
-// CatalogConflict carries a specific refusal without database details.
 type CatalogConflict string
 
 func (e CatalogConflict) Error() string { return string(e) }

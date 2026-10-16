@@ -17,8 +17,6 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/service/idempotency"
 )
 
-// ResponseRenderer builds the API body from the created supply through the
-// same transaction. Serialization errors must occur before the outer commit.
 type ResponseRenderer func(context.Context, repository.DBTX, *model.CreatedSupply) (json.RawMessage, error)
 
 func (s *Service) CreateIdempotent(

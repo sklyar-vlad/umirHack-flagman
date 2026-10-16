@@ -17,8 +17,6 @@ import (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
-// CheckReady verifies the deployed binary's complete migration manifest. It does
-// not apply migrations and never considers a partially migrated database ready.
 func CheckReady(ctx context.Context, pool *pgxpool.Pool) error {
 	versions, err := migrationVersions()
 	if err != nil {
@@ -63,7 +61,7 @@ func CheckReady(ctx context.Context, pool *pgxpool.Pool) error {
 			return errors.New("schema migration mismatch")
 		}
 	}
-	// This also detects a missing critical relation despite a retained Goose ledger.
+
 	var ok bool
 	err = tx.QueryRow(ctx, `SELECT bool_and(to_regclass(name) IS NOT NULL) FROM unnest(ARRAY[
  'users','sessions','products','dishes','batches','recipe_versions','recipe_items','stock_movements',

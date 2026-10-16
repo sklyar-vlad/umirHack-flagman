@@ -7,7 +7,6 @@ export interface InventorySearch {
 }
 export const defaultInventorySearch: InventorySearch = { search: '', category_id: '', filter: 'all', sort: 'name', page: 1, page_size: 50 }
 const positive = (raw: string | null, fallback: number, max = Number.MAX_SAFE_INTEGER) => raw && /^\d+$/.test(raw) && Number.isSafeInteger(Number(raw)) && Number(raw) >= 1 && Number(raw) <= max ? Number(raw) : fallback
-/** Browser URLs are untrusted; only contract parameters reach API requests. */
 export function readInventorySearch(params: URLSearchParams): InventorySearch {
   const category = params.get('category_id') ?? ''
   const filter = params.get('filter')

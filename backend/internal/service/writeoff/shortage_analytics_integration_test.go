@@ -57,7 +57,7 @@ func TestIngredientShortageAnalyticsHistoryExactSumsFiltersAndPages(t *testing.T
 	f := newFixture(t)
 	from := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	to := from.Add(time.Second)
-	// Snapshot UUIDs need no current catalog row; quantities/units/names stay historical.
+
 	other := uuid.New()
 	first := dto.Shortage{ProductID: f.product, ProductName: "Old milk", Unit: "ml", MissingQuantity: "1.001"}
 	second := first
@@ -101,7 +101,7 @@ func TestIngredientShortageAnalyticsHistoryExactSumsFiltersAndPages(t *testing.T
 			}
 		}
 	}
-	// Different units of the same snapshot product are separate rows.
+
 	pcs.ProductID = f.product
 	f.attempt(t, uuid.New(), to.Add(time.Second), "INSUFFICIENT_STOCK", pcs)
 	large := first

@@ -346,7 +346,7 @@ func TestIncomingRolesExpiredLinesAndAtomicRollback(t *testing.T) {
 func TestHotOfferManagerPublicationAlsoAppliesToDashboard(t *testing.T) {
 	f := newFixture(t)
 	dish := f.testDish(t, f.product, "1")
-	// Put stock beyond the warning threshold: only manual publication can add it.
+
 	f.exec(t, `UPDATE batches SET expires_at=clock_timestamp()+interval '7 days' WHERE id=$1`, f.batch)
 	base := repository.NewRepository(f.pool, zap.NewNop())
 	preferences := offersservice.NewPreferenceService(base)

@@ -18,7 +18,6 @@ export const shortageDemoAttempts = [
 ]
 export function shortageAttempts(demo = false) { return [...attemptFixtures, ...(demo ? shortageDemoAttempts : []), ...composedAttempts()] }
 
-/** Synthetic server aggregation, used only in explicit development/test MSW mode. */
 export function shortageRows(values: ShortageSearch, attempts: OrderAttempt[]): ShortageRow[] {
   const groups = new Map<string, { row: ShortageRow; amount: bigint; ids: Set<string>; latest: string }>()
   const distinct = new Map(attempts.map((attempt) => [attempt.id.toLowerCase(), attempt]))

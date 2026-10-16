@@ -13,7 +13,6 @@ export function productSearchParams(values: ProductSearch) {
 }
 export function changeProductSearch(values: ProductSearch, patch: Partial<ProductSearch>): ProductSearch { return { ...values, ...patch, page: patch.page ?? 1 } }
 
-/** A list return destination contains published filters only. */
 export function safeProductListUrl(value: string | null | undefined) {
   if (!value || !value.startsWith('/') || value.startsWith('//')) return '/admin/products'
   const url = new URL(value, 'https://internal.invalid')

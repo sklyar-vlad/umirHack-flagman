@@ -6,7 +6,6 @@ const historyInstantSchema = z.string().refine((value) => {
 
 export interface HistorySearch { search: string; from: string; to: string; sort: '-created_at'; page: number; page_size: number }
 export const defaultHistorySearch: HistorySearch = { search: '', from: '', to: '', sort: '-created_at', page: 1, page_size: 50 }
-/** Preserve the published fractional seconds when comparing period bounds. */
 export function compareHistoryInstants(a: string, b: string): number {
   const nanos = (raw: string) => BigInt(parseApiDateTime(raw).getTime()) * 1_000_000n + BigInt((raw.match(/\.(\d+)/)?.[1] ?? '').padEnd(9, '0').slice(3))
   const aa = nanos(a), bb = nanos(b)
@@ -31,7 +30,6 @@ export function historySearchParams(values: HistorySearch): URLSearchParams {
 export function changeHistorySearch(values: HistorySearch, patch: Partial<HistorySearch>): HistorySearch {
   return { ...values, ...patch, page: patch.page ?? 1 }
 }
-/** Native datetime-local supports milliseconds; keep finer URL precision until the field changes. */
 export function historyInstantToInput(raw: string, timezone: string): string {
   try {
     return (restaurantDateTimeToInput(raw || null, timezone) ?? '').replace(/(\.\d{3})\d+$/, '$1')
@@ -46,7 +44,6 @@ export function historyFilterSchema(timezone: string, original?: Pick<HistorySea
   })
   return z.object({ search: z.string(), from: local(original?.from), to: local(original?.to) }).refine((values) => !historyPeriodError(values), { path: ['to'], message: 'Начало периода должно быть не позже конца.' })
 }
-/** Refuse ambiguous destination wall times before changing any original filter draft. */
 export function convertHistoryTimezone<T extends { search: string; from: string; to: string }>(values: T, original: Pick<HistorySearch, 'from' | 'to'>, from: string, to: string): T {
   const instants = historyFilterSchema(from, original).parse(values)
   const projected = { ...values, from: historyInstantToInput(instants.from, to), to: historyInstantToInput(instants.to, to) }

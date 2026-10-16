@@ -8,7 +8,6 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/validations"
 )
 
-// MakeResponse is shared by HTTP handlers and stored domain refusals.
 func MakeResponse(
 	err error,
 	requestID string,

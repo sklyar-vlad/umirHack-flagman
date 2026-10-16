@@ -9,7 +9,6 @@ const payloadSchema = z.object({
   product_ids: ids, batch_ids: ids, dish_ids: ids, category_ids: ids, supply_ids: ids, order_ids: ids, user_ids: ids,
 })
 
-/** Keep int64 decimal cursors exact; native EventSource owns the replay header. */
 export function decodeEvent(type: string, cursor: string, data: string) {
   if (!eventTypes.some((value) => value === type) || !/^\d{1,19}$/.test(cursor) || BigInt(cursor) > 9223372036854775807n || (BigInt(cursor) === 0n && type !== 'resync.required') || data.length > 1_000_000) return null
   try {

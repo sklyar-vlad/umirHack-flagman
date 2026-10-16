@@ -9,7 +9,6 @@ export async function startMocking() {
   setMockScenario(env.mockScenario)
   await worker.start({
     serviceWorker: { url: '/mockServiceWorker.js' },
-    // Только API перехватывается handlers; ресурсы Vite проходят в сеть.
     onUnhandledFrame: 'bypass',
   })
 }

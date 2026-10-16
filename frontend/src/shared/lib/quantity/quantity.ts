@@ -25,12 +25,10 @@ function parseDecimal(raw: string, signed = false, bounded = true): bigint {
   return negative ? -value : value
 }
 
-/** API Quantity: nonnegative numeric(14,3), in thousandths of the base unit. */
 export function parseQuantity(raw: string | null): bigint | null {
   return raw === null ? null : parseDecimal(raw)
 }
 
-/** Movement deltas are separate from nonnegative request quantities. */
 export function parseMovementQuantity(raw: string | null): bigint | null {
   return raw === null ? null : parseDecimal(raw, true)
 }
@@ -75,12 +73,10 @@ function displayValue(value: bigint, unit: Unit, displayUnit: DisplayUnit): stri
   return decimalString(value, precision).replace(/\.?0+$/, '')
 }
 
-/** Accepts inventory aggregates larger than an individual numeric(14,3) quantity. */
 export function quantityToInput(raw: string | null, unit: Unit, displayUnit: DisplayUnit = unit): string | null {
   return raw === null ? null : displayValue(parseDecimal(raw, false, false), unit, displayUnit)
 }
 
-/** Form input permits a decimal comma; default is positive, allowZero is for target stock. */
 export function quantityFromInput(
   raw: string,
   unit: Unit,
@@ -98,7 +94,6 @@ export function quantityFromInput(
   if (!allowZero && value === 0n) {
     throw new QuantityError('not_positive', 'Количество должно быть больше нуля.')
   }
-  // Thousandths of kg/l are not used: six display decimals equal three base decimals.
   return serializeQuantity(value)!
 }
 

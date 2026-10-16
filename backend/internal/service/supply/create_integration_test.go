@@ -39,7 +39,6 @@ type supplyFixture struct {
 	input   dto.CreateSupplyRequest
 }
 
-// Each test migrates and drops only its own randomly named schema.
 func newSupplyFixture(t *testing.T) *supplyFixture {
 	t.Helper()
 	dsn := os.Getenv("SUPPLY_TEST_DATABASE_URL")
@@ -249,7 +248,7 @@ func TestCreateSupplyIntegration(t *testing.T) {
 		}
 	}
 	assertSupplyCounts(t, f, 1, 3)
-	// Journal facts remain stable after a product rename/unit edit.
+
 	if _, err := f.pool.Exec(
 		f.ctx,
 		`UPDATE products SET name = 'Переименовано', unit = 'ml', display_unit = 'ml' WHERE id = $1`,
@@ -364,7 +363,7 @@ func TestCreateSupplyConcurrentNumberIntegration(t *testing.T) {
 	s := NewService(barrier, repository.NewRepository(f.pool, zap.NewNop()), nil)
 	s.now = f.service.now
 	results := make(chan error, 2)
-	// Disjoint products permit both prechecks to see the number as available.
+
 	for _, item := range []dto.CreateSupplyItem{f.input.Items[0], f.input.Items[1]} {
 		input := f.input
 		input.Items = []dto.CreateSupplyItem{item}
@@ -470,7 +469,7 @@ func TestCreateSupplyChecksExpiryAfterLockIntegration(t *testing.T) {
 	if _, err := holder.Exec(f.ctx, `SELECT id FROM products WHERE id = $1 FOR UPDATE`, f.high.String()); err != nil {
 		t.Fatal(err)
 	}
-	// Inject a later server T without making the test wait for a real expiry.
+
 	expires, err := time.Parse(time.RFC3339Nano, *f.input.Items[0].ExpiresAt)
 	if err != nil {
 		t.Fatal(err)

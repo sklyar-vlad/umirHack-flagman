@@ -1,6 +1,5 @@
 import { z } from 'zod'
 
-// Published product request fields; draft strings intentionally allow invalid unfinished input.
 export const productNameSchema = z.string().trim().refine((name) => [...name].length >= 1 && [...name].length <= 200, 'Название: от 1 до 200 символов после удаления пробелов')
 export const productFieldsSchema = z.object({
   name: productNameSchema, category_id: z.uuid(), unit: z.enum(['g', 'ml', 'pcs']), display_unit: z.enum(['g', 'kg', 'ml', 'l', 'pcs']),

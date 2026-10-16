@@ -16,7 +16,6 @@ func CalculateStatus(remainingQuantity string, expiresAt, now time.Time, thresho
 	}
 }
 
-// RemainingSeconds floors the signed difference without overflowing time.Duration for distant dates.
 func RemainingSeconds(expiresAt, now time.Time) int64 {
 	seconds := expiresAt.Unix() - now.Unix()
 	if expiresAt.Nanosecond() < now.Nanosecond() {

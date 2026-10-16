@@ -3,7 +3,6 @@ import { mockId } from './inventory-fixtures'
 
 export const forecastServerTime = '2026-10-13T09:00:00Z'
 const common = ['estimate_only', 'no_future_supplies', 'current_recipe_unchanged', 'constant_average_product_consumption_full_lookback', 'continuous_expected_consumption']
-// Illustrative server DTOs, not a client implementation of the FEFO forecast model.
 export function forecastRows(demo: boolean): ForecastRow[] {
   const rows: ForecastRow[] = [
     { dish_id: mockId(800), dish_name: 'Суп дня', estimated_stop_at: forecastServerTime, cause: 'already_unavailable', limiting_product_id: mockId(10), confidence: 'low', assumptions: common },

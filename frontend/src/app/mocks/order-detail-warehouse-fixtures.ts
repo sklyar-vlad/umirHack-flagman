@@ -5,7 +5,6 @@ import { inventoryCategories, inventoryServerTime } from './inventory-fixtures'
 import { orderDetailFixture, splitOrderDetailFixture } from './order-detail-fixtures'
 import { getMockScenario } from './scenarios'
 
-/** Explicit demo-only warehouse snapshot, not a reconstruction of real current stock. */
 export function orderDemoSupplies(): SupplyDetail[] {
   const scenario = getMockScenario()
   if (scenario !== 'order-detail-demo' && scenario !== 'order-detail-split') return []

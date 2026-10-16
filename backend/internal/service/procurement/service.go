@@ -163,8 +163,6 @@ func recommendations(stock []model.ProcurementStock) ([]dto.ProcurementItem, err
 	return items, nil
 }
 
-// Link a product only when its own shortage blocks an active dish's current
-// recipe. A sufficient ingredient of another blocked dish is not a cause.
 func affectedDishes(dishes []model.Dish) (map[uuid.UUID][]dto.AffectedDish, error) {
 	linked := make(map[uuid.UUID][]dto.AffectedDish)
 	for _, dish := range dishes {
@@ -192,8 +190,6 @@ func affectedDishes(dishes []model.Dish) (map[uuid.UUID][]dto.AffectedDish, erro
 	return linked, nil
 }
 
-// BuildRecommendations derives the complete priority-ordered list from a shared
-// stock/recipe snapshot. It performs no database reads or stock mutations.
 func BuildRecommendations(stock []model.ProcurementStock, dishes []model.Dish) ([]dto.ProcurementItem, error) {
 	items, err := recommendations(stock)
 	if err != nil {

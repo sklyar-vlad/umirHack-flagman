@@ -208,7 +208,7 @@ func TestUserReadsSearchFiltersPaginationAndSafeDetails(t *testing.T) {
 	if err != nil || len(roles) != 4 {
 		t.Fatal("roles", err)
 	}
-	// ID tie-breaking produces the same order across repeated pages.
+
 	search = "Same_%"
 	items, _, err = f.users.List(ctx, model.UserFilter{Page: 1, PageSize: 50, Search: &search})
 	if err != nil || len(items) != 2 || items[0].ID.String() > items[1].ID.String() {

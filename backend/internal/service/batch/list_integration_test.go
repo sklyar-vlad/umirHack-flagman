@@ -109,7 +109,7 @@ func newBatchFixture(t *testing.T) *batchFixture {
 		t.Fatal(err)
 	}
 	f.service = NewService(batchrepository.NewRepository(), repository.NewRepository(pool, logger))
-	// Fixed for the lifetime of the server, so expires_at = now can be tested exactly.
+
 	f.service.now = func() time.Time { return f.now }
 	router := gin.New()
 	router.Use(handler.RequestID(), handler.Recovery(logger))
@@ -315,7 +315,7 @@ func TestBatchListStatusesAndExactExpiryIntegration(t *testing.T) {
 			t.Fatal("nullable explicit expiry facts lost")
 		}
 	}
-	// The threshold changes classification, never the persisted expiry.
+
 	f.exec(t, `INSERT INTO restaurant_settings (restaurant_name,expiring_threshold_hours) VALUES ('Test',48)`)
 	result := f.list(t, url.Values{"status": {"expiring"}})
 	if result.Total != 4 || len(result.Items) != 4 || result.Items[3].ID != ids[8] ||
@@ -396,7 +396,7 @@ type countHookPool struct {
 	afterCount func() error
 }
 
-//nolint:gocritic // The signature must match pgxpool.Pool.BeginTx.
+//nolint:gocritic
 func (p *countHookPool) BeginTx(ctx context.Context, options pgx.TxOptions) (pgx.Tx, error) {
 	tx, err := p.Pool.BeginTx(ctx, options)
 	if err != nil {

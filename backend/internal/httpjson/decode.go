@@ -13,7 +13,6 @@ import (
 
 const bodyField = "body"
 
-// DecodeObject rejects ambiguous keys at every depth before decoding typed DTOs.
 func DecodeObject(reader io.Reader, dst any) error {
 	data, err := io.ReadAll(reader)
 	if err != nil {

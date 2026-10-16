@@ -6,7 +6,6 @@ import { Button, EmptyState, ErrorState, Skeleton } from '@/shared/ui'
 import { BatchPanel } from './BatchPanel'
 import styles from './InventoryPage.module.css'
 
-/** Reads the selected product from its supply even if it is absent from the stock list. */
 export function InventorySelection({ productId, supplyId, onClear }: { productId: string; supplyId: string; onClear: () => void }) {
   const query = useSupplyQuery(supplyId, { refetchOnMountOrArgChange: true })
   const errorStatus = isApiError(query.error) ? query.error.status : undefined

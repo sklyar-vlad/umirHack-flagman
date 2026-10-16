@@ -93,7 +93,6 @@ func (h *Handler) GetSupply(c *gin.Context) {
 	c.JSON(http.StatusOK, details)
 }
 
-// GET /api/v1/supplies
 func (h *Handler) ListSupplies(c *gin.Context) {
 	if _, ok := requestctx.Actor(c.Request.Context()); !ok {
 		basehandler.WriteError(c, apperrors.ErrUnauthorized)

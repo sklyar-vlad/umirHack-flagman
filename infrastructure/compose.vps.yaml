@@ -1,4 +1,3 @@
-# Standalone deployment; do not combine local and VPS files.
 name: flagman-vps
 services:
   traefik:

@@ -8,7 +8,6 @@ const sales = ['admin', 'manager', 'order_operator'] as const
 const management = ['admin', 'manager'] as const
 const admin = ['admin'] as const
 export interface Section { id: string; path: string; title: string; icon: IconName; roles: readonly Role[]; group: 'main' | 'extra' | 'recommendations' | 'admin' }
-/** README role matrix. Navigation and route guards consume the same records. */
 export const sections: readonly Section[] = [
   { id: 'overview', path: '/', title: 'Обзор', icon: 'grid', roles: all, group: 'main' },
   { id: 'inventory', path: '/inventory', title: 'Склад', icon: 'box', roles: all, group: 'main' },
@@ -22,7 +21,8 @@ export const sections: readonly Section[] = [
   { id: 'movements', path: '/stock-movements', title: 'История движений', icon: 'adminHistory', roles: stock, group: 'extra' },
   { id: 'analytics', path: '/analytics', title: 'Аналитика', icon: 'grid', roles: management, group: 'extra' },
   { id: 'forecast', path: '/analytics/stop-list-forecast', title: 'Прогноз', icon: 'grid', roles: management, group: 'extra' },
-  { id: 'dishes', path: '/dishes', title: 'Меню', icon: 'adminBook', roles: sales, group: 'extra' },
+  { id: 'dishes', path: '/dishes', title: 'Рецептуры', icon: 'adminBook', roles: sales, group: 'extra' },
+  { id: 'menu', path: '/menu', title: 'Меню', icon: 'adminBook', roles: sales, group: 'extra' },
   { id: 'products', path: '/admin/products', title: 'Продукты', icon: 'box', roles: admin, group: 'admin' },
   { id: 'categories', path: '/admin/categories', title: 'Категории', icon: 'adminBook', roles: admin, group: 'admin' },
   { id: 'recipes', path: '/admin/dishes', title: 'Рецептуры', icon: 'adminBook', roles: admin, group: 'admin' },
@@ -40,11 +40,9 @@ export function sectionForPath(path: string) {
   if (path === '/admin/audit') return sections.find((section) => section.id === 'audit')
   if (path === '/admin/recipes') return sections.find((section) => section.id === 'recipes')
   if (path === '/dashboard') return sections.find((section) => section.id === 'overview')
-  // More specific records must win over their parent section.
   return [...sections].sort((a, b) => b.path.length - a.path.length).find((section) => path === section.path || (section.path !== '/' && path.startsWith(`${section.path}/`)))
 }
 export function startPath(role: Role) { return visibleSections(role, 'main')[0]?.path ?? '/forbidden' }
-/** The caller must first strip external URLs/query secrets using safeReturnUrl. */
 export function permittedReturnPath(role: Role, path: string) {
   const section = sectionForPath(path.split(/[?#]/)[0])
   if (path === '/admin') return visibleSections(role, 'admin')[0]?.path ?? startPath(role)

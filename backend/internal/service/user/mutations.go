@@ -60,8 +60,6 @@ func validateRevision(revision int) error {
 	return nil
 }
 
-// Sanitize deferred PostgreSQL failures too: commit-time constraints may include
-// a credential supplied to INSERT/UPDATE in the database error message.
 func mutationError(err error) error {
 	var pgerr *pgconn.PgError
 	if errors.As(err, &pgerr) {
@@ -238,8 +236,6 @@ func (s *Service) Password(ctx context.Context, id uuid.UUID, input dto.UserPass
 	return userDTO(&result), nil
 }
 
-// Read committed gives each statement a fresh snapshot after the advisory wait.
-// Recheck the actor as well so a waiting former admin cannot perform a mutation.
 func (s *Service) lockAdministration(ctx context.Context, tx repository.DBTX) error {
 	if err := s.repo.LockAdministration(ctx, tx); err != nil {
 		return err

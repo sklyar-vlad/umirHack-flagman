@@ -10,8 +10,6 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/model"
 )
 
-// A blocked socket has no subscriber queue or database transaction attached.
-// Its deadline closes the write while publication and another client progress.
 type socketWriter struct{ net.Conn }
 
 func (w socketWriter) Header() http.Header { return http.Header{} }

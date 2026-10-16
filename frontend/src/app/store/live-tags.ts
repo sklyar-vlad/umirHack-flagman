@@ -5,7 +5,6 @@ import { baseApi } from '@/shared/api'
 export const liveApi = baseApi.enhanceEndpoints({ addTagTypes: ['Inventory', 'Batches', 'Dashboard', 'Dishes', 'StopList', 'HotOffers', 'Procurement', 'Recommendations', 'Products', 'ProductCategories', 'Supplies', 'Orders', 'OrderAttempts', 'StockMovements', 'IncomingSupplies', 'ProductFlow', 'WriteOffReport', 'IngredientShortages', 'StopListForecast', 'Users', 'Roles', 'Settings', 'AuditLog'] })
 const paths = {
   Inventory: '/inventory', Batches: '/inventory', Dashboard: '/', Dishes: '/dishes', StopList: '/stop-list', HotOffers: '/recommendations/offers', Procurement: '/recommendations/procurement', Recommendations: '/recommendations',
-  // Product reads also feed reception forms; published GET /products permits all roles.
   Products: '/inventory', ProductCategories: '/inventory', Supplies: '/supplies', Orders: '/orders', OrderAttempts: '/orders', StockMovements: '/stock-movements', IncomingSupplies: '/supplies', ProductFlow: '/analytics', WriteOffReport: '/analytics', IngredientShortages: '/analytics', StopListForecast: '/analytics/stop-list-forecast', Users: '/admin/users', Roles: '/admin/users', Settings: '/admin/settings', AuditLog: '/admin/audit-log',
 } as const
 type Tag = keyof typeof paths

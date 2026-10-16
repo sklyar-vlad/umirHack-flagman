@@ -41,7 +41,7 @@ func TestSafeUserAuditSnapshotsAndFailedMutationAbsence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Refused/stale/invalid/duplicate requests leave no successful audit entries.
+
 	f.users.Update(ctx, f.user, dto.UpdateUserRequest{IsActive: ptr(false), ExpectedRevision: 1})
 	f.users.Update(ctx, u.ID, dto.UpdateUserRequest{Name: ptr("stale"), ExpectedRevision: 1})
 	f.users.Create(ctx, createInput())

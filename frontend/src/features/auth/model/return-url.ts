@@ -10,9 +10,8 @@ import { procurementSearchParams, readProcurementSearch } from '@/entities/procu
 import { inventorySearchParams, readInventorySearch, inventorySelectionParams } from '@/entities/inventory'
 import { safeOrderListUrl } from '@/entities/order'
 import { safeSupplyListUrl } from '@/entities/supply'
-import { readDishSearch, dishSearchParams, safeDishListUrl, readStopListSearch, stopListSearchParams, readHotOfferSearch, hotOfferSearchParams } from '@/entities/dish'
+import { readDishSearch, dishSearchParams, safeDishListUrl, safeRecipeListUrl, readStopListSearch, stopListSearchParams, readHotOfferSearch, hotOfferSearchParams } from '@/entities/dish'
 
-/** Reject external URLs, ambiguous encodings, login loops and credential-bearing query strings. */
 export function safeReturnUrl(value: string | null | undefined): string {
   if (!value || !value.startsWith('/') || value.startsWith('//') || /[\\\s%]/u.test(value.split(/[?#]/)[0])) return '/'
   const url = new URL(value, 'https://internal.invalid')
@@ -49,6 +48,14 @@ export function safeReturnUrl(value: string | null | undefined): string {
   if (/^\/admin\/users\/(?:new|[0-9a-f-]{36}(?:\/(?:edit|password))?)$/i.test(url.pathname) && url.searchParams.has('returnTo')) {
     return `${url.pathname}?${new URLSearchParams({ returnTo: safeUserListUrl(url.searchParams.get('returnTo')) })}`
   }
+  if (url.pathname === '/menu') {
+    const params = dishSearchParams(readDishSearch(url.searchParams))
+    return '/menu' + (params.size ? `?${params}` : '')
+  }
+  if (url.pathname === '/dishes') return safeRecipeListUrl(url.pathname + url.search)
+  if (/^\/dishes\/[0-9a-f-]{36}$/i.test(url.pathname) && url.searchParams.has('returnTo')) {
+    return `${url.pathname}?${new URLSearchParams({ returnTo: safeRecipeListUrl(url.searchParams.get('returnTo')) })}`
+  }
   if (url.pathname === '/admin/dishes' || url.pathname === '/admin/recipes') {
     const params = dishSearchParams(readDishSearch(url.searchParams))
     return '/admin/dishes' + (params.size ? `?${params}` : '')
@@ -63,7 +70,6 @@ export function safeReturnUrl(value: string | null | undefined): string {
   if (/^\/admin\/products\/(?:new|[0-9a-f-]{36}(?:\/edit)?)$/i.test(url.pathname) && url.searchParams.has('returnTo')) {
     return `${url.pathname}?${new URLSearchParams({ returnTo: safeProductListUrl(url.searchParams.get('returnTo')) })}`
   }
-  // Published warehouse filters and F07 UI-only product/supply selection.
   if (url.pathname === '/inventory') {
     const allowed = inventorySearchParams(readInventorySearch(url.searchParams))
     inventorySelectionParams(url.searchParams).forEach((value, key) => allowed.set(key, value))

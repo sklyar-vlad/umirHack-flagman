@@ -20,7 +20,7 @@ func TestReplayReconnectDuplicatesRestartAndRetentionResync(t *testing.T) {
 	for range 205 {
 		ids = append(ids, f.append(t, s, "inventory.changed", &payload))
 	}
-	// Read pages from durable storage; reconnect may replay the same IDs.
+
 	if err := s.Dispatch(f.ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestReplayReconnectDuplicatesRestartAndRetentionResync(t *testing.T) {
 		}
 		resp.Body.Close()
 	}
-	// Age one published row only; floor is durable and survives a fresh service.
+
 	f.exec(t, `UPDATE outbox_events SET published_at=clock_timestamp()-interval '25 hours' WHERE cursor=$1`, ids[0])
 	if err := s.Dispatch(f.ctx); err != nil {
 		t.Fatal(err)
@@ -45,12 +45,12 @@ func TestReplayReconnectDuplicatesRestartAndRetentionResync(t *testing.T) {
 		t.Fatal(got)
 	}
 	resp.Body.Close()
-	resp = open(t, server, token, strconv.FormatInt(ids[0], 10)) // floor itself is a safe cursor
+	resp = open(t, server, token, strconv.FormatInt(ids[0], 10))
 	if got := next(t, bufio.NewReader(resp.Body)); got.ID != ids[1] {
 		t.Fatal(got)
 	}
 	resp.Body.Close()
-	// Cursor ahead of durable high-water cannot silently skip future events.
+
 	resp = open(t, server, token, strconv.FormatInt(ids[len(ids)-1]+1, 10))
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatal(resp.StatusCode)
@@ -82,7 +82,7 @@ func TestCursorValidationBeforeStreaming(t *testing.T) {
 			t.Fatal(value, err)
 		}
 	}
-	// Duplicate raw headers are refused by the HTTP endpoint as well.
+
 	req, _ := http.NewRequest(http.MethodGet, server.URL+"/api/v1/events", http.NoBody)
 	req.AddCookie(&http.Cookie{Name: "flagman_session", Value: token})
 	req.Header.Add("Last-Event-ID", "0")

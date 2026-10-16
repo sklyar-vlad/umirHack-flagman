@@ -28,7 +28,7 @@ export function createSessionController(adapter: AuthAdapter, ports: SessionPort
     verification = null
     ports.clearApi()
     for (const close of subscriptions) {
-      try { close() } catch { /* A failed disposer must not prevent other cleanup. */ }
+      try { close() } catch {  }
     }
     subscriptions.clear()
   }
@@ -112,7 +112,6 @@ export function createSessionController(adapter: AuthAdapter, ports: SessionPort
       const previous = ports.read()
       if (previous.user?.id !== snapshot.user.id) { expire(); return false }
       if (previous.user.role !== snapshot.user.role) { cleanup(); version++ }
-      // A background confirmation updates identity/settings, preserving all current work.
       csrf = snapshot.csrfToken; ports.setCsrf(csrf)
       ports.write({ ...ports.read(), user: snapshot.user, settings: snapshot.settings, expiresAt: snapshot.expiresAt })
       return true

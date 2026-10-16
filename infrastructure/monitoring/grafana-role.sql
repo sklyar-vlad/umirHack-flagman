@@ -3,7 +3,7 @@
 BEGIN;
 SELECT 'CREATE ROLE flagman_grafana LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS'
 WHERE NOT EXISTS(SELECT FROM pg_roles WHERE rolname='flagman_grafana') \gexec
--- Refuse to reuse a role with inherited/application privileges.
+
 SELECT count(*)=0 AS safe_role FROM pg_auth_members m JOIN pg_roles r ON r.oid=m.member WHERE r.rolname='flagman_grafana' \gset
 \if :safe_role
 \else

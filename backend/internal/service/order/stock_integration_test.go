@@ -11,7 +11,6 @@ import (
 	orderrepository "github.com/sklyar-vlad/umirHack-flagman/internal/repository/order"
 )
 
-// Observe an actual PostgreSQL lock wait rather than relying on timing sleeps.
 func waitOrderBlocked(t *testing.T, f *orderFixture, pid uint32) {
 	t.Helper()
 	deadline := time.NewTimer(5 * time.Second)

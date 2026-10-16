@@ -26,8 +26,6 @@ func newLoginLimiter() *loginLimiter {
 	return &loginLimiter{entries: make(map[string]loginAttempts), now: time.Now}
 }
 
-// Bound both work and memory. Keys are hashed; forwarded client IP headers are
-// not trusted. Full capacity denies new keys until an existing window expires.
 func (l *loginLimiter) allow(kind, value string, limit int) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()

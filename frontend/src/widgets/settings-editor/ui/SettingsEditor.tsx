@@ -27,7 +27,6 @@ export function SettingsEditor({ initial, onReload, autoWriteoffReady = import.m
   const auto = useWatch({ control: form.control, name: 'auto_writeoff_expired' })
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   useEffect(() => {
-    // A native disabled fieldset cannot receive focus until the pending render ends.
     if (focusField && !mutation.isLoading) form.setFocus(focusField)
   }, [focusField, mutation.isLoading, form])
   async function send(values: SettingsValues) {
@@ -44,7 +43,6 @@ export function SettingsEditor({ initial, onReload, autoWriteoffReady = import.m
       const failure: ApiError = isApiError(reason) ? reason : { status: 'NETWORK_ERROR', code: 'NETWORK_ERROR', message: 'Ошибка сохранения', details: {} }
       setError(failure)
       if (failure.status === 422) {
-        // Only allowlisted field paths; never render arbitrary server details.
         const fields = Array.isArray(failure.details.fields) ? failure.details.fields : []
         let first: keyof SettingsValues | null = null
         for (const violation of fields) {

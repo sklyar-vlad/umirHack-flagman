@@ -15,9 +15,6 @@ type Repository struct{}
 
 func NewRepository() *Repository { return &Repository{} }
 
-// Load reads recipes and stock from the same transaction snapshot. Pagination
-// follows the shared availability calculation in the service, so total includes
-// availability filters and dishes with missing recipes.
 func (r *Repository) Load(
 	ctx context.Context,
 	q repository.DBTX,

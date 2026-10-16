@@ -4,7 +4,6 @@ import { formatQuantity } from '@/shared/lib/quantity'
 import { z } from 'zod'
 import { parseApiDateTime } from '@/shared/lib/restaurant-time'
 
-// Published OrderSummary, OrderAttempt and their historical snapshots.
 const integer = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const instant = z.string().refine((value) => { try { parseApiDateTime(value); return true } catch { return false } })
 const actor = z.object({ id: z.uuid(), name: z.string() })

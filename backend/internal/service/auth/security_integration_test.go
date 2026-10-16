@@ -147,7 +147,7 @@ func TestAuthLogsNeverContainCredentialsOrTokens(t *testing.T) {
 		nil,
 		"",
 	)
-	// A database exception must not be copied to request logs or HTTP errors.
+
 	f.exec(
 		t,
 		`CREATE FUNCTION fail_auth_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'credential-leak-marker: %', NEW.csrf_token; END; $$;
@@ -171,7 +171,7 @@ func TestAuthLogsNeverContainCredentialsOrTokens(t *testing.T) {
 			}
 		}
 	}
-	// Duplicate cookie authentication is rejected before logout can revoke anything.
+
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", http.NoBody)
 	req.AddCookie(cookie)
 	req.AddCookie(cookie)

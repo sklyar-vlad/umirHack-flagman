@@ -9,8 +9,6 @@ const (
 	roleOrderOperator = "order_operator"
 )
 
-// Reconstruct the wire payload from allowlisted fields. Never serialize stored
-// JSON or internal correlation data directly, even for administrators.
 func Filter(e *model.PublishedEvent, role string) (model.OutboxPayload, bool) {
 	p := model.OutboxPayload{OccurredAt: e.Payload.OccurredAt, Topics: []model.EventTopic{}}
 	switch e.Type {

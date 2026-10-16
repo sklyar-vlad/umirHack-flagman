@@ -24,7 +24,6 @@ for (const width of [360, 390, 1024, 1440]) {
     await expect(dialog).toBeVisible()
     for (let i = 0; i < 6; i++) {
       await page.keyboard.press('Tab')
-      // Browsers may focus the top-level document at the wrap boundary, but no background control is reachable.
       expect(await page.evaluate(() => document.activeElement === document.body || !!document.activeElement?.closest('dialog'))).toBe(true)
     }
     await page.keyboard.press('Escape')

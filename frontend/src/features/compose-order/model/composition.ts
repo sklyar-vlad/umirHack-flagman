@@ -18,7 +18,6 @@ export function basketRequest(draft: OrderDraft): OrderRequest | null {
   const parsed = orderRequestSchema.safeParse({ items: draft.lines.map(({ dish, portions }) => ({ dish_id: dish.id, portions: Number(portions), recipe_version: dish.recipe_version })) })
   return parsed.success ? parsed.data : null
 }
-/** Includes recipe snapshots, so a composition edit invalidates even an equal request body. */
 export const basketFingerprint = (draft: OrderDraft) => JSON.stringify(draft.lines)
 export const recipeChanged = (accepted: BasketDish, current: BasketDish) => accepted.recipe_version !== current.recipe_version || accepted.is_active !== current.is_active || JSON.stringify(accepted.recipe) !== JSON.stringify(current.recipe)
 export function uncertainOrder(error: ApiError) {

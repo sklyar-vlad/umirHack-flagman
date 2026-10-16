@@ -331,7 +331,6 @@ func TestSupplyHTTPAtomicityIntegration(t *testing.T) {
 	}
 }
 
-// Disconnect only after the successful transaction, before its response body reaches the client.
 type lostSupplyResponseWriter struct {
 	gin.ResponseWriter
 	drop *atomic.Bool
@@ -438,7 +437,7 @@ func TestSupplyHTTPEarlyFailureDoesNotConsumeKeyIntegration(t *testing.T) {
 		{
 			name: "body limit", status: 413,
 			body: func([]byte) []byte { return bytes.Repeat([]byte(" "), 1024*1024+1) },
-			// Let the server reject Content-Length before the client writes a large body.
+
 			modify: func(r *http.Request) { r.Header.Set("Expect", "100-continue") },
 		},
 	} {
@@ -453,7 +452,7 @@ func TestSupplyHTTPEarlyFailureDoesNotConsumeKeyIntegration(t *testing.T) {
 			requireSupplyHTTPStatus(t, failure, test.status)
 			assertIdempotencyCount(t, f.supplyFixture, 0)
 			assertSupplyCounts(t, f.supplyFixture, 0, 0)
-			// Correcting an early rejected request may safely use the same key.
+
 			fixed := f.request(http.MethodPost, "/api/v1/supplies", key, body, nil)
 			requireSupplyHTTPStatus(t, fixed, http.StatusCreated)
 			assertIdempotencyCount(t, f.supplyFixture, 1)

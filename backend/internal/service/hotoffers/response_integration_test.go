@@ -50,7 +50,7 @@ func TestOffersIntegrationResponseAndExpiry(t *testing.T) {
 		}
 		return item
 	}
-	check("0.0000", "low", 86400) // h=H is eligible.
+	check("0.0000", "low", 86400)
 	f.now = f.now.Add(6 * time.Hour)
 	check("1.6667", "low", 64800)
 	f.now = expires.Add(-time.Microsecond)
@@ -154,7 +154,7 @@ func TestOffersIntegrationFEFOTiesUseActualBatch(t *testing.T) {
 	e := f.now.Add(time.Hour)
 	late := f.batch(t, p, "1.000", e)
 	early := f.batch(t, p, "1.000", e)
-	// Equal expiry is broken by receipt time before batch ID.
+
 	receipt := uuid.New()
 	f.exec(
 		t,
@@ -171,7 +171,7 @@ func TestOffersIntegrationFEFOTiesUseActualBatch(t *testing.T) {
 		strings.Contains(result.Items[0].Reason, "№S13-1") {
 		t.Fatalf("receipt tie: %+v", result)
 	}
-	// When receipt times also tie, the UUID is the final FEFO criterion.
+
 	f.exec(t, `UPDATE supplies SET received_at=$1 WHERE id=$2`, f.now.Add(-time.Hour), receipt)
 	want := late
 	if early.String() < late.String() {

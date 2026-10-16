@@ -21,8 +21,6 @@ type simulatedOffer struct {
 	problems          []problemBatch
 }
 
-// simulate starts each dish from the same stock. Recommendations are alternatives,
-// not a combined basket; the shared FEFO planner never mutates its inputs.
 func simulate(dishes []model.Dish, batches []model.OrderBatch, now time.Time, hours int) ([]simulatedOffer, error) {
 	if hours < 1 || hours > 720 {
 		return nil, fmt.Errorf("invalid hot offers threshold")

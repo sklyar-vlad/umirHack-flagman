@@ -10,8 +10,6 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/quantity"
 )
 
-// CalculateAvailability uses exact quantities in thousandths. Aggregated stock
-// may exceed one NUMERIC(14,3) batch, so it must not use float64 or int64 sums.
 func CalculateAvailability(active bool, recipe []model.RecipeIngredient) (dto.Availability, error) {
 	result := dto.Availability{AvailablePortions: "0", Shortages: []dto.Shortage{}, UnavailabilityReasons: []string{}}
 	if !active {

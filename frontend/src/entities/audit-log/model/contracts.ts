@@ -7,8 +7,6 @@ export const auditActionSchema = z.enum(['create', 'update', 'password_change', 
 export const auditEntitySchema = z.enum(['product_category', 'product', 'dish', 'supply', 'order', 'stock_movement', 'user', 'settings', 'integration_token', 'incoming_supply', 'hot_offer'])
 const text = z.string(), nullableText = text.nullable(), integer = z.number().int().safe(), flag = z.boolean()
 const instant = text.refine((value) => { try { parseApiDateTime(value); return true } catch { return false } })
-// Mirror the backend's typed snapshot allowlist before entering the query cache.
-// Unknown legacy fields, including nested secrets, are discarded, never rendered as raw JSON.
 const workflow = z.object({ name: text, status: text, revision: integer, is_published: flag, is_manual: flag, message: text, external_id: text, items: z.array(z.object({ id: text, product_id: text, quantity: text, accepted_quantity: text })) }).partial()
 const snapshots = {
  integration_token: workflow, incoming_supply: workflow, hot_offer: workflow,

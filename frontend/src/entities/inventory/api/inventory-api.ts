@@ -33,7 +33,6 @@ export const inventoryApi = baseApi.enhanceEndpoints({ addTagTypes: ['Inventory'
     }),
     productCategories: build.query<Category[], void>({
       providesTags: ['ProductCategories'],
-      // The select must not silently truncate a catalogue at the first 100 categories.
       queryFn: async (_arg, _api, _options, query) => {
         const items: Category[] = []
         for (let page = 1; ; page++) {

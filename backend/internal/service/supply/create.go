@@ -12,8 +12,6 @@ import (
 	"github.com/sklyar-vlad/umirHack-flagman/internal/repository"
 )
 
-// Create receives the actor from the authenticated caller, never from input.
-// It returns a result only after all records, audit and outbox have committed.
 func (s *Service) Create(
 	ctx context.Context,
 	actorID uuid.UUID,
@@ -42,8 +40,7 @@ func (s *Service) createInTx(
 	input dto.CreateSupplyRequest,
 ) (model.CreatedSupply, error) {
 	var result model.CreatedSupply
-	// Validation reads and locks products in SQL ORDER BY id, then fixes T
-	// and checks expiry against the state obtained after waiting for locks.
+
 	basics, err := s.ValidateBasics(ctx, tx, input)
 	if err != nil {
 		return model.CreatedSupply{}, err
@@ -93,8 +90,7 @@ func (s *Service) createInTx(
 		productIDs = append(productIDs, line.ProductID)
 		batchIDs = append(batchIDs, batch.ID)
 	}
-	// Repeated lines for one product remain separate batches, but the event
-	// invalidates each product once, in a deterministic order.
+
 	slices.SortFunc(productIDs, func(a, b uuid.UUID) int { return slices.Compare(a[:], b[:]) })
 	productIDs = slices.Compact(productIDs)
 	if err := s.transactions.AppendAudit(ctx, tx, &model.AuditEntry{
@@ -112,8 +108,6 @@ func (s *Service) createInTx(
 	return result, nil
 }
 
-// CreateWithinTransaction lets partial reception commit its document revision,
-// batches, ledger and outbox atomically under the incoming document lock.
 func (s *Service) CreateWithinTransaction(
 	ctx context.Context,
 	tx repository.DBTX,

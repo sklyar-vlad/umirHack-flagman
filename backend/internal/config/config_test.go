@@ -8,7 +8,7 @@ import (
 )
 
 func TestExternalRuntimeConfiguration(t *testing.T) {
-	t.Chdir(t.TempDir()) // No dotenv is needed by the deployment image.
+	t.Chdir(t.TempDir())
 	for _, key := range []string{"POSTGRES_URL", "POSTGRES_URL_FILE", "METRICS_TOKEN", "METRICS_TOKEN_FILE", "FRONTEND_ORIGIN"} {
 		t.Setenv(key, "")
 	}

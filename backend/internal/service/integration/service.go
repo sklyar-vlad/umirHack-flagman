@@ -36,7 +36,6 @@ type Catalog interface {
 	GetProduct(context.Context, uuid.UUID) (dto.Product, error)
 }
 
-// The narrow adapter keeps all stock mutations in the existing supply service.
 type SupplyCreator interface {
 	CreateWithinTransaction(
 		context.Context,
@@ -303,7 +302,7 @@ func (s *Service) Submit(
 		); err != nil {
 			return err
 		}
-		// An inbox notification invalidates the receiving queue; it creates no ledger entry.
+
 		return s.tx.AppendOutbox(ctx, q, &model.OutboxEvent{Type: model.IncomingSuppliesChanged, ActorID: &p.ActorID})
 	})
 	return result, err

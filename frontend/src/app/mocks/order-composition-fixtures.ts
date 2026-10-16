@@ -57,9 +57,9 @@ export function compositionCheck(body: OrderRequest, changed = false, inactive =
 interface SavedOrder { key: string; body: string; order?: OrderDetail; refusal?: OrderRefusal; reason?: OrderReason; attempt?: OrderAttempt }
 let saved: SavedOrder[] = []
 const storageKey = 'flagman.mock.orders.v1'
-function read() { try { saved = JSON.parse(sessionStorage.getItem(storageKey) ?? '[]') as SavedOrder[] } catch { /* Node tests. */ } return saved }
-function save(value: SavedOrder) { saved.push(value); try { sessionStorage.setItem(storageKey, JSON.stringify(saved)) } catch { /* Node tests. */ } }
-export function resetCompositionFixtures() { saved = []; currentRecipeChanged = false; currentInactive = false; try { sessionStorage.removeItem(storageKey) } catch { /* Node tests. */ } }
+function read() { try { saved = JSON.parse(sessionStorage.getItem(storageKey) ?? '[]') as SavedOrder[] } catch {  } return saved }
+function save(value: SavedOrder) { saved.push(value); try { sessionStorage.setItem(storageKey, JSON.stringify(saved)) } catch {  } }
+export function resetCompositionFixtures() { saved = []; currentRecipeChanged = false; currentInactive = false; try { sessionStorage.removeItem(storageKey) } catch {  } }
 export const savedOrder = (key: string) => read().find((value) => value.key === key)
 export const composedOrders = () => read().flatMap((value) => value.order ? [{ ...value.order, total_portions: value.order.items.reduce((sum, item) => sum + item.portions, 0) }] : [])
 export const composedAttempts = () => read().flatMap((value) => value.attempt ? [value.attempt] : [])

@@ -13,7 +13,6 @@ type IdempotencyScope struct {
 	Key    uuid.UUID
 }
 
-// Endpoint fits the existing endpoint column while keeping methods separate.
 func (s IdempotencyScope) Endpoint() string { return s.Method + " " + s.Path }
 
 type IdempotencyResponse struct {

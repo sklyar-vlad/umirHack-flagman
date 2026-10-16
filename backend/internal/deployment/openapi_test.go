@@ -12,8 +12,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Compare the published contract with actual route declarations so the defense
-// collection cannot silently advertise an absent API or omit a shipped one.
 func TestOpenAPICoversRegisteredRoutes(t *testing.T) {
 	data, err := os.ReadFile("../../docs/openapi.yaml")
 	if err != nil {

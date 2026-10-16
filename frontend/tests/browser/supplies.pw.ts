@@ -44,7 +44,6 @@ for (const width of [360, 390, 1024, 1440]) {
 }
 
 test('server pagination, URL history, restaurant timezone boundaries and literal number search', async ({ page }) => {
-  // Browser timezone deliberately differs from restaurant settings.
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await login(page, '/supplies?page_size=20')
   await expect(page.getByText('Найдено поставок: 26. Страница 1.')).toBeVisible()

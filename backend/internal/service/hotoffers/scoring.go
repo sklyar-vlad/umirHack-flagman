@@ -16,8 +16,6 @@ type scoredOffer struct {
 	level   string
 }
 
-// scoreOffers keeps time and quantity ratios exact through maximum selection and
-// sorting. Rounding happens only when rendering the response.
 func scoreOffers(offers []simulatedOffer, now time.Time, hours int) ([]scoredOffer, error) {
 	if hours < 1 || hours > 720 {
 		return nil, fmt.Errorf("invalid hot offers threshold")
