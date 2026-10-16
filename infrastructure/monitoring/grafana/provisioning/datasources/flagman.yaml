@@ -1,0 +1,26 @@
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: flagman-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+  - name: Warehouse
+    uid: flagman-warehouse
+    type: postgres
+    access: proxy
+    url: db:5432
+    user: flagman_grafana
+    editable: false
+    jsonData:
+      database: $POSTGRES_DB
+      sslmode: disable
+      postgresVersion: 1800
+      timescaledb: false
+      maxOpenConns: 5
+      maxIdleConns: 2
+      connMaxLifetime: 300
+    secureJsonData:
+      password: $FLAGMAN_GRAFANA_PASSWORD

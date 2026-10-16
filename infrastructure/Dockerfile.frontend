@@ -5,8 +5,9 @@ WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 
-COPY frontend/index.html frontend/tsconfig.json ./
+COPY frontend/index.html frontend/tsconfig*.json frontend/vite.config.ts ./
 COPY frontend/src ./src
+COPY frontend/public ./public
 RUN npm run build
 
 FROM nginx:stable-alpine

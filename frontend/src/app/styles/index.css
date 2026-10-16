@@ -1,0 +1,51 @@
+@import './normalize.css';
+@import '../../shared/styles/index.css';
+
+:root {
+  color-scheme: light;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text);
+  font: var(--text-body);
+}
+
+#root {
+  min-height: 100svh;
+}
+
+h1 {
+  margin: 0;
+  font: var(--text-title);
+}
+
+h2 {
+  margin: 0;
+  font: var(--text-section);
+}
+
+p {
+  margin: 0;
+}
+
+.app-placeholder {
+  display: grid;
+  gap: var(--space-16);
+  width: min(640px, calc(100% - 2 * var(--space-16)));
+  margin: var(--space-32) auto;
+  box-sizing: border-box;
+}
+
+.app-placeholder img {
+  max-width: 100%;
+  height: auto;
+}
+
+.app-placeholder a {
+  justify-self: start;
+  text-decoration: none;
+}

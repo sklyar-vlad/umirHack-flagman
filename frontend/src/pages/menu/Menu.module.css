@@ -1,0 +1,8 @@
+.page { display: grid; gap: var(--space-24); min-width: 0; }
+.header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-12); }
+.header h1, .header h2 { margin: 0; }
+.filters { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-16); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,340px),1fr)); gap: var(--space-24); }
+.card { padding: var(--space-24); border: 1px solid var(--color-border); border-radius: var(--panel-radius); display: grid; align-content: start; gap: var(--space-16); }
+.card p { margin: 0; }
+.card details summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }

@@ -1,0 +1,65 @@
+import { forecastApi } from '@/entities/stop-list-forecast'
+import { shortageApi } from '@/entities/ingredient-shortage'
+import { lossApi } from '@/entities/write-off-report'
+import { movementApi } from '@/entities/stock-movement'
+import { auditApi } from '@/entities/audit-log'
+import { userApi } from '@/entities/user'
+import { dashboardApi } from '@/entities/dashboard'
+import { procurementApi } from '@/entities/procurement'
+import { dishApi } from '@/entities/dish'
+import { invalidateOrders } from '@/entities/order'
+import { useState } from 'react'
+import { productApi } from '@/entities/product'
+import { baseApi } from '@/shared/api'
+import { inventoryApi } from '@/entities/inventory'
+import { invalidateSupplies } from '@/entities/supply'
+import { useAppDispatch } from '../store'
+import { getMockScenario, mockScenarios, setMockScenario, type MockScenario } from './scenarios'
+import styles from './MockModeBanner.module.css'
+
+export function MockModeBanner() {
+  const [scenario, setScenario] = useState<MockScenario>(getMockScenario)
+  const dispatch = useAppDispatch()
+  const { isFetching } = baseApi.endpoints.healthcheck.useQueryState()
+
+  function changeScenario(value: string) {
+    setMockScenario(value)
+    setScenario(getMockScenario())
+    dispatch(baseApi.util.invalidateTags(['Healthcheck']))
+    dispatch(auditApi.util.invalidateTags(['AuditLog']))
+    dispatch(movementApi.util.invalidateTags(['StockMovements']))
+    dispatch(shortageApi.util.invalidateTags(['IngredientShortages']))
+    dispatch(forecastApi.util.invalidateTags(['StopListForecast']))
+    dispatch(lossApi.util.invalidateTags(['WriteOffReport']))
+    dispatch(inventoryApi.util.invalidateTags(['Inventory', 'Batches', 'ProductCategories']))
+    dispatch(invalidateSupplies())
+    dispatch(invalidateOrders())
+    dispatch(dishApi.util.invalidateTags(['Dishes', 'StopList', 'HotOffers']))
+    dispatch(userApi.util.invalidateTags(['Users', 'Roles']))
+    dispatch(productApi.util.invalidateTags(['Products']))
+    dispatch(dashboardApi.util.invalidateTags(['Dashboard']))
+    dispatch(procurementApi.util.invalidateTags(['Procurement']))
+  }
+
+  return (
+    <aside className={styles.banner} aria-label="Настройки мокового режима">
+      <div className={styles.description}>
+        <p className="text-strong">Моковый режим</p>
+        <p className="text-caption">API заменён тестовыми ответами. Это не проверка backend.</p>
+      </div>
+      <label className={styles.field} htmlFor="mock-scenario">
+        <span className="text-label">Сценарий API</span>
+        <select
+          className="ui-select"
+          id="mock-scenario"
+          value={scenario}
+          disabled={isFetching}
+          onChange={(event) => changeScenario(event.target.value)}
+        >
+          {mockScenarios.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+        </select>
+      </label>
+      <p className="text-caption">Для реального API отключите VITE_ENABLE_MOCKS и перезапустите Vite.</p>
+    </aside>
+  )
+}

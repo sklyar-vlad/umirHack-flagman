@@ -1,0 +1,4 @@
+.page { min-height: 100dvh; display: grid; place-items: center; padding: var(--space-16); }
+.panel { width: min(100%, 440px); display: grid; gap: var(--space-24); padding: var(--space-24); overflow-wrap: anywhere; }
+.panel h1 { font: var(--text-title); }
+@media (min-width: 768px) { .page { padding: var(--space-32); } .panel { padding: var(--space-32); } }

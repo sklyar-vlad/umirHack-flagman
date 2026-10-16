@@ -1,0 +1,12 @@
+.git
+.beads
+.serena
+.env
+.env.*
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*.dump
+*.log
+**/__pycache__

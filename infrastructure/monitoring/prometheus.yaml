@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+scrape_configs:
+  - job_name: flagman
+    metrics_path: /metrics
+    scrape_timeout: 5s
+    authorization:
+      type: Bearer
+      credentials_file: /tmp/flagman-metrics-token
+    static_configs:
+      - targets: [backend:8080]

@@ -37,9 +37,9 @@ linters:
     gocritic:
       disabled-checks:
         - whyNoLint
-        - commentFormatting # insane-doc syntax requires "//>" format
+        - commentFormatting
         - paramTypeCombine
-        - ptrToRefParam # we use interface pointer in many places
+        - ptrToRefParam
         - unnamedResult
         - sprintfQuotedString
         - tooManyResultsChecker
@@ -51,7 +51,7 @@ linters:
         - style
     gosec:
       excludes:
-        - G304 # potential file inclusion via variable -- it's ok for this project
+        - G304
     govet:
       enable:
         - composites
@@ -61,7 +61,7 @@ linters:
       locale: US
     staticcheck:
       checks:
-        - -ST1021 # insane-doc syntax requires "//>" format
+        - -ST1021
   exclusions:
     generated: lax
     rules:
@@ -90,8 +90,6 @@ formatters:
     - golines
     - swaggo
   settings:
-    gofumpt:
-      extra-rules: true
     gci:
       sections:
         - Standard

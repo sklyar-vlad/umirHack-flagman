@@ -1,18 +1,24 @@
 version: "3"
 
+vars:
+  ENV_FILE: '{{.ENV_FILE | default "./infrastructure/.env"}}'
+
+env:
+  FLAGMAN_ENV_FILE: '{{.ENV_FILE}}'
+
 tasks:
   default:
-    cmds:
-      - 'task --list'
+    cmds: [task --list]
     silent: true
-
-### LINTING
-
-  lint:
-    dir: backend
-    desc: formatting project
-    cmds:
-      - go fmt ./...
-      - golangci-lint run --fix
-      - echo "Linting and formatting finished"
-
+  up:
+    desc: Собрать и запустить local/VPS; схема БД готовится автоматически
+    cmds: [sh infrastructure/manage.sh up]
+  down:
+    desc: Остановить контейнеры, сохранив данные
+    cmds: [sh infrastructure/manage.sh down]
+  logs:
+    desc: Смотреть логи
+    cmds: [sh infrastructure/manage.sh logs]
+  seed:
+    desc: Добавить демопользователей, каталог, рецепты и партии через контейнер
+    cmds: [sh infrastructure/manage.sh seed]

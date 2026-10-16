@@ -1,0 +1,4790 @@
+openapi: 3.0.3
+info:
+  title: Кладовая — API учёта склада и заказов
+  version: 0.1.0
+  contact:
+    name: Команда проекта Кладовая
+  description: |
+    Контракт реализованного backend, сверенный с зарегистрированными маршрутами в S28.
+    Реализованы GET /healthcheck, GET /products, GET /products/{id}/batches, GET /inventory,
+    POST /supplies, GET /supplies, GET /supplies/{id}, GET /dishes,
+    GET /dishes/{id}, GET /stop-list, GET /hot-offers, GET /procurement-recommendations, POST /orders/check, POST /orders,
+    GET /orders, GET /orders/{id}, GET /order-attempts, GET /dashboard,
+    POST /auth/login, GET /auth/me и POST /auth/logout,
+    GET /roles, GET /users, GET /users/{id}, POST /users, PATCH /users/{id}, POST /users/{id}/password,
+    GET/POST /product-categories, GET/PATCH /product-categories/{id}, GET/PATCH /products/{id}, POST /products.
+    GET/PATCH /settings, GET /audit-log, POST /write-offs и GET /stock-movements,
+    GET /analytics/write-offs, GET /analytics/ingredient-shortages, GET /analytics/stop-list-forecast,
+    GET /events и GET /ready. Отдельный внутренний GET /metrics находится на корне
+    backend, вне /api/v1; требует технический bearer-токен, не cookie-сессию.
+    После защиты добавлены /analytics/product-flow, управление публикацией /hot-offers/{id},
+    /incoming-supplies, /integration-tokens и Bearer API /integration/* для внешнего поставщика.
+    Все описанные операции реализованы. Воспроизводимая чистая демонстрация:
+    task seed; архитектура проекта и API — README.md в корне репозитория.
+
+    Даты: RFC 3339 с timezone; ответы сервера — UTC.
+    Количества: точные десятичные JSON-строки в базовых единицах g/ml/pcs,
+    до 11 цифр до точки и до 3 после (numeric(14,3)). Для pcs дробь нулевая.
+    Суммы партий в InventoryItem могут превышать предел одной партии;
+    они возвращаются строками с тремя знаками после точки без ограничения целой части.
+    Сервер не использует float64 для складского учёта.
+
+    Ограничения HTTP из S02-T05 уже подключены. Тело любого запроса —
+    не более 1048576 байт (1 МиБ); превышение даёт 413 PAYLOAD_TOO_LARGE,
+    в том числе при неизвестном Content-Length. Проверяется полное тело.
+    Общий token bucket на один процесс backend пополняется со скоростью
+    10 разрешений в секунду, максимальный и начальный запас — 20.
+    Все клиенты совместно расходуют этот запас; это не отдельный лимит по IP
+    или пользователю. Экземпляры backend учитывают частоту независимо.
+    При исчерпании запаса — 429 TOO_MANY_REQUESTS и Retry-After: 1.
+    GET /healthcheck и GET /ready исключены из ограничения частоты, но лимит тела
+    действует и на него. Неизвестные маршруты также проходят ограничения.
+
+    Общие проверки входных коллекций допускают 1–100 строк поставки/корзины
+    или ингредиентов рецепта и 1–1000 порций каждого блюда после объединения.
+    Поставки, корзины и рецептуры проверяются до записи; дубли блюд объединяются.
+
+    Фильтры объединяются через AND. Поиск без учёта регистра.
+    Каждый query-параметр допускается один раз. Неизвестный параметр,
+    неверный фильтр, сортировка, UUID или пагинация дают 422.
+    Сортировка стабильная, последний критерий — ID.
+    total считается после фильтров, до пагинации; пустой список — 200 с items: [].
+
+    Отсутствующий запрошенный ресурс и неизвестный маршрут дают одинаковый
+    формат 404 NOT_FOUND. Неверная ссылка в теле запроса даёт 422 с путём поля.
+    Внутренние SQL-ошибки не раскрываются клиенту.
+    X-Request-ID связывает ответ с логами; request_id ошибки совпадает с ним.
+    Request ID генерируется сервером и не является Idempotency-Key.
+
+    Поставки требуют действующую сессию flagman_session и проверку роли.
+    Для POST обязательны X-CSRF-Token и Origin, совпадающий с FRONTEND_ORIGIN
+    (по умолчанию http://flagman.localhost). POST /auth/login выдаёт случайную
+    12-часовую сессию; в БД хранится SHA-256 cookie-токена. Cookie host-only,
+    HttpOnly, SameSite=Lax, Secure при HTTPS frontend или прямом TLS.
+    Все реализованные бизнес-маршруты защищены фиксированной матрицей ролей;
+    новые маршруты запрещены до явного добавления политики. POST /orders/check
+    только читает данные и не требует CSRF. login требует Origin; logout —
+    Origin и CSRF. CORS допускает только FRONTEND_ORIGIN с credentials.
+    Лимит login на процесс: 20 запросов на адрес соединения и 5 попыток на
+    нормализованный email за 15 минут; 429 с Retry-After: 900. Адрес берётся из
+    соединения, заголовки пересылки не доверяются. Пароли, cookie и CSRF не логируются.
+
+    UUID и даты примеров иллюстративные: при реальном запросе используйте
+    существующие ID и актуальные сроки годности.
+servers:
+  - url: /api/v1
+    description: API на текущем origin, включая frontend через nginx
+  - url: http://api.flagman.localhost/api/v1
+    description: Прямой доступ к backend через локальный Traefik
+tags:
+  - name: Auth
+    description: Вход, текущая сессия и выход
+  - name: Catalog
+    description: Категории и администрирование продуктов
+  - name: Users
+    description: Администрирование пользователей и ролей
+  - name: System
+    description: Состояние процесса
+  - name: Inventory
+    description: Продукты и склад
+  - name: Supplies
+    description: Приём и чтение поставок
+  - name: Dishes
+    description: Меню и доступность блюд
+  - name: Orders
+    description: Проверка корзины, создание и чтение заказа
+paths:
+  /metrics:
+    get:
+      tags: [System]
+      operationId: scrapeMetrics
+      summary: Внутренние технические метрики Prometheus
+      x-implementation-status: implemented
+      servers:
+        - url: /
+          description: Корень backend; исключён из публичных proxy routes
+      security:
+        - MetricsBearer: []
+      description: |
+        Отдельный внутренний маршрут вне /api/v1. Доступ только с одним
+        Authorization Bearer, равным METRICS_TOKEN (или внешнему файлу
+        METRICS_TOKEN_FILE); cookie и роли не дают доступ. Не публикуется через
+        публичный TLS proxy. Токен отсутствует — 404, неверен — 401.
+        Cache-Control no-store; максимум два параллельных scrape, timeout 4 секунды.
+        Метки используют только шаблоны маршрутов, фиксированные коды и имена
+        воркеров; бизнес-ID, имена, пароли и токены не входят в метрики.
+      responses:
+        '200':
+          description: Prometheus exposition
+          content:
+            text/plain:
+              schema: {type: string}
+        '401':
+          description: Bearer-токен отсутствует, неоднозначен или неверен; пустое тело
+        '404':
+          description: Технический токен не настроен; стандартный HTTP Not Found
+        '503':
+          description: Превышено число scrape или истёк timeout
+  /events:
+    get:
+      tags: [System]
+      operationId: streamEvents
+      summary: Поток изменений с durable replay
+      x-implementation-status: implemented
+      description: |
+        Все четыре роли, действующая cookie-сессия, без CSRF на GET.
+        id — опубликованный cursor, event — тип, data — occurred_at, доступные
+        роли topics и списки UUID. Нет request_id, имён, рецептов или секретов.
+        Без Last-Event-ID читается только новый хвост; 0 запрашивает всю историю.
+        Replay строго по cursor; пропуски sequence допустимы. История минимум
+        24 часа после публикации. Старый cursor получает resync.required с
+        текущим high-water ID и перечитывает доступные разделы. Некорректный,
+        повторный или будущий cursor даёт 422 до начала потока.
+        Дубли при reconnect допустимы. Heartbeat-комментарий каждые 20 секунд;
+        inventory.time_changed каждые 30 секунд. Сессия проверяется каждый цикл
+        и при чтении backlog; отзыв, expiry, disable и shutdown закрывают поток.
+      parameters:
+        - name: Last-Event-ID
+          in: header
+          required: false
+          description: Один десятичный неотрицательный int64; не больше durable high-water.
+          schema: {type: string, pattern: '^[0-9]{1,19}$'}
+          example: '123'
+      responses:
+        '200':
+          description: Длительный поток SSE; каждое сообщение заканчивается пустой строкой.
+          headers:
+            Cache-Control:
+              schema: {type: string, enum: [no-cache]}
+            X-Accel-Buffering:
+              schema: {type: string, enum: ['no']}
+          content:
+            text/event-stream:
+              schema: {type: string}
+              example: |
+                id: 123
+                event: inventory.changed
+                data: {"occurred_at":"2026-10-09T09:00:00Z","topics":["inventory"]}
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /ready:
+    get:
+      operationId: readiness
+      tags: [System]
+      x-implementation-status: implemented
+      security: []
+      summary: Готовность БД и схемы
+      description: Проверка полного списка миграций текущей сборки и обязательных таблиц в read-only snapshot; deadline 2 секунды. Не применяет миграции. Независима от liveness.
+      responses:
+        '200':
+          description: База доступна и схема соответствует сборке
+        '503':
+          description: БД недоступна, миграции отсутствуют или схема не соответствует сборке; без подробностей БД
+  /healthcheck:
+    get:
+      tags: [System]
+      operationId: healthcheck
+      summary: Проверить, что HTTP-процесс отвечает
+      description: |
+        Не проверяет готовность БД и миграций. Публичный маршрут.
+        Исключён из ограничения частоты. Лимит тела 1 МиБ действует,
+        если клиент передаёт тело запроса.
+      x-implementation-status: implemented
+      security: []
+      responses:
+        '200':
+          description: Процесс отвечает
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthcheckResponse'
+              example:
+                status: ok
+                service: umirHack-flagman
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /roles:
+    get:
+      tags:
+      - Users
+      operationId: listRoles
+      summary: Список четырёх ролей
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store.'
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /users:
+    get:
+      tags:
+      - Users
+      operationId: listUsers
+      summary: Список пользователей
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store. Буквальный поиск по имени/email;
+        %, _ и обратный слеш не являются шаблонами. Сортировка name ASC, id ASC. Total до пагинации. Один read-only
+        repeatable-read снимок.'
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - name: search
+        in: query
+        schema:
+          type: string
+        description: Буквальная часть имени или email без учёта регистра
+      - name: role
+        in: query
+        schema:
+          type: string
+          enum:
+          - all
+          - admin
+          - manager
+          - storekeeper
+          - order_operator
+          default: all
+      - name: is_active
+        in: query
+        schema:
+          type: string
+          enum:
+          - all
+          - 'true'
+          - 'false'
+          default: all
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum:
+          - name
+          default: name
+    post:
+      tags:
+      - Users
+      operationId: createUser
+      summary: Создать пользователя с начальным паролем
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store. Имя обрезается по краям; email
+        приводится к нижнему регистру и обрезается, должен быть уникален (409 CONFLICT). Начальный password передаёт
+        admin, email-рассылки нет. По умолчанию is_active=true. Пароль и хеш не возвращаются.'
+      x-implementation-status: implemented
+      responses:
+        '201':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+  /users/{id}:
+    get:
+      tags:
+      - Users
+      operationId: getUser
+      summary: Безопасные детали пользователя
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store.'
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+    patch:
+      tags:
+      - Users
+      operationId: updateUser
+      summary: Изменить пользователя по ожидаемой ревизии
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store. Требуется expected_revision
+        и хотя бы одно изменяемое поле. Отсутствующие поля сохраняются. 409 REVISION_CONFLICT содержит details.current_revision.
+        Смена роли и отключение отзывают все сессии. Последний активный admin защищён от понижения и отключения, включая
+        параллельные запросы: 409 LAST_ADMIN_PROTECTED.'
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+  /users/{id}/password:
+    post:
+      tags:
+      - Users
+      operationId: resetUserPassword
+      summary: Сбросить пароль пользователя
+      description: 'Только admin с действующей сессией. Ответы Cache-Control: no-store. Пароль 12–128 Unicode-символов.
+        Требуется expected_revision; 409 REVISION_CONFLICT содержит details.current_revision. Ревизия увеличивается,
+        все сессии пользователя отзываются. При сбросе собственного пароля нужен новый login.'
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPasswordRequest'
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Войти по email и паролю
+      x-implementation-status: implemented
+      security: []
+      description: |
+        Argon2id; неверные данные и отключённый пользователь дают 401.
+        Email нормализуется в lower(trim(email)). Пароль не обрезается.
+        Тело JSON не более 4 КиБ. Ответ и ошибки не кешируются.
+        Новая независимая сессия живёт 12 часов; Set-Cookie содержит непрозрачный
+        токен, JSON содержит только user, csrf_token и session_expires_at.
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Сессия создана
+          headers:
+            Set-Cookie:
+              description: flagman_session; Path=/api/v1; Max-Age=43200; HttpOnly; SameSite=Lax; Secure при HTTPS
+              schema: {type: string}
+            Cache-Control:
+              schema: {type: string, enum: [no-store]}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/me:
+    get:
+      tags: [Auth]
+      operationId: currentSession
+      summary: Получить пользователя, CSRF и настройки оболочки
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      description: Текущий активный пользователь; истёкшая или отозванная сессия даёт 401. Cache-Control — no-store.
+      responses:
+        '200':
+          description: Текущая сессия и настройки оболочки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentSessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Отозвать текущую сессию
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      description: Отзывает только текущую сессию и удаляет cookie с тем же Path. Cache-Control — no-store.
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CSRFToken'
+      responses:
+        '204':
+          description: Текущая сессия отозвана; cookie удалена
+          headers:
+            Set-Cookie:
+              description: Пустая flagman_session; Path=/api/v1; Max-Age=0; Expires в прошлом
+              schema: {type: string}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /product-categories:
+    get:
+      tags:
+      - Catalog
+      operationId: listProductCategories
+      summary: listProductCategories
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: Чтение разрешено всем четырём ролям; изменение только admin. Буквальный поиск имени без учёта регистра.
+        Сортировка name ASC, id ASC. Total и страница в одном read-only снимке; пустой items — [].
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Search'
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum:
+          - name
+          default: name
+    post:
+      tags:
+      - Catalog
+      operationId: createProductCategory
+      summary: createProductCategory
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: 'Чтение разрешено всем четырём ролям; изменение только admin. Имя 1–200 Unicode-символов после
+        trim, уникально без учёта регистра в пределах типа ресурса: 409 CONFLICT.'
+      responses:
+        '201':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogCategory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryRequest'
+  /product-categories/{id}:
+    get:
+      tags:
+      - Catalog
+      operationId: getProductCategory
+      summary: getProductCategory
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: Чтение разрешено всем четырём ролям; изменение только admin.
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogCategory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+    patch:
+      tags:
+      - Catalog
+      operationId: updateProductCategory
+      summary: updateProductCategory
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: Чтение разрешено всем четырём ролям; изменение только admin. expected_revision обязателен. 409
+        REVISION_CONFLICT содержит details.current_revision. Успех увеличивает revision и атомарно пишет аудит.
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogCategory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCategoryRequest'
+  /products/{id}:
+    get:
+      tags:
+      - Catalog
+      operationId: getProduct
+      summary: getProduct
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: Чтение разрешено всем четырём ролям; изменение только admin.
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+    patch:
+      tags:
+      - Catalog
+      operationId: updateProduct
+      summary: updateProduct
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: 'Чтение разрешено всем четырём ролям; изменение только admin. expected_revision обязателен. 409
+        REVISION_CONFLICT содержит details.current_revision. Успех увеличивает revision и атомарно пишет аудит. Только
+        переданные поля изменяются; null разрешён только для target_stock и standard_shelf_life_hours. Единица при
+        любой партии/историческом рецепте: 409 UNIT_LOCKED. Отключение ингредиента текущего активного блюда: 409 PRODUCT_IN_USE
+        с details.dishes (id/name). Остатки и сроки существующих партий не меняются; новая цель сразу меняет закупки.'
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProductRequest'
+  /products:
+    get:
+      tags: [Inventory]
+      operationId: listProducts
+      summary: Получить продукты для каталога и формы поставки
+      description: |
+        Чтение разрешено всем четырём ролям при действующей сессии.
+        Для форм возвращаются ID, имя, категория (ID и имя), базовая и
+        отображаемая единицы, стандартный срок хранения и целевой запас.
+        Ответ также содержит is_active, revision и created_at в UTC.
+        По умолчанию is_active=true. Поиск — буквальная часть имени без учёта
+        регистра; %, _ и обратный слеш не являются шаблонами.
+        Фильтры объединяются через AND; неизвестная категория даёт пустой список.
+        Порядок name ASC, id ASC. Счётчик и страница читаются в одном снимке.
+        Отсутствующий стандартный срок или целевой запас — null;
+        нулевой целевой запас — строка '0.000'.
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/CategoryID'
+        - $ref: '#/components/parameters/IsActive'
+        - name: sort
+          in: query
+          schema: {type: string, enum: [name], default: name}
+          example: name
+      responses:
+        '200':
+          description: Продукты после фильтров; пустая выборка также успешна
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
+              examples:
+                products:
+                  $ref: '#/components/examples/ProductList'
+                empty:
+                  $ref: '#/components/examples/EmptyList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    post:
+      tags:
+      - Catalog
+      operationId: createProduct
+      summary: createProduct
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      description: 'Чтение разрешено всем четырём ролям; изменение только admin. Имя 1–200 Unicode-символов после trim,
+        уникально без учёта регистра в пределах типа ресурса: 409 CONFLICT. g: g/kg; ml: ml/l; pcs: pcs. Цель — точная
+        неотрицательная строка в базовых единицах, для pcs целая. Срок — положительное целое до 2147483647 или null.
+        is_active по умолчанию true.'
+      responses:
+        '201':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+  /products/{id}/batches:
+    get:
+      tags: [Inventory]
+      operationId: listProductBatches
+      summary: Получить партии продукта с текущими остатками и сроками
+      description: |
+        Реализовано в S07-T04. Доступно всем четырём ролям при действующей сессии.
+        Без status возвращаются все ненулевые партии; status=all включает израсходованные.
+        Партии отключённых продуктов доступны. Неизвестный продукт — 404;
+        существующий продукт без подходящих партий — 200 с items: [].
+        supply_id и status объединяются через AND; неизвестная поставка даёт пустой список.
+        По умолчанию expires_at ASC, id ASC; sort=-created_at — created_at DESC, id ASC.
+        total считается после фильтров, до пагинации, в том же снимке, что и страница.
+        Статусы и оставшиеся секунды рассчитываются на одно T = meta.server_time.
+        depleted имеет приоритет при нулевом остатке; иначе expires_at <= T — expired,
+        T < expires_at <= T + expiring_threshold_hours — expiring, позже — valid.
+        При expires_at = T статус expired (или depleted при нуле), remaining_seconds = 0.
+        Порог из настроек ресторана, без строки настроек — 24 часа.
+        remaining_seconds — floor((expires_at - T) / 1s), в том числе у depleted.
+        Фактический срок не пересчитывается по стандарту продукта; даты ответа — UTC.
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          description: Без параметра — ненулевые партии; all включает depleted
+          schema: {type: string, enum: [all, valid, expiring, expired, depleted]}
+          example: all
+        - name: supply_id
+          in: query
+          description: Ограничить партии данного продукта одной поставкой
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: sort
+          in: query
+          schema: {type: string, enum: [expires_at, '-created_at'], default: expires_at}
+      responses:
+        '200':
+          description: Партии после фильтров; пустая выборка также успешна
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchListResponse'
+              examples:
+                batches:
+                  $ref: '#/components/examples/BatchList'
+                empty:
+                  value:
+                    items: []
+                    total: 0
+                    page: 1
+                    page_size: 50
+                    meta: {server_time: '2026-10-10T12:00:00Z'}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /inventory:
+    get:
+      tags: [Inventory]
+      operationId: listInventory
+      summary: Получить остатки, статусы продуктов и проблемные партии
+      description: |
+        Агрегаты реализованы в S07-T02, поиск и фильтры проверены в S07-T03.
+        Включает продукты без партий и неактивные продукты.
+        Доступно всем четырём ролям. counts учитывает поиск и категорию,
+        но игнорирует filter и пагинацию; фильтры пересекаются.
+        attention_batches — первые 20 проблемных партий по expires_at, id
+        в том же поиске/категории; attention_total — их полное число.
+        nearest_expires_at сортируется с null в конце.
+        Все агрегаты используют один момент T = meta.server_time и один снимок БД.
+        available: expires_at > T; expired: expires_at <= T.
+        expiring входит в available и имеет expires_at <= T + expiring_threshold_hours.
+        Порог берётся из настроек ресторана, без строки настроек — 24 часа.
+        Нулевые партии не входят в batches_count, ближайший срок и attention_batches.
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/CategoryID'
+        - name: filter
+          in: query
+          description: |
+            Фильтрация по количествам независимо от основного status продукта.
+            expiring: expiring_quantity > 0; expired: expired_quantity > 0;
+            out_of_stock: available_quantity = 0; deficit: deficit_quantity > 0.
+            Продукт может одновременно входить в несколько фильтров.
+          schema:
+            type: string
+            enum: [all, expiring, expired, out_of_stock, deficit]
+            default: all
+          example: expiring
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [name, nearest_expires_at]
+            default: name
+          example: nearest_expires_at
+      responses:
+        '200':
+          description: Складская выборка с агрегатами
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryListResponse'
+              examples:
+                inventory:
+                  $ref: '#/components/examples/InventoryList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /supplies:
+    get:
+      tags: [Supplies]
+      operationId: listSupplies
+      summary: Получить список поставок
+      description: |
+        Поиск по буквальной части номера без учёта регистра; пустой search
+        не ограничивает выборку. Символы %, _ и обратный слеш не являются
+        шаблонами. Фильтры объединяются через AND.
+        from включительно и to исключительно ограничивают created_at,
+        а не received_at. RFC3339 с timezone; from <= to, равные границы
+        возвращают пустой список. Порядок created_at DESC, id DESC.
+        total учитывает фильтры до пагинации; страница за концом списка
+        возвращает items: [] с исходным total. meta — {}.
+        Требуется действующая сессия и роль admin, manager или storekeeper.
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: search
+          in: query
+          description: Буквальная часть номера, без учёта регистра
+          schema: {type: string}
+          example: '104'
+        - name: from
+          in: query
+          description: Нижняя включительная граница created_at
+          schema: {type: string, format: date-time}
+          example: '2026-10-01T00:00:00Z'
+        - name: to
+          in: query
+          description: Верхняя исключительная граница created_at
+          schema: {type: string, format: date-time}
+          example: '2026-11-01T00:00:00Z'
+        - name: sort
+          in: query
+          description: Фиксированная стабильная сортировка; других значений нет
+          schema: {type: string, enum: ['-created_at'], default: '-created_at'}
+      responses:
+        '200':
+          description: Список поставок, включая пустую страницу
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplyListResponse'
+              example:
+                items: []
+                total: 0
+                page: 1
+                page_size: 50
+                meta: {}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    post:
+      tags: [Supplies]
+      operationId: createSupply
+      summary: Принять поставку и создать партии
+      description: |
+        Роли admin, manager, storekeeper. Вся поставка сохраняется атомарно.
+        Каждая строка создаёт отдельную партию; повтор продукта допустим.
+        Количество положительное, для pcs целое. Просроченная строка даёт 422
+        без сохранения всей поставки. Номер обрезается по краям, должен быть
+        непустым и уникальным в ресторане с учётом регистра.
+        Строка задаёт expires_at либо produced_at с необязательным сроком.
+        Без срока используется стандарт продукта; если его нет — 422 SHELF_LIFE_REQUIRED.
+        Location указывает на детали созданной поставки.
+        Тело ответа строится и сохраняется до commit; 201 отправляется после commit.
+        Повтор с тем же ключом и телом возвращает сохранённый статус, тело и Location.
+        meta.server_time фиксирует время расчёта статусов партий.
+        Невалидный JSON и проверки входных данных до транзакции не занимают ключ.
+        Проверки состояния продуктов и срока по текущему времени выполняются
+        после сериализации ключа; завершённые предметные отказы сохраняются.
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CSRFToken'
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSupplyRequest'
+            examples:
+              explicitExpiry:
+                $ref: '#/components/examples/SupplyExplicitRequest'
+              calculatedExpiry:
+                $ref: '#/components/examples/SupplyCalculatedRequest'
+      responses:
+        '201':
+          description: Поставка принята; схема совпадает с GET деталей, значения зафиксированы при приёмке
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+            Location:
+              description: Путь к созданной поставке
+              schema: {type: string}
+              example: /api/v1/supplies/45454545-4545-4545-8545-454545454545
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplyDetail'
+              examples:
+                supply:
+                  $ref: '#/components/examples/SupplyDetail'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /supplies/{id}:
+    get:
+      tags: [Supplies]
+      operationId: getSupply
+      summary: Получить поставку с исходными строками и текущими партиями
+      description: |
+        Все партии по line_number ASC, id ASC, включая израсходованные,
+        просроченные и партии отключённых продуктов. Повторные продукты
+        в разных строках не объединяются. Продукты и партии читаются вместе
+        с поставкой в одном снимке REPEATABLE READ READ ONLY.
+        created_at — время создания записи поставки; received_at — фактическое
+        время приёмки. batch.created_at — время создания записи партии.
+        Фактический срок партии не пересчитывается по стандарту продукта.
+        Статусы и remaining_seconds используют одно meta.server_time;
+        порог expiring берётся из настроек ресторана (без настроек — 24 часа).
+        Query-параметров нет. Требуется действующая сессия и роль admin, manager или storekeeper.
+        Корректный UUID отсутствующей поставки — 404; неверный UUID — 422.
+        Данные читаются в одном согласованном снимке; время расчёта — meta.server_time.
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      responses:
+        '200':
+          description: Детали поставки
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplyDetail'
+              examples:
+                supply:
+                  $ref: '#/components/examples/SupplyDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /dishes:
+    post:
+      tags:
+      - Dishes
+      operationId: createDish
+      summary: Создать блюдо и первую версию рецепта
+      description: 'Только admin с Origin и CSRF. Имя уникально без учёта регистра. Непустой
+        рецепт с активными продуктами и точными положительными расходами; pcs целые. Дубли:
+        422 DUPLICATE_INGREDIENT. Блюдо и рецепт атомарны.'
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDishRequest'
+      responses:
+        '201':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dish'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    get:
+      tags: [Dishes]
+      operationId: listDishes
+      summary: Получить меню с рецептурами и доступностью
+      description: |
+        Роли admin, manager, order_operator. Актуальная версия рецепта выбирается
+        по максимальному номеру. Порции — минимум целых отношений годного остатка
+        к расходу ингредиента. Просрочка (expires_at <= meta.server_time) исключена.
+        Поиск — буквальная подстрока названия без учёта регистра. total считается
+        после фильтра доступности и до пагинации; сортировка name, затем ID.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/IsActive'
+        - name: availability
+          in: query
+          schema: {type: string, enum: [all, available, unavailable], default: all}
+          example: available
+        - name: sort
+          in: query
+          schema: {type: string, enum: [name], default: name}
+          example: name
+      responses:
+        '200':
+          description: Меню после фильтров
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DishListResponse'
+              examples:
+                dishes:
+                  $ref: '#/components/examples/DishList'
+                empty:
+                  $ref: '#/components/examples/EmptyList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /dishes/{id}:
+    patch:
+      tags:
+      - Dishes
+      operationId: updateDish
+      summary: Атомарно изменить блюдо и рецептуру
+      description: 'Только admin с Origin и CSRF. expected_revision проверяется под блокировкой,
+        конфликт: 409 REVISION_CONFLICT с details.current_revision. Только переданные
+        поля меняются; null очищает description. Переданный recipe целиком заменяет состав
+        новой неизменяемой версией. Старые заказы и рецепты сохраняются. Metadata-only
+        PATCH не создаёт версию. Активируемый состав должен содержать активные продукты.'
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/ResourceID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDishRequest'
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dish'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    get:
+      tags: [Dishes]
+      operationId: getDish
+      summary: Получить блюдо, актуальный рецепт и доступность
+      description: |
+        Роли admin, manager, order_operator. Расчёт актуален на meta.server_time;
+        годные партии имеют expires_at > server_time. Стоп-лист включает только
+        активные недоступные блюда; отключённые блюда исключены. Причины:
+        ingredient_shortage, only_expired_stock, recipe_missing, dish_inactive.
+        Результат пересчитывается при каждом чтении, включая истечение без записи.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      responses:
+        '200':
+          description: Получить блюдо, актуальный рецепт и доступность
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dish'
+              examples:
+                result:
+                  value:
+                    id: 66666666-6666-4666-8666-666666666666
+                    name: Пицца
+                    description: null
+                    is_active: true
+                    revision: 1
+                    recipe_version: null
+                    recipe: []
+                    is_available: false
+                    available_portions: '0'
+                    shortages: []
+                    unavailability_reasons: [recipe_missing]
+                    meta: {server_time: '2026-10-10T12:00:00Z'}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /dishes/preview:
+    post:
+      tags:
+      - Dishes
+      operationId: previewDish
+      summary: Проверить введённый рецепт без сохранения
+      description: Только admin с Origin и CSRF. Те же правила непустого рецепта, активности
+        продуктов, точных расходов и отсутствия дублей. Одна read-only snapshot и UTC
+        server_time. Все требования на одну порцию; shortages только недостающие. Не создаёт
+        блюдо, рецепт, заказ, движения, аудит, outbox или резерв.
+      x-implementation-status: implemented
+      security:
+      - SessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreviewDishRequest'
+      responses:
+        '200':
+          description: Доступность введённого рецепта без сохранения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DishPreview'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /stop-list:
+    get:
+      tags: [Dishes]
+      operationId: getStopList
+      summary: Получить автоматический стоп-лист
+      description: |
+        Роли admin, manager, order_operator. Расчёт актуален на meta.server_time;
+        годные партии имеют expires_at > server_time. Стоп-лист включает только
+        активные недоступные блюда; отключённые блюда исключены. Причины:
+        ingredient_shortage, only_expired_stock, recipe_missing, dish_inactive.
+        Результат пересчитывается при каждом чтении, включая истечение без записи.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+        - name: sort
+          in: query
+          schema: {type: string, enum: [name], default: name}
+      responses:
+        '200':
+          description: Получить автоматический стоп-лист
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DishListResponse'
+              examples:
+                result:
+                  $ref: '#/components/examples/DishList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /orders/check:
+    post:
+      tags: [Orders]
+      operationId: checkOrder
+      summary: Проверить корзину без резервирования и создания заказа
+      description: |
+        Роли admin, manager, order_operator. Не меняет склад, не создаёт заказ
+        или запись отказа. Дефицит и предметные issues возвращаются с 200,
+        can_create: false. Неизвестный ID блюда или неверное тело дают 422.
+        requirements содержит все ингредиенты, shortages — только недостающие.
+        can_create: true только при пустых shortages и issues.
+        Одна read-only транзакция repeatable-read и один meta.server_time в UTC.
+        Годны только положительные остатки партий с expires_at > server_time.
+        Количества суммируются точно до тысячных; общий остаток продукта учитывается один раз.
+        items сохраняет порядок первого появления блюда, requirements/shortages сортируются по имени продукта и UUID.
+        Расчёт использует актуальные рецептуры всех позиций, включая отключённые и изменённые блюда.
+        Присланная устаревшая или будущая версия даёт issue recipe_changed с актуальной версией.
+        Запрос требует действующую сессию. CSRF, Origin и Idempotency-Key не требуются для чтения.
+        Неверная форма валидного JSON даёт 422; синтаксически некорректный JSON — 400.
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderRequest'
+            examples:
+              basket:
+                $ref: '#/components/examples/OrderRequest'
+      responses:
+        '200':
+          description: Корзина проверена, в том числе при дефиците
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderCheck'
+              examples:
+                available:
+                  $ref: '#/components/examples/OrderCheckAvailable'
+                shortage:
+                  $ref: '#/components/examples/OrderCheckShortage'
+                recipeChanged:
+                  $ref: '#/components/examples/OrderCheckRecipeChanged'
+                unavailable:
+                  $ref: '#/components/examples/OrderCheckUnavailable'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /orders:
+    get:
+      tags: [Orders]
+      operationId: listOrders
+      summary: Получить историю успешных заказов
+      description: |
+        Роли admin, manager, order_operator. Буквальный поиск без учёта регистра
+        по части номера заказа или сохранённого названия блюда; %, _ и обратный
+        слеш не являются шаблонами. Текущее название блюда не используется.
+        Фильтры объединяются через AND. from включительно и to исключительно
+        ограничивают created_at; RFC3339 с timezone, from <= to.
+        Порядок created_at DESC, id DESC. total учитывает фильтры до пагинации;
+        страница за концом списка возвращает items: [] с исходным total.
+        Названия и версии рецептов в items соответствуют моменту заказа.
+        Неизвестные и повторяющиеся параметры — 422. meta — {}.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: search
+          in: query
+          description: Буквальная часть номера или сохранённого названия блюда
+          schema: {type: string}
+        - $ref: '#/components/parameters/HistoryFrom'
+        - $ref: '#/components/parameters/HistoryTo'
+        - $ref: '#/components/parameters/HistorySort'
+      responses:
+        '200':
+          description: Страница истории заказов
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderListResponse'
+              example: {items: [], total: 0, page: 1, page_size: 50, meta: {}}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    post:
+      tags: [Orders]
+      operationId: createOrder
+      summary: Создать заказ и списать ингредиенты по FEFO
+      description: |
+        Роли admin, manager, order_operator. Повторно проверяет актуальные
+        рецептуры и остатки внутри транзакции: check ничего не резервирует.
+        Повторы блюда объединяются, итог — не более 1000 порций каждого блюда.
+        При успехе создаётся заказ и сохраняются фактические движения по партиям.
+        При дефиците — 409 INSUFFICIENT_STOCK с requirements, shortages, attempt_id;
+        при смене рецептуры — 409 RECIPE_CHANGED с issues;
+        при отключённом/неполном блюде — 409 DISH_UNAVAILABLE с issues.
+        Неизвестный ID блюда — 422, а не 404 или предметный дефицит.
+        Позиции распределяются по ID блюда; партии — по expires_at,
+        received_at поставки, ID партии. Время фиксируется после ожидания
+        всех блокировок. Предметный отказ сохраняет одну попытку вместе
+        с ответом; повтор ключа возвращает тот же ответ без нового списания.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderRequest'
+            examples:
+              basket:
+                $ref: '#/components/examples/OrderRequest'
+      responses:
+        '201':
+          description: Заказ создан, ингредиенты списаны
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+            Location:
+              description: Путь к созданному заказу
+              schema: {type: string}
+              example: /api/v1/orders/77777777-7777-4777-8777-777777777777
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetail'
+              examples:
+                order:
+                  $ref: '#/components/examples/OrderDetail'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /orders/{id}:
+    get:
+      tags: [Orders]
+      operationId: getOrder
+      summary: Получить заказ и исторические факты списания
+      description: |
+        Роли admin, manager, order_operator. Названия и версии рецептур — снимки
+        на момент заказа. Остатки после движения — исторические, не текущие.
+        Корректный UUID отсутствующего заказа — 404; неверный UUID — 422.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      responses:
+        '200':
+          description: Заказ с распределением по партиям
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetail'
+              examples:
+                order:
+                  $ref: '#/components/examples/OrderDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /order-attempts:
+    get:
+      tags: [Orders]
+      operationId: listOrderAttempts
+      summary: Получить историю отклонённых предметных попыток
+      description: |
+        Роли admin, manager, order_operator. Буквальный поиск без учёта регистра
+        по ID попытки или сохранённому названию блюда. %, _ и обратный слеш
+        не являются шаблонами. Пустой search не ограничивает выборку.
+        from включительно и to исключительно ограничивают created_at;
+        RFC3339 с timezone, from <= to. Фильтры объединяются через AND.
+        Порядок created_at DESC, id DESC; total до пагинации, meta — {}.
+        Попытки имеют собственный ID без номера/order_id успешного заказа.
+        items, shortages и issues — снимки на момент отказа. Редактирование
+        блюда/продукта не меняет историю. check, ошибки полей/доступа,
+        транспортные/технические сбои и успешные заказы сюда не попадают.
+        Повтор Idempotency-Key возвращает исходный отказ без второй строки.
+        Неизвестные/повторяющиеся параметры или неверный reason_code — 422.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: search
+          in: query
+          description: Буквальная часть ID попытки или сохранённого названия блюда
+          schema: {type: string}
+        - $ref: '#/components/parameters/HistoryFrom'
+        - $ref: '#/components/parameters/HistoryTo'
+        - $ref: '#/components/parameters/HistorySort'
+        - name: reason_code
+          in: query
+          description: Причина предметного отказа; отсутствие означает все причины
+          schema: {type: string, enum: [INSUFFICIENT_STOCK, RECIPE_CHANGED, DISH_UNAVAILABLE]}
+      responses:
+        '200':
+          description: Страница истории отказов
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderAttemptListResponse'
+              example: {items: [], total: 0, page: 1, page_size: 50, meta: {}}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /hot-offers:
+    get:
+      tags: [Dishes]
+      operationId: getHotOffers
+      summary: Получить блюда для приоритетной продажи
+      description: |
+        Роли admin, manager, order_operator. Только активные доступные блюда
+        с последней рецептурой. Для каждого независимо симулируется одна порция
+        общим FEFO-планировщиком без резервирования или записей в склад.
+        Учитываются только реально потреблённые партии с положительным остатком
+        при T < expires_at <= T + H; H — expiring_threshold_hours из настроек
+        (без строки настроек — 24 часа), T = meta.server_time.
+        Настройки, рецептуры, остатки и факты поставок читаются в одном read-only
+        Repeatable Read снимке. h — точное время до истечения в часах.
+        batch_score = 100 * (1 - h/H) * used_for_one_portion / remaining_quantity;
+        priority_score = максимум. При h=H балл нулевой, но предложение включается.
+        Сравнения точные, без промежуточного округления; отображение — четыре знака.
+        Порядок — score DESC, ближайший затронутый срок ASC, ID блюда ASC.
+        high при ближайшем h <= H/4, medium при h <= H/2, иначе low.
+        search — буквальная часть имени блюда без учёта регистра; sort не принимается.
+        total и rank относятся к полному отфильтрованному списку до пагинации.
+        Следующее чтение пересчитывает результат после поставки, заказа, рецепта,
+        смены настроек или истечения срока; просроченные и исчерпанные партии исчезают.
+      x-implementation-status: implemented
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+      responses:
+        '200':
+          description: Горячие предложения; пустая страница содержит items []
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HotOffersListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboard
+      summary: Получить обзор состояния всего склада
+      description: |
+        Роли admin, manager, storekeeper, order_operator. Query-параметров нет.
+        Один read-only Repeatable Read снимок и UTC meta.server_time для всех
+        блоков. Счётчики не ограничиваются размером превью: положительные партии
+        с expires_at <= T просрочены, T < expires_at <= T + threshold истекают.
+        Стоп-лист считает активные недоступные блюда по последней рецептуре;
+        отсутствие продуктов — все продукты без годного остатка, включая неактивные.
+        attention_batches — первые 20 проблемных партий по expires_at, ID;
+        attention_total — их полное число. hot_offers и procurement_recommendations
+        — первые 3 элемента общей приоритетной сортировки отдельных эндпоинтов.
+        Кладовщик получает hot_offers: [], оператор procurement_recommendations: [].
+        Роли не меняют общие счётчики, внимание склада и настройки оболочки.
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Согласованная сводка всего склада; пустые блоки возвращаются как []
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /procurement-recommendations:
+    get:
+      tags: [Procurement]
+      operationId: getProcurementRecommendations
+      summary: Получить необходимые закупки
+      description: |
+        Роли admin, manager, storekeeper. Закупка равна max(0, target_stock -
+        available_quantity); только положительные рекомендации для заданных целей.
+        Просрочка не уменьшает закупку. Продукты и последние рецепты активных
+        блюд читаются в одном read-only Repeatable Read снимке на meta.server_time.
+        affected_dishes связывает только блюда с недостатком данного ингредиента.
+        Приоритет до пагинации: число связанных блюд убывает, затем нулевой годный
+        остаток, затем имя/ID возрастают. sort не принимается.
+        Причины: below_target всегда, no_valid_stock при нуле годного остатка,
+        дополнительно only_expired_stock при положительной просрочке.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+        - name: category_id
+          in: query
+          description: UUID категории продукта
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: Страница необходимых закупок; total до пагинации
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcurementListResponse'
+              example:
+                items:
+                  - product_id: 44444444-4444-4444-8444-444444444444
+                    product_name: Куриное филе
+                    unit: g
+                    display_unit: kg
+                    available_quantity: '0.000'
+                    expired_quantity: '0.000'
+                    target_stock: '3000.000'
+                    recommended_quantity: '3000.000'
+                    reason_codes: [below_target, no_valid_stock]
+                    reason: Годного остатка нет; пополнить до целевого запаса 3000 г
+                    affected_dishes: []
+                total: 1
+                page: 1
+                page_size: 50
+                meta: {server_time: '2026-10-11T00:00:00Z'}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /settings:
+    get:
+      tags: [Settings]
+      operationId: getSettings
+      summary: Настройки единственного ресторана
+      description: Все четыре активные роли. Cache-Control no-store. Возвращает текущую revision.
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Настройки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      tags: [Settings]
+      operationId: updateSettings
+      summary: Изменить настройки по ожидаемой ревизии
+      description: |
+        Только admin; точный Origin и CSRF. Требует expected_revision и хотя бы одно изменяемое поле.
+        Отсутствующие поля сохраняются; null, повторы, неизвестные поля и неверные типы запрещены.
+        Имя обрезается по краям; timezone — имя IANA, кроме host-dependent Local.
+        Конкурирующие сохранения сериализуются; устаревшая ревизия возвращает 409 REVISION_CONFLICT
+        с details.current_revision. Включение auto_writeoff_expired запускает автоматическое списание просроченного
+        положительного остатка в течение минуты; выключение сохраняет видимую просрочку.
+        Успех атомарно увеличивает revision, пишет типизированный аудит до/после и settings.changed outbox.
+        Cache-Control no-store.
+      x-implementation-status: implemented
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettingsRequest'
+      responses:
+        '200':
+          description: Обновлённые настройки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          description: Ошибка валидации настроек
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /audit-log:
+    get:
+      tags: [AuditLog]
+      operationId: listAuditLog
+      summary: Журнал успешных изменений
+      description: |
+        Только admin; Cache-Control no-store. Read-only repeatable-read снимок списка и total.
+        Буквальный регистронезависимый поиск по имени автора, действию, типу/UUID объекта и request_id.
+        %, _ и обратный слеш — обычные символы. Для системного автора поиск system или Система.
+        actor_id=system фильтрует null actor; настройки имеют entity_id=null.
+        Интервал created_at — [from,to); сортировка created_at DESC, id DESC до пагинации.
+        before/after проецируются на разрешённые поля, включая вложенные рецепты/партии.
+        Пароли, хеши, токены и cookie не возвращаются. Нет маршрутов изменения журнала.
+      x-implementation-status: implemented
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - name: search
+        in: query
+        schema: {type: string}
+      - name: actor_id
+        in: query
+        description: UUID пользователя или system для системных действий
+        schema:
+          oneOf:
+          - {type: string, format: uuid}
+          - {type: string, enum: [system]}
+      - name: action
+        in: query
+        schema: {type: string, enum: [create, update, password_change, manual_writeoff, expiration]}
+      - name: entity_type
+        in: query
+        schema: {type: string, enum: [product_category, product, dish, supply, order, stock_movement, user, settings, integration_token, incoming_supply, hot_offer]}
+      - name: entity_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - $ref: '#/components/parameters/HistoryFrom'
+      - $ref: '#/components/parameters/HistoryTo'
+      - $ref: '#/components/parameters/HistorySort'
+      responses:
+        '200':
+          description: Страница журнала
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /write-offs:
+    post:
+      tags: [Inventory]
+      operationId: createWriteOff
+      summary: Списать количество одной партии с причиной
+      x-implementation-status: implemented
+      description: |
+        Роли admin/manager/storekeeper, Origin/CSRF и Idempotency-Key.
+        Можно списать годную или просроченную партию. Количество положительное,
+        для pcs целое; причина обрезается и содержит 1–500 символов без управляющих.
+        Текущие права, продукт и партия блокируются в порядке actor/product/batch.
+        Остаток, manual_writeoff, аудит, outbox и HTTP-результат атомарны.
+        Превышение остатка — 409 INSUFFICIENT_BATCH_STOCK.
+        Повтор возвращает сохранённый ответ; другое тело — IDEMPOTENCY_CONFLICT;
+        параллельный повтор — REQUEST_IN_PROGRESS. Технические ошибки откатывают всё.
+        Предметные отказы сохраняют только ответ. Cache-Control no-store.
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRFToken'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WriteOffRequest'
+      responses:
+        '201':
+          description: Исторический факт ручного списания
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovement'
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /stock-movements:
+    get:
+      tags: [Inventory]
+      operationId: listStockMovements
+      summary: История складских движений
+      x-implementation-status: implemented
+      description: |
+        Admin/manager/storekeeper. Read-only repeatable-read для total и страницы.
+        Полуоткрытый интервал from <= occurred_at < to. Стабильная сортировка
+        occurred_at DESC, id DESC. product_name/unit и remaining_quantity_after
+        берутся из исторических снимков; actor=null для системных действий.
+        Order ID относится к связанному order_item, иначе null. Cache-Control no-store.
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - name: product_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - name: batch_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - name: order_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - name: type
+        in: query
+        schema: {type: string, enum: [receipt, order_consumption, expiration, manual_writeoff]}
+      - name: from
+        in: query
+        schema: {type: string, format: date-time}
+      - name: to
+        in: query
+        schema: {type: string, format: date-time}
+      - name: sort
+        in: query
+        schema: {type: string, enum: [-occurred_at], default: -occurred_at}
+      responses:
+        '200':
+          description: Исторические движения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovementListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /analytics/write-offs:
+    get:
+      tags: [Analytics]
+      operationId: getWriteOffAnalytics
+      summary: Потери по продукту и исторической единице
+      x-implementation-status: implemented
+      description: |
+        Только admin/manager. Только expiration/manual_writeoff, без receipt и
+        order_consumption. Интервал occurred_at [from,to). Суммы точные, положительные,
+        не ограничены размером партии. Группы product_id/unit; product_name — последний
+        снимок в отфильтрованной группе, переименование не дробит её. Причина ограничивает
+        движения до суммирования. Сортировка product_name, product_id, unit; sort не принимается.
+        Count и страница в одном read-only Repeatable Read снимке. Cache-Control no-store.
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/HistoryFrom'
+      - $ref: '#/components/parameters/HistoryTo'
+      - name: product_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - name: reason
+        in: query
+        schema: {type: string, enum: [all, expiration, manual_writeoff], default: all}
+      responses:
+        '200':
+          description: Группы потерь; total — число групп до пагинации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WriteOffAnalyticsListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /analytics/ingredient-shortages:
+    get:
+      tags: [Analytics]
+      operationId: getIngredientShortageAnalytics
+      summary: Недостача ингредиентов из отклонённых заказов
+      x-implementation-status: implemented
+      description: |
+        Только admin/manager. Только сохранённые shortages попыток INSUFFICIENT_STOCK.
+        Интервал created_at [from,to). Группы product_id/unit, точная сумма missing_quantity
+        и число различных попыток. Последний исторический product_name внутри фильтра.
+        Сортировка rejected_attempts_count DESC, product_id, unit; sort не принимается.
+        Check, успешный заказ и другие причины отказа не учитываются; replay ключа не
+        создаёт новую попытку. Дефицит отражает отклонённый спрос, не будущие заказы.
+        Нет общей суммы разных единиц. Count и страница используют один read-only
+        Repeatable Read снимок. Cache-Control no-store.
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/HistoryFrom'
+      - $ref: '#/components/parameters/HistoryTo'
+      responses:
+        '200':
+          description: Группы дефицита; total — число групп до пагинации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngredientShortageAnalyticsListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /analytics/stop-list-forecast:
+    get:
+      tags: [Analytics]
+      operationId: getStopListForecast
+      summary: Оценка момента возникновения стоп-листа
+      x-implementation-status: implemented
+      description: |
+        Только admin/manager. Все активные блюда с текущими рецептами. История только
+        order_consumption по product_id/unit в [server_time-lookback_days,server_time),
+        среднее за все 24-часовые дни периода. Непрерывное ожидаемое потребление склада
+        по FEFO (expires_at, received_at, batch ID), исключение остатка при expires_at.
+        Поиск первой невозможности приготовить порцию с учётом следующих партий.
+        При расходе время — первая наносекунда после пересечения порога одной порции;
+        при истечении — expires_at. Не предполагает будущие поставки и смену рецепта.
+        Нет истории в текущей единице — неизвестный спрос, insufficient_data, отдельно
+        оценка сроков без неизвестного расхода. Положительная история даёт только low.
+        null/unknown различают no_stop_within_horizon и недостаток истории в assumptions.
+        Уже недоступное блюдо имеет server_time/already_unavailable; без рецепта
+        limiting_product_id=null. Сортировка estimated_stop_at ASC NULLS LAST, dish_id;
+        при совпадении ограничений выбирается меньший product_id. Пагинация после расчёта.
+        Один read-only Repeatable Read снимок рецептов, партий и истории. Никаких записей.
+        Cache-Control no-store. Дубликаты, неизвестные и некорректные параметры дают 422.
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - name: lookback_days
+        in: query
+        schema: {type: integer, minimum: 1, maximum: 90, default: 7}
+      - name: horizon_hours
+        in: query
+        schema: {type: integer, minimum: 1, maximum: 720, default: 72}
+      responses:
+        '200':
+          description: Оценки; total — число активных блюд до пагинации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StopListForecastListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /analytics/product-flow:
+    get:
+      operationId: getProductFlow
+      x-implementation-status: implemented
+      summary: Приход, расход в заказах и списания по каждому продукту
+      description: Только admin/manager. Фактические движения за [from,to), группировка product_id/unit_snapshot. Только принятые количества и успешные заказы. Точные десятичные строки, без суммирования несовместимых единиц. Count и страница из одного снимка Repeatable Read.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/HistoryFrom'
+        - $ref: '#/components/parameters/HistoryTo'
+        - {name: product_id, in: query, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Группы продуктов и исторических единиц
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items,total,page,page_size,meta]
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/ProductFlow'}}
+                  total: {type: integer}
+                  page: {type: integer}
+                  page_size: {type: integer}
+                  meta: {type: object}
+  /hot-offers/{id}:
+    get:
+      operationId: getHotOfferPreference
+      x-implementation-status: implemented
+      summary: Получить настройки публикации блюда, только admin/manager
+      description: Возвращает is_published/is_manual/message/revision. Для блюда без настроек revision=0, is_published=true, is_manual=false. Позволяет повторно опубликовать ранее скрытое ручное предложение.
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      responses:
+        '200': {description: Настройки публикации}
+    patch:
+      operationId: updateHotOffer
+      x-implementation-status: implemented
+      summary: Менеджер публикует, скрывает или редактирует предложение
+      description: Только admin/manager, cookie и CSRF. expected_revision=0 для первой настройки. Ручной выбор добавляет доступное блюдо даже без истекающих партий. Официант не получает скрытые предложения ни в списке, ни в dashboard. Доступность всегда рассчитывается по складу.
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [is_published,is_manual,expected_revision]
+              properties:
+                is_published: {type: boolean}
+                is_manual: {type: boolean}
+                message: {type: string, maxLength: 500}
+                expected_revision: {type: integer, minimum: 0}
+      responses:
+        '200': {description: Сохранённые настройки и новая revision}
+        '409': {description: Настройки уже изменены другим сотрудником}
+  /integration-tokens:
+    get:
+      operationId: listIntegrationTokens
+      x-implementation-status: implemented
+      summary: Список интеграций без секретов, только admin
+      responses:
+        '200': {description: Массив id/name/created_at/revoked_at. Значения и хеши токенов никогда не возвращаются.}
+    post:
+      operationId: createIntegrationToken
+      x-implementation-status: implemented
+      summary: Создать отдельный API-токен, только admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string, minLength: 1, maxLength: 100}
+      responses:
+        '201': {description: id/name/created_at/revoked_at и token. Секрет возвращается только здесь; в БД SHA-256.}
+  /integration-tokens/{id}:
+    delete:
+      operationId: revokeIntegrationToken
+      x-implementation-status: implemented
+      summary: Отозвать токен, только admin
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      responses:
+        '204': {description: Токен отозван. Входящие документы сохраняются.}
+  /incoming-supplies:
+    get:
+      operationId: listIncomingSupplies
+      x-implementation-status: implemented
+      summary: Очередь внешних поставок для admin/manager/storekeeper
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - {name: status, in: query, schema: {type: string, enum: [all,pending,partial,received], default: all}}
+      responses:
+        '200':
+          description: Страница входящих поставок
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/IncomingSupply'}}
+                  total: {type: integer}
+                  page: {type: integer}
+                  page_size: {type: integer}
+                  meta: {type: object}
+  /incoming-supplies/{id}/accept:
+    post:
+      operationId: acceptIncomingSupply
+      x-implementation-status: implemented
+      summary: Принять выбранные количества, остаток оставить в ожидании
+      description: Только admin/manager/storekeeper, cookie и CSRF. Блокировка документа и expected_revision защищают от двойной и конкурентной приёмки. Все строки, партии, движения, аудит, outbox и ревизия фиксируются атомарно. После потери ответа перечитать очередь перед повтором. Нельзя принять больше остатка, просроченный или неактивный продукт. Количество добавляется к уже принятому.
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_revision,items]
+              properties:
+                expected_revision: {type: integer, minimum: 1}
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [id,quantity]
+                    properties:
+                      id: {type: string, format: uuid}
+                      quantity: {$ref: '#/components/schemas/Quantity'}
+      responses:
+        '200':
+          description: Обновлённый входящий документ
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IncomingSupply'}
+        '409': {description: Документ уже изменён или принят}
+  /integration/products:
+    get:
+      operationId: integrationListProducts
+      x-implementation-status: implemented
+      summary: Справочник продуктов для внешнего сервиса
+      security: [{IntegrationBearer: []}]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+      responses:
+        '200': {description: Обычный ProductListResponse; cookie не используются}
+    post:
+      operationId: integrationCreateProduct
+      x-implementation-status: implemented
+      summary: Создать продукт из внешнего сервиса
+      description: Внешний ID уникален внутри токена. Повтор с тем же телом возвращает тот же продукт, с другим телом — 409. Валидация и аудит общие с POST /products. Токен не позволяет изменять существующие продукты или принимать поставки.
+      security: [{IntegrationBearer: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [external_id,product]
+              properties:
+                external_id: {type: string, minLength: 1, maxLength: 100}
+                product: {$ref: '#/components/schemas/CreateProductRequest'}
+      responses:
+        '201': {description: Созданный или ранее сопоставленный Product}
+        '409': {description: Внешний ID занят другим телом или название продукта уже существует}
+  /integration/product-categories:
+    get:
+      operationId: integrationListCategories
+      x-implementation-status: implemented
+      summary: Категории для формы внешнего сервиса
+      security: [{IntegrationBearer: []}]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200': {description: CategoryListResponse}
+  /integration/supplies:
+    post:
+      operationId: integrationSubmitSupply
+      x-implementation-status: implemented
+      summary: Отправить внешнюю поставку в ожидание приёмки
+      description: Остатки не меняются. Внешний ID уникален внутри токена; неизменный повтор возвращает тот же документ, изменённое тело — 409. 1–100 строк с положительными количествами в g/ml/pcs и явными сроками годности. Статусы pending → partial → received. Cookie не используются.
+      security: [{IntegrationBearer: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [external_id,number,items]
+              properties:
+                external_id: {type: string, minLength: 1, maxLength: 100}
+                number: {type: string, minLength: 1, maxLength: 80}
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [product_id,quantity,expires_at]
+                    properties:
+                      product_id: {type: string, format: uuid}
+                      quantity: {$ref: '#/components/schemas/Quantity'}
+                      expires_at: {type: string, format: date-time}
+      responses:
+        '201':
+          description: Документ ожидает приёмки или возвращён существующий
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IncomingSupply'}
+        '401': {description: Токен отсутствует, отозван или его владелец отключён/лишён прав admin}
+        '409': {description: Внешний ID использован с другим телом}
+components:
+  securitySchemes:
+    IntegrationBearer:
+      type: http
+      scheme: bearer
+      description: Отдельный токен поставщика flagman_…, созданный администратором; не пользовательская сессия.
+    MetricsBearer:
+      type: http
+      scheme: bearer
+      description: Отдельный технический секрет Prometheus, вне пользовательских сессий
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: flagman_session
+      description: Непрозрачный токен действующей сессии; в БД хранится его SHA-256
+  parameters:
+    ResourceID:
+      name: id
+      in: path
+      required: true
+      description: UUID в формате xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+      schema:
+        $ref: '#/components/schemas/UUID'
+      example: 44444444-4444-4444-8444-444444444444
+    Page:
+      name: page
+      in: query
+      description: Номер страницы, начиная с 1; допускается только одно значение
+      schema: {type: integer, minimum: 1, default: 1}
+      example: 1
+    PageSize:
+      name: page_size
+      in: query
+      description: Максимальное число элементов страницы
+      schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+      example: 50
+    Search:
+      name: search
+      in: query
+      description: Поиск по имени без учёта регистра
+      schema: {type: string}
+      example: Моцарелла
+    HistoryFrom:
+      name: from
+      in: query
+      description: Нижняя включительная граница created_at, RFC3339 с timezone
+      schema: {type: string, format: date-time}
+    HistoryTo:
+      name: to
+      in: query
+      description: Верхняя исключительная граница created_at, RFC3339 с timezone; from <= to
+      schema: {type: string, format: date-time}
+    HistorySort:
+      name: sort
+      in: query
+      description: Фиксированный порядок created_at DESC, id DESC
+      schema: {type: string, enum: ['-created_at'], default: '-created_at'}
+    CategoryID:
+      name: category_id
+      in: query
+      description: Фильтр по категории продукта
+      schema:
+        $ref: '#/components/schemas/UUID'
+      example: 22222222-2222-4222-8222-222222222222
+    IsActive:
+      name: is_active
+      in: query
+      description: Активные, неактивные или все записи
+      schema: {type: string, enum: ['true', 'false', all], default: 'true'}
+      example: 'true'
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        UUID отдельной попытки записи, не request ID. Связан с пользователем,
+        методом/путём и хешем тела. Результат хранится минимум 24 часа.
+        Повтор того же тела возвращает сохранённые статус и тело без повторной записи.
+        Другое тело — 409 IDEMPOTENCY_CONFLICT; незавершённый параллельный
+        запрос — 409 REQUEST_IN_PROGRESS с Retry-After.
+        Хеш вычисляется по исходным байтам тела; изменение пробелов или порядка
+        JSON-полей меняет хеш. Область ключа — пользователь, HTTP-метод и путь.
+        Завершённый результат хранится минимум 24 часа. Повтор возвращает сохранённые
+        статус, тело и Location; X-Request-ID относится к текущему запросу.
+        Ошибки разбора, доступа и валидации до транзакции ключ не занимают.
+        При expires_at <= текущему времени ключ может считаться новым.
+        Очистка истёкшего кеша сохраняет самостоятельную историю отказов.
+      schema:
+        $ref: '#/components/schemas/UUID'
+      example: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+    CSRFToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: Токен из login/me для изменяющего запроса с сессией; проверяется также Origin
+      schema: {type: string, minLength: 1}
+      example: illustrative-csrf-token
+    Origin:
+      name: Origin
+      in: header
+      required: true
+      description: Должен точно совпадать с FRONTEND_ORIGIN; по умолчанию http://flagman.localhost
+      schema: {type: string}
+      example: http://flagman.localhost
+  headers:
+    RequestID:
+      description: UUID текущего HTTP-запроса, совпадает с request_id в ошибке и логах
+      schema:
+        $ref: '#/components/schemas/UUID'
+      example: 99999999-9999-4999-8999-999999999999
+  schemas:
+    ProductFlow:
+      type: object
+      required: [product_id,product_name,unit,received_quantity,ordered_quantity,expired_quantity,manual_quantity,written_off_quantity,movements_count]
+      properties:
+        product_id: {type: string, format: uuid}
+        product_name: {type: string}
+        unit: {type: string, enum: [g,ml,pcs]}
+        received_quantity: {type: string, pattern: '^\d+(?:\.\d{1,3})?$'}
+        ordered_quantity: {type: string, pattern: '^\d+(?:\.\d{1,3})?$'}
+        expired_quantity: {type: string, pattern: '^\d+(?:\.\d{1,3})?$'}
+        manual_quantity: {type: string, pattern: '^\d+(?:\.\d{1,3})?$'}
+        written_off_quantity: {type: string, pattern: '^\d+(?:\.\d{1,3})?$'}
+        movements_count: {type: integer}
+    IncomingSupply:
+      type: object
+      required: [id,external_id,number,source,status,revision,created_at,items,receipt_ids]
+      properties:
+        id: {type: string, format: uuid}
+        external_id: {type: string}
+        number: {type: string}
+        source: {type: string}
+        status: {type: string, enum: [pending,partial,received]}
+        revision: {type: integer}
+        created_at: {type: string, format: date-time}
+        receipt_ids: {type: array, items: {type: string, format: uuid}}
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: {type: string, format: uuid}
+              product_id: {type: string, format: uuid}
+              product_name: {type: string}
+              unit: {type: string, enum: [g,ml,pcs]}
+              line_number: {type: integer}
+              quantity: {$ref: '#/components/schemas/Quantity'}
+              accepted_quantity: {$ref: '#/components/schemas/Quantity'}
+              expires_at: {type: string, format: date-time}
+    StopListForecast:
+      type: object
+      additionalProperties: false
+      required: [dish_id, dish_name, estimated_stop_at, cause, limiting_product_id, confidence, assumptions]
+      properties:
+        dish_id:
+          $ref: '#/components/schemas/UUID'
+        dish_name: {type: string}
+        estimated_stop_at: {type: string, format: date-time, nullable: true}
+        cause: {type: string, enum: [already_unavailable, expiry, estimated_demand, unknown]}
+        limiting_product_id: {type: string, format: uuid, nullable: true}
+        confidence: {type: string, enum: [low, insufficient_data]}
+        assumptions:
+          type: array
+          items: {type: string}
+          description: |
+            estimate_only, no_future_supplies, current_recipe_unchanged,
+            constant_average_product_consumption_full_lookback, continuous_expected_consumption;
+            дополнительно expiry_only_for_missing_history, missing_history:<product UUID>,
+            recipe_missing, no_stop_within_horizon либо unknown_demand_no_expiry_stop_within_horizon.
+    StopListForecastListResponse:
+      allOf:
+      - $ref: '#/components/schemas/ListEnvelope'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/StopListForecast'
+          meta:
+            type: object
+            required: [server_time, lookback_days, horizon_hours]
+            properties:
+              server_time: {type: string, format: date-time}
+              lookback_days: {type: integer, minimum: 1, maximum: 90}
+              horizon_hours: {type: integer, minimum: 1, maximum: 720}
+    WriteOffRequest:
+      type: object
+      additionalProperties: false
+      required: [batch_id, quantity, reason]
+      properties:
+        batch_id:
+          $ref: '#/components/schemas/UUID'
+        quantity:
+          $ref: '#/components/schemas/Quantity'
+        reason: {type: string, minLength: 1, maxLength: 500}
+    IngredientShortageAnalytics:
+      type: object
+      additionalProperties: false
+      required: [product_id, product_name, unit, rejected_attempts_count, total_missing_quantity]
+      properties:
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        unit:
+          $ref: '#/components/schemas/Unit'
+        rejected_attempts_count: {type: integer, format: int64, minimum: 1}
+        total_missing_quantity:
+          $ref: '#/components/schemas/AggregateQuantity'
+    IngredientShortageAnalyticsListResponse:
+      allOf:
+      - $ref: '#/components/schemas/ListEnvelope'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/IngredientShortageAnalytics'
+    WriteOffAnalytics:
+      type: object
+      additionalProperties: false
+      required: [product_id, product_name, unit, expired_written_off_quantity, manual_written_off_quantity, total_written_off_quantity, movements_count]
+      properties:
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        unit:
+          $ref: '#/components/schemas/Unit'
+        expired_written_off_quantity:
+          $ref: '#/components/schemas/AggregateQuantity'
+        manual_written_off_quantity:
+          $ref: '#/components/schemas/AggregateQuantity'
+        total_written_off_quantity:
+          $ref: '#/components/schemas/AggregateQuantity'
+        movements_count: {type: integer, format: int64, minimum: 1}
+    WriteOffAnalyticsListResponse:
+      allOf:
+      - $ref: '#/components/schemas/ListEnvelope'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/WriteOffAnalytics'
+    StockMovement:
+      type: object
+      additionalProperties: false
+      required: [id, batch_id, product_id, product_name, unit, type, delta_quantity, remaining_quantity_after, order_item_id, order_id, actor, occurred_at, note]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        batch_id:
+          $ref: '#/components/schemas/UUID'
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        unit: {type: string, enum: [g, ml, pcs]}
+        type: {type: string, enum: [receipt, order_consumption, expiration, manual_writeoff]}
+        delta_quantity: {type: string, pattern: '^-?[0-9]+[.][0-9]{3}$', example: '-1.125'}
+        remaining_quantity_after:
+          $ref: '#/components/schemas/Quantity'
+        order_item_id: {type: string, format: uuid, nullable: true}
+        order_id: {type: string, format: uuid, nullable: true}
+        actor:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [id, name]
+          properties:
+            id: {type: string, format: uuid}
+            name: {type: string}
+        occurred_at: {type: string, format: date-time}
+        note: {type: string, nullable: true}
+    StockMovementListResponse:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, page_size, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StockMovement'
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        meta: {type: object}
+    Settings:
+      type: object
+      additionalProperties: false
+      required: [restaurant_name, timezone, expiring_threshold_hours, auto_writeoff_expired, revision]
+      properties:
+        restaurant_name: {type: string, minLength: 1, maxLength: 200}
+        timezone: {type: string, minLength: 1, maxLength: 100, example: Europe/Moscow}
+        expiring_threshold_hours: {type: integer, minimum: 1, maximum: 720}
+        auto_writeoff_expired: {type: boolean, example: false}
+        revision: {type: integer, minimum: 1}
+    UpdateSettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_revision]
+      minProperties: 2
+      properties:
+        restaurant_name: {type: string, minLength: 1, maxLength: 200}
+        timezone: {type: string, minLength: 1, maxLength: 100}
+        expiring_threshold_hours: {type: integer, minimum: 1, maximum: 720}
+        auto_writeoff_expired: {type: boolean, description: Включает списание просроченного положительного остатка в течение минуты}
+        expected_revision: {type: integer, minimum: 1, maximum: 2147483646}
+    AuditLogEntry:
+      type: object
+      additionalProperties: false
+      required: [id, created_at, actor, action, entity_type, entity_id, request_id, before, after]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        created_at: {type: string, format: date-time}
+        actor:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [id, name]
+          properties:
+            id:
+              $ref: '#/components/schemas/UUID'
+            name: {type: string}
+        action: {type: string, example: update}
+        entity_type: {type: string, example: settings}
+        entity_id: {type: string, format: uuid, nullable: true, description: null для singleton settings}
+        request_id: {type: string, nullable: true}
+        before: {type: object, nullable: true, description: Разрешённый типизированный снимок; null для создания}
+        after: {type: object, nullable: true, description: Разрешённый типизированный снимок; неизвестные legacy типы скрываются}
+    AuditLogListResponse:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, page_size, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLogEntry'
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        meta: {type: object}
+    Role:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      - name
+      properties:
+        code:
+          type: string
+          enum:
+          - admin
+          - manager
+          - storekeeper
+          - order_operator
+        name:
+          type: string
+    RoleListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+    UserListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - total
+      - page
+      - page_size
+      - meta
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthUser'
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        meta:
+          type: object
+    CreateUserRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - email
+      - role
+      - password
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        role:
+          type: string
+          enum:
+          - admin
+          - manager
+          - storekeeper
+          - order_operator
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+          writeOnly: true
+        is_active:
+          type: boolean
+          default: true
+    UpdateUserRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - expected_revision
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        role:
+          type: string
+          enum:
+          - admin
+          - manager
+          - storekeeper
+          - order_operator
+        is_active:
+          type: boolean
+        expected_revision:
+          type: integer
+          minimum: 1
+      minProperties: 2
+    UserPasswordRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - password
+      - expected_revision
+      properties:
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+          writeOnly: true
+        expected_revision:
+          type: integer
+          minimum: 1
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: {type: string, minLength: 1, maxLength: 254}
+        password: {type: string, minLength: 1, maxLength: 128, writeOnly: true}
+    AuthUser:
+      type: object
+      additionalProperties: false
+      required: [id, name, email, role, is_active, revision, created_at, last_login_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name: {type: string}
+        email: {type: string}
+        role: {type: string, enum: [admin, manager, storekeeper, order_operator]}
+        is_active: {type: boolean}
+        revision: {type: integer, minimum: 1}
+        created_at: {type: string, format: date-time}
+        last_login_at: {type: string, format: date-time, nullable: true}
+    LoginResponse:
+      type: object
+      required: [user, csrf_token, session_expires_at]
+      properties:
+        user:
+          $ref: '#/components/schemas/AuthUser'
+        csrf_token: {type: string}
+        session_expires_at: {type: string, format: date-time}
+    CurrentSessionResponse:
+      allOf:
+        - $ref: '#/components/schemas/LoginResponse'
+        - type: object
+          required: [settings]
+          properties:
+            settings:
+              $ref: '#/components/schemas/Settings'
+    UUID:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+      example: 11111111-1111-4111-8111-111111111111
+    Quantity:
+      type: string
+      pattern: '^[0-9]{1,11}(\.[0-9]{1,3})?$'
+      description: |
+        Точное неотрицательное количество numeric(14,3), максимум 99999999999.999.
+        В базовой единице продукта; для pcs дробная часть должна быть нулевой.
+        JSON-число, знак, экспонента и округление лишних знаков не допускаются.
+      example: '120.000'
+    PositiveQuantity:
+      description: Положительное количество; ноль запрещён
+      allOf:
+        - $ref: '#/components/schemas/Quantity'
+        - type: string
+          pattern: '^(?!0+(\.0+)?$).+$'
+      example: '3000.000'
+    InventoryQuantity:
+      type: string
+      pattern: '^[0-9]+\.[0-9]{3}$'
+      description: |
+        Точная неотрицательная сумма остатков партий в базовой единице продукта.
+        Три знака после точки; целая часть может превышать numeric(14,3) одной партии.
+        Для pcs дробная часть нулевая. Float и округление не используются.
+      example: '199999999999.998'
+    AggregateQuantity:
+      description: Точное количество агрегата остатков или потребности корзины; может превышать numeric(14,3) одной строки
+      allOf:
+        - $ref: '#/components/schemas/InventoryQuantity'
+    NullableQuantity:
+      type: string
+      nullable: true
+      pattern: '^[0-9]{1,11}(\.[0-9]{1,3})?$'
+      description: Количество по правилам Quantity либо null, если значение не задано
+      example: '4000.000'
+    Unit:
+      type: string
+      enum: [g, ml, pcs]
+      description: Базовая единица продукта; все количества относятся к ней
+    DisplayUnit:
+      type: string
+      enum: [g, kg, ml, l, pcs]
+      description: g допускает g/kg, ml — ml/l, pcs — только pcs
+    Meta:
+      type: object
+      additionalProperties: true
+      description: |
+        Дополнительные сведения, без них — {}. Для расчётов server_time —
+        общий момент расчёта ответа в UTC. request_id необязателен.
+      properties:
+        server_time: {type: string, format: date-time}
+        request_id:
+          $ref: '#/components/schemas/UUID'
+    ListEnvelope:
+      type: object
+      required: [items, total, page, page_size, meta]
+      description: |
+        Общая обёртка, конкретная операция уточняет схему элементов items.
+        total — число после фильтров до пагинации. items и meta не бывают null.
+      properties:
+        items:
+          type: array
+          items: {}
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        meta:
+          $ref: '#/components/schemas/Meta'
+    ErrorResponse:
+      type: object
+      required: [error, request_id]
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorBody'
+        request_id:
+          $ref: '#/components/schemas/UUID'
+    ErrorBody:
+      type: object
+      required: [code, message, details]
+      properties:
+        code:
+          type: string
+          description: Стабильный машинный код; перечень дополняется в каждой стори
+          example: NOT_FOUND
+        message: {type: string, example: Ресурс не найден}
+        details:
+          type: object
+          additionalProperties: true
+          description: |
+            Без дополнительных сведений — {}. fields используется при валидации.
+            Предметные ошибки дополняют details согласно контракту операции.
+          properties:
+            fields:
+              type: array
+              items:
+                $ref: '#/components/schemas/FieldViolation'
+            requirements:
+              type: array
+              items:
+                $ref: '#/components/schemas/Requirement'
+            shortages:
+              type: array
+              items:
+                $ref: '#/components/schemas/Shortage'
+            issues:
+              type: array
+              items:
+                $ref: '#/components/schemas/OrderIssue'
+            attempt_id:
+              $ref: '#/components/schemas/UUID'
+    FieldViolation:
+      type: object
+      required: [path, code, message]
+      properties:
+        path: {type: string, example: 'items[0].quantity'}
+        code: {type: string, example: invalid_value}
+        message: {type: string, example: Количество должно быть больше нуля}
+    HealthcheckResponse:
+      type: object
+      required: [status, service]
+      properties:
+        status: {type: string, enum: [ok]}
+        service: {type: string, enum: [umirHack-flagman]}
+    CatalogCategory:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - name
+      - revision
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        revision:
+          type: integer
+          minimum: 1
+    CategoryListResponse:
+      allOf:
+      - $ref: '#/components/schemas/ListEnvelope'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/CatalogCategory'
+    CreateCategoryRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+    UpdateCategoryRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - expected_revision
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        expected_revision:
+          type: integer
+          minimum: 1
+          maximum: 2147483646
+    CreateProductRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - category_id
+      - unit
+      - display_unit
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        category_id:
+          $ref: '#/components/schemas/UUID'
+        unit:
+          $ref: '#/components/schemas/Unit'
+        display_unit:
+          $ref: '#/components/schemas/DisplayUnit'
+        standard_shelf_life_hours:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 2147483647
+        target_stock:
+          $ref: '#/components/schemas/NullableQuantity'
+        is_active:
+          type: boolean
+          default: true
+    UpdateProductRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - expected_revision
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        category_id:
+          $ref: '#/components/schemas/UUID'
+        unit:
+          $ref: '#/components/schemas/Unit'
+        display_unit:
+          $ref: '#/components/schemas/DisplayUnit'
+        standard_shelf_life_hours:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 2147483647
+        target_stock:
+          $ref: '#/components/schemas/NullableQuantity'
+        is_active:
+          type: boolean
+        expected_revision:
+          type: integer
+          minimum: 1
+          maximum: 2147483646
+      minProperties: 2
+    CategoryBrief:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name: {type: string}
+    ProductBrief:
+      type: object
+      required: [id, name, unit, display_unit]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name: {type: string}
+        unit:
+          $ref: '#/components/schemas/Unit'
+        display_unit:
+          $ref: '#/components/schemas/DisplayUnit'
+    Product:
+      allOf:
+        - $ref: '#/components/schemas/ProductBrief'
+        - type: object
+          required: [category, standard_shelf_life_hours, target_stock, is_active, revision, created_at]
+          properties:
+            category:
+              $ref: '#/components/schemas/CategoryBrief'
+            standard_shelf_life_hours: {type: integer, minimum: 1, nullable: true}
+            target_stock:
+              $ref: '#/components/schemas/NullableQuantity'
+            is_active: {type: boolean}
+            revision: {type: integer, format: int64, minimum: 1}
+            created_at: {type: string, format: date-time}
+    ProductListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ListEnvelope'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Product'
+    InventoryProduct:
+      allOf:
+        - $ref: '#/components/schemas/ProductBrief'
+        - type: object
+          required: [is_active, category]
+          properties:
+            is_active: {type: boolean}
+            category:
+              $ref: '#/components/schemas/CategoryBrief'
+    InventoryItem:
+      type: object
+      required:
+        - product
+        - physical_quantity
+        - available_quantity
+        - expiring_quantity
+        - expired_quantity
+        - target_stock
+        - deficit_quantity
+        - batches_count
+        - nearest_expires_at
+        - remaining_seconds
+        - has_expiring
+        - has_expired
+        - is_out_of_stock
+        - status
+      description: |
+        physical_quantity = available_quantity + expired_quantity.
+        expiring_quantity входит в available_quantity.
+        Бейдж выбирается в порядке expired, expiring, normal, out_of_stock.
+        Признаки могут пересекаться. deficit_quantity — рекомендация закупки,
+        max(target_stock - available_quantity, 0), null без target_stock.
+        Ближайший срок только годных ненулевых партий.
+        Без такой партии nearest_expires_at и remaining_seconds — null.
+      properties:
+        product:
+          $ref: '#/components/schemas/InventoryProduct'
+        physical_quantity:
+          $ref: '#/components/schemas/InventoryQuantity'
+        available_quantity:
+          $ref: '#/components/schemas/InventoryQuantity'
+        expiring_quantity:
+          $ref: '#/components/schemas/InventoryQuantity'
+        expired_quantity:
+          $ref: '#/components/schemas/InventoryQuantity'
+        target_stock:
+          $ref: '#/components/schemas/NullableQuantity'
+        deficit_quantity:
+          $ref: '#/components/schemas/NullableQuantity'
+        batches_count:
+          type: integer
+          minimum: 0
+          description: Число ненулевых партий, включая просроченные
+        nearest_expires_at: {type: string, format: date-time, nullable: true}
+        remaining_seconds:
+          type: integer
+          format: int64
+          nullable: true
+          description: floor((nearest_expires_at - meta.server_time) / 1s); null без годной партии
+        has_expiring: {type: boolean}
+        has_expired: {type: boolean}
+        is_out_of_stock:
+          type: boolean
+          description: available_quantity равно нулю
+        status: {type: string, enum: [expired, expiring, normal, out_of_stock]}
+    InventoryCounts:
+      type: object
+      required: [all, expiring, expired, out_of_stock, deficit]
+      description: |
+        Число продуктов в области search AND category_id до filter и пагинации.
+        Каждый признак считается независимо по тем же количествам, что и фильтр.
+        all — все продукты этой области; остальные счётчики могут пересекаться.
+      properties:
+        all: {type: integer, format: int64, minimum: 0}
+        expiring: {type: integer, format: int64, minimum: 0}
+        expired: {type: integer, format: int64, minimum: 0}
+        out_of_stock: {type: integer, format: int64, minimum: 0}
+        deficit: {type: integer, format: int64, minimum: 0}
+    AttentionBatch:
+      type: object
+      description: |
+        Партия с положительным текущим остатком и собственным просроченным или
+        истекающим сроком. status относится к партии, независимо от бейджа продукта.
+        remaining_seconds = floor((expires_at - meta.server_time) / 1s).
+      required: [batch_id, product_id, product_name, supply_id, supply_number, line_number, remaining_quantity, unit, status, expires_at, remaining_seconds]
+      properties:
+        batch_id:
+          $ref: '#/components/schemas/UUID'
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        supply_id:
+          $ref: '#/components/schemas/UUID'
+        supply_number: {type: string}
+        line_number: {type: integer, minimum: 1}
+        remaining_quantity:
+          $ref: '#/components/schemas/PositiveQuantity'
+        unit:
+          $ref: '#/components/schemas/Unit'
+        status: {type: string, enum: [expiring, expired]}
+        expires_at: {type: string, format: date-time}
+        remaining_seconds: {type: integer, format: int64}
+    DashboardSettings:
+      type: object
+      additionalProperties: false
+      required: [restaurant_name, timezone, expiring_threshold_hours]
+      properties:
+        restaurant_name: {type: string}
+        timezone: {type: string, example: Europe/Moscow}
+        expiring_threshold_hours: {type: integer, minimum: 1, maximum: 720}
+    DashboardResponse:
+      type: object
+      additionalProperties: false
+      required: [expiring_batches_count, expired_batches_count, stop_list_dishes_count, out_of_stock_products_count, attention_batches, attention_total, hot_offers, procurement_recommendations, settings, meta]
+      properties:
+        expiring_batches_count: {type: integer, format: int64, minimum: 0}
+        expired_batches_count: {type: integer, format: int64, minimum: 0}
+        stop_list_dishes_count: {type: integer, format: int64, minimum: 0}
+        out_of_stock_products_count: {type: integer, format: int64, minimum: 0}
+        attention_total: {type: integer, format: int64, minimum: 0}
+        attention_batches:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/AttentionBatch'
+        hot_offers:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/HotOffer'
+        procurement_recommendations:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/ProcurementItem'
+        settings:
+          $ref: '#/components/schemas/DashboardSettings'
+        meta:
+          allOf:
+            - $ref: '#/components/schemas/Meta'
+            - type: object
+              required: [server_time]
+    InventoryListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ListEnvelope'
+        - type: object
+          required: [counts, attention_batches, attention_total]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/InventoryItem'
+            meta:
+              allOf:
+                - $ref: '#/components/schemas/Meta'
+                - type: object
+                  required: [server_time]
+            counts:
+              $ref: '#/components/schemas/InventoryCounts'
+            attention_batches:
+              type: array
+              maxItems: 20
+              items:
+                $ref: '#/components/schemas/AttentionBatch'
+            attention_total: {type: integer, format: int64, minimum: 0}
+    ExplicitSupplyLine:
+      type: object
+      additionalProperties: false
+      required: [product_id, quantity, expires_at]
+      description: Явный срок; produced_at допустим как факт, shelf_life_hours запрещён
+      properties:
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        quantity:
+          $ref: '#/components/schemas/PositiveQuantity'
+        expires_at: {type: string, format: date-time}
+        produced_at: {type: string, format: date-time}
+    CalculatedSupplyLine:
+      type: object
+      additionalProperties: false
+      required: [product_id, quantity, produced_at]
+      description: |
+        expires_at запрещён. Срок берётся из shelf_life_hours или стандарта продукта.
+        При отсутствии обоих — 422 SHELF_LIFE_REQUIRED.
+      properties:
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        quantity:
+          $ref: '#/components/schemas/PositiveQuantity'
+        produced_at: {type: string, format: date-time}
+        shelf_life_hours: {type: integer, minimum: 1}
+    CreateSupplyRequest:
+      type: object
+      required: [number, received_at, items]
+      properties:
+        number:
+          type: string
+          minLength: 1
+          description: Непустой после trim; уникален в ресторане с учётом регистра
+        received_at: {type: string, format: date-time}
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/ExplicitSupplyLine'
+              - $ref: '#/components/schemas/CalculatedSupplyLine'
+    ActorBrief:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name: {type: string}
+    Batch:
+      type: object
+      description: |
+        Текущая партия. Статус depleted имеет приоритет при нулевом остатке.
+        expires_at <= meta.server_time означает expired для положительного остатка.
+        Равенство сроку даёт remaining_seconds = 0; просрочка менее секунды — -1.
+      required: [id, product_id, unit, supply, line_number, initial_quantity, remaining_quantity, produced_at, shelf_life_hours, expiry_source, expires_at, remaining_seconds, status, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        unit:
+          $ref: '#/components/schemas/Unit'
+        supply:
+          type: object
+          required: [id, number, received_at]
+          properties:
+            id:
+              $ref: '#/components/schemas/UUID'
+            number: {type: string}
+            received_at: {type: string, format: date-time}
+        line_number: {type: integer, minimum: 1}
+        initial_quantity:
+          $ref: '#/components/schemas/PositiveQuantity'
+        remaining_quantity:
+          $ref: '#/components/schemas/Quantity'
+        produced_at: {type: string, format: date-time, nullable: true}
+        shelf_life_hours: {type: integer, minimum: 1, nullable: true}
+        expiry_source: {type: string, enum: [explicit, calculated]}
+        expires_at: {type: string, format: date-time}
+        remaining_seconds:
+          type: integer
+          format: int64
+          description: floor(expires_at - server_time) в секундах, отрицательное при просрочке
+        status: {type: string, enum: [valid, expiring, expired, depleted]}
+        created_at:
+          type: string
+          format: date-time
+          description: Время создания записи партии в системе
+    BatchListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ListEnvelope'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Batch'
+            meta:
+              allOf:
+                - $ref: '#/components/schemas/Meta'
+                - type: object
+                  required: [server_time]
+    SupplySummary:
+      type: object
+      required: [id, number, created_at, received_at, items_count, created_by, status]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        number: {type: string}
+        created_at:
+          type: string
+          format: date-time
+          description: Время создания записи поставки в системе; используется для фильтрации и сортировки списка
+        received_at:
+          type: string
+          format: date-time
+          description: Фактическое время приёмки, сохранённое в поставке
+        items_count: {type: integer, minimum: 1, maximum: 100}
+        created_by:
+          $ref: '#/components/schemas/ActorBrief'
+        status: {type: string, enum: [received]}
+    SupplyListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ListEnvelope'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/SupplySummary'
+    SupplyDetail:
+      allOf:
+        - $ref: '#/components/schemas/SupplySummary'
+        - type: object
+          required: [items, meta]
+          properties:
+            meta:
+              allOf:
+                - $ref: '#/components/schemas/Meta'
+                - type: object
+                  required: [server_time]
+            items:
+              type: array
+              minItems: 1
+              maxItems: 100
+              items:
+                type: object
+                required: [product, batch]
+                properties:
+                  product:
+                    $ref: '#/components/schemas/ProductBrief'
+                  batch:
+                    $ref: '#/components/schemas/Batch'
+    RecipeIngredient:
+      type: object
+      required: [product_id, product_name, unit, quantity_per_portion]
+      properties:
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        unit:
+          $ref: '#/components/schemas/Unit'
+        quantity_per_portion:
+          $ref: '#/components/schemas/PositiveQuantity'
+    RecipeInput:
+      type: object
+      additionalProperties: false
+      required:
+      - product_id
+      - quantity_per_portion
+      properties:
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        quantity_per_portion:
+          $ref: '#/components/schemas/PositiveQuantity'
+    CreateDishRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - recipe
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+        is_active:
+          type: boolean
+          default: true
+        recipe:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RecipeInput'
+          maxItems: 100
+    UpdateDishRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - expected_revision
+      minProperties: 2
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+          maximum: 2147483646
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+        is_active:
+          type: boolean
+        recipe:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RecipeInput'
+          maxItems: 100
+    PreviewDishRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - recipe
+      properties:
+        recipe:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RecipeInput'
+          maxItems: 100
+    DishPreview:
+      type: object
+      required:
+      - is_available
+      - available_portions
+      - requirements
+      - shortages
+      - meta
+      properties:
+        is_available:
+          type: boolean
+        available_portions:
+          type: string
+          pattern: ^[0-9]+$
+        requirements:
+          type: array
+          items:
+            $ref: '#/components/schemas/Requirement'
+        shortages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Shortage'
+        meta:
+          $ref: '#/components/schemas/Meta'
+    Dish:
+      type: object
+      required: [id, name, description, is_active, revision, recipe_version, recipe, is_available, available_portions, shortages, unavailability_reasons, meta]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name: {type: string}
+        description: {type: string, nullable: true}
+        is_active: {type: boolean}
+        revision: {type: integer, format: int64, minimum: 1}
+        recipe_version:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: Версия рецепта; null при отсутствии рецептуры
+        recipe:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/RecipeIngredient'
+        is_available: {type: boolean}
+        available_portions:
+          type: string
+          pattern: '^[0-9]+$'
+          description: Целое число строкой; для recipe_missing — "0"
+          example: '10'
+        shortages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Shortage'
+        unavailability_reasons:
+          type: array
+          description: Причины недоступности на одну порцию
+          items: {type: string, enum: [ingredient_shortage, only_expired_stock, recipe_missing, dish_inactive]}
+        meta:
+          $ref: '#/components/schemas/Meta'
+    DishListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ListEnvelope'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Dish'
+    HotOfferDish:
+      type: object
+      required: [id, name, recipe_version]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name: {type: string}
+        recipe_version: {type: integer, minimum: 1}
+    HotOfferBatch:
+      type: object
+      required: [batch_id, product_id, product_name, supply_id, supply_number, line_number, unit, remaining_quantity, used_for_one_portion, expires_at, remaining_seconds]
+      properties:
+        batch_id:
+          $ref: '#/components/schemas/UUID'
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        supply_id:
+          $ref: '#/components/schemas/UUID'
+        supply_number: {type: string}
+        line_number: {type: integer, minimum: 1}
+        unit:
+          $ref: '#/components/schemas/Unit'
+        remaining_quantity:
+          $ref: '#/components/schemas/PositiveQuantity'
+        used_for_one_portion:
+          $ref: '#/components/schemas/PositiveQuantity'
+        expires_at: {type: string, format: date-time, description: Фактический срок партии в UTC}
+        remaining_seconds: {type: integer, format: int64, minimum: 0, description: floor(expires_at - server_time); положительная доля секунды даёт 0}
+    HotOffer:
+      type: object
+      required: [dish, rank, priority_score, priority_level, available_portions, reason, problem_batches]
+      properties:
+        is_published: {type: boolean}
+        is_manual: {type: boolean}
+        message: {type: string, maxLength: 500}
+        preference_revision: {type: integer, minimum: 0}
+        dish:
+          $ref: '#/components/schemas/HotOfferDish'
+        rank: {type: integer, format: int64, minimum: 1, description: Место до пагинации после фильтров}
+        priority_score:
+          type: string
+          pattern: '^[0-9]+\.[0-9]{4}$'
+          description: Максимальный batch_score от 0 до 100, округлённый только для отображения
+          example: '1.6667'
+        priority_level: {type: string, enum: [high, medium, low]}
+        available_portions: {type: string, pattern: '^[1-9][0-9]*$', description: Число доступных порций по всем годным остаткам без резерва}
+        reason: {type: string, description: Русское объяснение по фактическим потреблённым партиям и базовым единицам}
+        problem_batches:
+          type: array
+          minItems: 0
+          description: Пусто только для ручного выбора менеджера без истекающих партий.
+          description: Только затронутые истекающие партии, по сроку, приёмке и ID
+          items:
+            $ref: '#/components/schemas/HotOfferBatch'
+    HotOffersListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ListEnvelope'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/HotOffer'
+    AffectedDish:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name: {type: string}
+    ProcurementItem:
+      type: object
+      required: [product_id, product_name, unit, display_unit, available_quantity, expired_quantity, target_stock, recommended_quantity, reason_codes, reason, affected_dishes]
+      properties:
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        unit:
+          $ref: '#/components/schemas/Unit'
+        display_unit:
+          $ref: '#/components/schemas/DisplayUnit'
+        available_quantity:
+          $ref: '#/components/schemas/InventoryQuantity'
+        expired_quantity:
+          $ref: '#/components/schemas/InventoryQuantity'
+        target_stock:
+          $ref: '#/components/schemas/PositiveQuantity'
+        recommended_quantity:
+          $ref: '#/components/schemas/PositiveQuantity'
+        reason_codes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, enum: [below_target, no_valid_stock, only_expired_stock]}
+        reason: {type: string, description: Объяснение с целевым запасом в базовой единице}
+        affected_dishes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AffectedDish'
+    ProcurementListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ListEnvelope'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProcurementItem'
+    OrderRequest:
+      type: object
+      required: [items]
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          description: Повторы блюда объединяются; максимум 1000 порций каждого блюда после объединения. Конфликт явно заданных версий повторов даёт 422.
+          items:
+            type: object
+            required: [dish_id, portions]
+            additionalProperties: false
+            properties:
+              dish_id:
+                $ref: '#/components/schemas/UUID'
+              portions: {type: integer, minimum: 1, maximum: 1000}
+              recipe_version:
+                type: integer
+                minimum: 1
+                nullable: true
+                description: UI передаёт текущую версию; интеграция может опустить или передать null для актуальной рецептуры. При повторах пропущенная версия принимает явно заданную.
+    OrderItemSnapshot:
+      type: object
+      required: [dish_id, dish_name, portions, recipe_version]
+      properties:
+        dish_id:
+          $ref: '#/components/schemas/UUID'
+        dish_name: {type: string}
+        portions: {type: integer, minimum: 1, maximum: 1000}
+        recipe_version: {type: integer, minimum: 1, nullable: true}
+    Requirement:
+      type: object
+      required: [product_id, product_name, unit, required_quantity, available_quantity, missing_quantity]
+      properties:
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        unit:
+          $ref: '#/components/schemas/Unit'
+        required_quantity:
+          $ref: '#/components/schemas/AggregateQuantity'
+        available_quantity:
+          $ref: '#/components/schemas/AggregateQuantity'
+        missing_quantity:
+          $ref: '#/components/schemas/AggregateQuantity'
+    Shortage:
+      allOf:
+        - $ref: '#/components/schemas/Requirement'
+        - type: object
+          required: [expired_quantity, reason_code]
+          properties:
+            expired_quantity:
+              $ref: '#/components/schemas/AggregateQuantity'
+            reason_code:
+              type: string
+              enum: [ingredient_shortage, only_expired_stock]
+              description: only_expired_stock — физический остаток состоит только из просрочки
+    OrderIssue:
+      type: object
+      required: [dish_id, code, message, current_recipe_version]
+      properties:
+        dish_id:
+          $ref: '#/components/schemas/UUID'
+        code: {type: string, enum: [dish_inactive, recipe_missing, recipe_changed], description: Причина недоступности блюда или несовпадения присланной версии с актуальной}
+        message: {type: string}
+        current_recipe_version: {type: integer, minimum: 1, nullable: true}
+    OrderCheck:
+      type: object
+      required: [can_create, items, requirements, shortages, issues, meta]
+      properties:
+        can_create: {type: boolean}
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/OrderItemSnapshot'
+        requirements:
+          type: array
+          items:
+            $ref: '#/components/schemas/Requirement'
+        shortages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Shortage'
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderIssue'
+        meta:
+          $ref: '#/components/schemas/Meta'
+    Allocation:
+      type: object
+      required: [movement_id, product_id, product_name, unit, batch_id, supply_id, supply_number, line_number, quantity, batch_remaining_quantity_after]
+      properties:
+        movement_id:
+          $ref: '#/components/schemas/UUID'
+        product_id:
+          $ref: '#/components/schemas/UUID'
+        product_name: {type: string}
+        unit:
+          $ref: '#/components/schemas/Unit'
+        batch_id:
+          $ref: '#/components/schemas/UUID'
+        supply_id:
+          $ref: '#/components/schemas/UUID'
+        supply_number: {type: string}
+        line_number: {type: integer, minimum: 1}
+        quantity:
+          $ref: '#/components/schemas/PositiveQuantity'
+        batch_remaining_quantity_after:
+          $ref: '#/components/schemas/Quantity'
+    OrderListResponse:
+      type: object
+      required: [items, total, page, page_size, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderSummary'
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        meta:
+          $ref: '#/components/schemas/Meta'
+    OrderSummary:
+      type: object
+      required: [id, number, status, created_at, created_by, items, total_portions]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        number: {type: string, description: Номер успешного заказа}
+        status: {type: string, enum: [completed]}
+        total_portions: {type: integer, minimum: 1, maximum: 100000}
+        created_at: {type: string, format: date-time}
+        created_by:
+          $ref: '#/components/schemas/ActorBrief'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItemSnapshot'
+    OrderAttemptListResponse:
+      type: object
+      required: [items, total, page, page_size, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderAttempt'
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        meta:
+          $ref: '#/components/schemas/Meta'
+    OrderAttempt:
+      type: object
+      required: [id, created_at, created_by, reason_code, items, shortages, issues]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        created_at: {type: string, format: date-time}
+        created_by:
+          $ref: '#/components/schemas/ActorBrief'
+        reason_code: {type: string, enum: [INSUFFICIENT_STOCK, RECIPE_CHANGED, DISH_UNAVAILABLE]}
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItemSnapshot'
+        shortages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Shortage'
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderIssue'
+    OrderDetail:
+      type: object
+      required: [id, number, status, created_at, created_by, items]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        number:
+          type: string
+          pattern: '^[0-9]+$'
+          description: Номер серверной последовательности; пропуски допустимы
+        status: {type: string, enum: [completed]}
+        created_at: {type: string, format: date-time}
+        created_by:
+          $ref: '#/components/schemas/ActorBrief'
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            allOf:
+              - $ref: '#/components/schemas/OrderItemSnapshot'
+              - type: object
+                required: [id, allocations]
+                properties:
+                  id:
+                    $ref: '#/components/schemas/UUID'
+                  recipe_version:
+                    type: integer
+                    minimum: 1
+                    description: Успешный заказ всегда сохраняет конкретную версию рецептуры
+                  allocations:
+                    type: array
+                    minItems: 1
+                    items:
+                      $ref: '#/components/schemas/Allocation'
+  responses:
+    PayloadTooLarge:
+      description: |
+        Тело запроса превышает 1048576 байт (1 МиБ). Лимит действует
+        независимо от метода и наличия Content-Length; размер проверяется
+        до вызова handler. Слишком большое тело не считается ошибкой поля 422.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: PAYLOAD_TOO_LARGE
+              message: Тело запроса превышает допустимый размер
+              details: {}
+            request_id: 99999999-9999-4999-8999-999999999999
+    TooManyRequests:
+      description: |
+        Исчерпан общий запас разрешений процесса backend. Скорость пополнения —
+        10 в секунду, максимальный запас — 20. Все клиенты используют один запас.
+        Retry-After предлагает повторить через секунду, но не гарантирует
+        успех при продолжающейся нагрузке. GET /healthcheck и GET /ready исключены.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+        Retry-After:
+          description: Рекомендованная задержка перед повтором в секундах; текущая реализация возвращает 1
+          schema: {type: integer, minimum: 1}
+          example: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: TOO_MANY_REQUESTS
+              message: Слишком много запросов
+              details: {}
+            request_id: 99999999-9999-4999-8999-999999999999
+    InvalidJSON:
+      description: Синтаксически невалидный JSON
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: {code: INVALID_JSON, message: Некорректный JSON, details: {}}
+            request_id: 99999999-9999-4999-8999-999999999999
+    Unauthorized:
+      description: Нет действующей сессии
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: {code: UNAUTHORIZED, message: Требуется авторизация, details: {}}
+            request_id: 99999999-9999-4999-8999-999999999999
+    Forbidden:
+      description: Недостаточно прав или не пройдена проверка CSRF/Origin
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: {code: FORBIDDEN, message: Недостаточно прав, details: {}}
+            request_id: 99999999-9999-4999-8999-999999999999
+    NotFound:
+      description: |
+        Ресурс с корректным UUID не существует. Неизвестный маршрут использует
+        тот же формат. Неверный UUID — 422; пустой список — 200 с items: [].
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: {code: NOT_FOUND, message: Ресурс не найден, details: {}}
+            request_id: 99999999-9999-4999-8999-999999999999
+    Conflict:
+      description: |
+        Предметный конфликт. Для поставки — в том числе дубликат номера;
+        для заказа — INSUFFICIENT_STOCK, RECIPE_CHANGED, DISH_UNAVAILABLE.
+        Для идемпотентных операций — IDEMPOTENCY_CONFLICT или REQUEST_IN_PROGRESS.
+        Предметные коды дополняют текущий общий CONFLICT в соответствующей стори.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+        Retry-After:
+          description: Для REQUEST_IN_PROGRESS — сколько секунд ждать перед повтором
+          schema: {type: integer, minimum: 1}
+          example: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            generic:
+              value:
+                error: {code: CONFLICT, message: Конфликт состояния ресурса, details: {}}
+                request_id: 99999999-9999-4999-8999-999999999999
+            idempotencyConflict:
+              value:
+                error:
+                  code: IDEMPOTENCY_CONFLICT
+                  message: Этот ключ уже использован с другим телом запроса
+                  details: {}
+                request_id: 99999999-9999-4999-8999-999999999999
+            requestInProgress:
+              value:
+                error:
+                  code: REQUEST_IN_PROGRESS
+                  message: Запрос с этим ключом ещё выполняется
+                  details: {}
+                request_id: 99999999-9999-4999-8999-999999999999
+            insufficientStock:
+              $ref: '#/components/examples/InsufficientStock'
+    ValidationError:
+      description: |
+        Ошибка поля, ссылки, query-параметра, UUID, даты или количества.
+        Для отсутствующего стандартного срока поставки возможен код SHELF_LIFE_REQUIRED.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            page:
+              value:
+                error:
+                  code: VALIDATION_ERROR
+                  message: Некорректные данные
+                  details:
+                    fields:
+                      - path: page
+                        code: invalid_value
+                        message: Ожидается целое число больше нуля
+                request_id: 99999999-9999-4999-8999-999999999999
+            quantity:
+              value:
+                error:
+                  code: VALIDATION_ERROR
+                  message: Некорректные данные
+                  details:
+                    fields:
+                      - path: items[0].quantity
+                        code: must_be_positive
+                        message: Количество должно быть больше нуля
+                request_id: 99999999-9999-4999-8999-999999999999
+    InternalError:
+      description: Внутренняя ошибка; SQL, stack trace и другие внутренние сведения не возвращаются
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: {code: INTERNAL_ERROR, message: Внутренняя ошибка сервера, details: {}}
+            request_id: 99999999-9999-4999-8999-999999999999
+    Unavailable:
+      description: Сервис временно недоступен, в том числе из-за недоступной БД
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: {code: SERVICE_UNAVAILABLE, message: Сервис временно недоступен, details: {}}
+            request_id: 99999999-9999-4999-8999-999999999999
+  examples:
+    EmptyList:
+      summary: Пустой список — успешный ответ, не 404
+      value:
+        items: []
+        total: 0
+        page: 1
+        page_size: 50
+        meta: {}
+    ProductList:
+      summary: Каталог продуктов
+      value:
+        items:
+          - id: 11111111-1111-4111-8111-111111111111
+            name: Моцарелла
+            category: {id: 22222222-2222-4222-8222-222222222222, name: Молочные продукты}
+            unit: g
+            display_unit: kg
+            standard_shelf_life_hours: 72
+            target_stock: '4000.000'
+            is_active: true
+            revision: 1
+            created_at: '2026-10-07T06:00:00Z'
+        total: 1
+        page: 1
+        page_size: 50
+        meta: {}
+    BatchList:
+      summary: status=all — все четыре статуса, включая точную границу срока
+      value:
+        items:
+          - id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1
+            product_id: 11111111-1111-4111-8111-111111111111
+            unit: g
+            supply:
+              id: 44444444-4444-4444-8444-444444444444
+              number: '104'
+              received_at: '2026-10-07T12:00:00Z'
+            line_number: 1
+            initial_quantity: '3.000'
+            remaining_quantity: '0.000'
+            produced_at: null
+            shelf_life_hours: null
+            expiry_source: explicit
+            expires_at: '2026-10-10T11:00:00Z'
+            remaining_seconds: -3600
+            status: depleted
+            created_at: '2026-10-07T12:00:00Z'
+          - id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2
+            product_id: 11111111-1111-4111-8111-111111111111
+            unit: g
+            supply:
+              id: 44444444-4444-4444-8444-444444444444
+              number: '104'
+              received_at: '2026-10-07T12:00:00Z'
+            line_number: 2
+            initial_quantity: '3.000'
+            remaining_quantity: '3.000'
+            produced_at: null
+            shelf_life_hours: null
+            expiry_source: explicit
+            expires_at: '2026-10-10T12:00:00Z'
+            remaining_seconds: 0
+            status: expired
+            created_at: '2026-10-07T12:00:00Z'
+          - id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3
+            product_id: 11111111-1111-4111-8111-111111111111
+            unit: g
+            supply:
+              id: 44444444-4444-4444-8444-444444444444
+              number: '104'
+              received_at: '2026-10-07T12:00:00Z'
+            line_number: 3
+            initial_quantity: '3.000'
+            remaining_quantity: '3.000'
+            produced_at: null
+            shelf_life_hours: null
+            expiry_source: explicit
+            expires_at: '2026-10-11T12:00:00Z'
+            remaining_seconds: 86400
+            status: expiring
+            created_at: '2026-10-07T12:00:00Z'
+          - id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4
+            product_id: 11111111-1111-4111-8111-111111111111
+            unit: g
+            supply:
+              id: 44444444-4444-4444-8444-444444444444
+              number: '104'
+              received_at: '2026-10-07T12:00:00Z'
+            line_number: 4
+            initial_quantity: '3.000'
+            remaining_quantity: '3.000'
+            produced_at: null
+            shelf_life_hours: null
+            expiry_source: explicit
+            expires_at: '2026-10-12T12:00:00Z'
+            remaining_seconds: 172800
+            status: valid
+            created_at: '2026-10-07T12:00:00Z'
+        total: 4
+        page: 1
+        page_size: 50
+        meta: {server_time: '2026-10-10T12:00:00Z'}
+    InventoryList:
+      summary: Истекающий остаток и рекомендация пополнения до целевого запаса
+      value:
+        items:
+          - product:
+              id: 11111111-1111-4111-8111-111111111111
+              name: Моцарелла
+              unit: g
+              display_unit: kg
+              is_active: true
+              category: {id: 22222222-2222-4222-8222-222222222222, name: Молочные продукты}
+            physical_quantity: '1200.000'
+            available_quantity: '1200.000'
+            expiring_quantity: '1200.000'
+            expired_quantity: '0.000'
+            target_stock: '4000.000'
+            deficit_quantity: '2800.000'
+            batches_count: 1
+            nearest_expires_at: '2026-10-10T03:00:00Z'
+            remaining_seconds: 64800
+            has_expiring: true
+            has_expired: false
+            is_out_of_stock: false
+            status: expiring
+        total: 1
+        page: 1
+        page_size: 50
+        meta:
+          server_time: '2026-10-09T09:00:00Z'
+          request_id: 99999999-9999-4999-8999-999999999999
+        counts: {all: 1, expiring: 1, expired: 0, out_of_stock: 0, deficit: 1}
+        attention_batches:
+          - batch_id: 33333333-3333-4333-8333-333333333333
+            product_id: 11111111-1111-4111-8111-111111111111
+            product_name: Моцарелла
+            supply_id: 44444444-4444-4444-8444-444444444444
+            supply_number: '104'
+            line_number: 1
+            remaining_quantity: '1200.000'
+            unit: g
+            status: expiring
+            expires_at: '2026-10-10T03:00:00Z'
+            remaining_seconds: 64800
+        attention_total: 1
+    SupplyExplicitRequest:
+      summary: Поставка с явно заданным сроком годности
+      value:
+        number: '109'
+        received_at: '2026-10-09T09:00:00Z'
+        items:
+          - product_id: 55555555-5555-4555-8555-555555555555
+            quantity: '3000.000'
+            expires_at: '2026-10-11T09:00:00Z'
+    SupplyCalculatedRequest:
+      summary: Поставка со сроком, рассчитанным от даты производства
+      value:
+        number: '110'
+        received_at: '2026-10-09T09:00:00Z'
+        items:
+          - product_id: 55555555-5555-4555-8555-555555555555
+            quantity: '1000.000'
+            produced_at: '2026-10-09T06:00:00Z'
+            shelf_life_hours: 24
+    SupplyDetail:
+      summary: Принятая поставка и текущая партия
+      value:
+        id: 45454545-4545-4545-8545-454545454545
+        number: '109'
+        created_at: '2026-10-09T09:05:00Z'
+        received_at: '2026-10-09T09:00:00Z'
+        items_count: 1
+        created_by: {id: 88888888-8888-4888-8888-888888888888, name: Кладовщик}
+        status: received
+        meta: {server_time: '2026-10-09T09:06:00Z'}
+        items:
+          - product:
+              id: 55555555-5555-4555-8555-555555555555
+              name: Куриное филе
+              unit: g
+              display_unit: kg
+            batch:
+              id: 56565656-5656-4656-8656-565656565656
+              product_id: 55555555-5555-4555-8555-555555555555
+              unit: g
+              supply:
+                id: 45454545-4545-4545-8545-454545454545
+                number: '109'
+                received_at: '2026-10-09T09:00:00Z'
+              line_number: 1
+              initial_quantity: '3000.000'
+              remaining_quantity: '3000.000'
+              produced_at: null
+              shelf_life_hours: null
+              expiry_source: explicit
+              expires_at: '2026-10-11T09:00:00Z'
+              remaining_seconds: 172440
+              status: valid
+              created_at: '2026-10-09T09:05:01Z'
+    DishList:
+      summary: Блюдо с полной рецептурой и доступностью
+      value:
+        items:
+          - id: 66666666-6666-4666-8666-666666666666
+            name: Пицца «Маргарита»
+            description: Моцарелла, томаты и тесто для пиццы
+            is_active: true
+            revision: 1
+            recipe_version: 1
+            recipe:
+              - product_id: 11111111-1111-4111-8111-111111111111
+                product_name: Моцарелла
+                unit: g
+                quantity_per_portion: '120.000'
+              - product_id: 10101010-1010-4010-8010-101010101010
+                product_name: Томаты
+                unit: g
+                quantity_per_portion: '100.000'
+              - product_id: 20202020-2020-4020-8020-202020202020
+                product_name: Тесто для пиццы
+                unit: pcs
+                quantity_per_portion: '1.000'
+            is_available: true
+            available_portions: '10'
+            shortages: []
+            unavailability_reasons: []
+            meta: {server_time: '2026-10-09T09:00:00Z'}
+        total: 1
+        page: 1
+        page_size: 50
+        meta: {server_time: '2026-10-09T09:00:00Z'}
+    OrderRequest:
+      summary: Две порции блюда с известной версией рецептуры
+      value:
+        items:
+          - dish_id: 66666666-6666-4666-8666-666666666666
+            portions: 2
+            recipe_version: 1
+    OrderCheckAvailable:
+      summary: Все ингредиенты доступны; проверка ничего не резервирует
+      value:
+        can_create: true
+        items:
+          - dish_id: 66666666-6666-4666-8666-666666666666
+            dish_name: Пицца «Маргарита»
+            portions: 2
+            recipe_version: 1
+        requirements:
+          - product_id: 11111111-1111-4111-8111-111111111111
+            product_name: Моцарелла
+            unit: g
+            required_quantity: '240.000'
+            available_quantity: '1200.000'
+            missing_quantity: '0.000'
+          - product_id: 10101010-1010-4010-8010-101010101010
+            product_name: Томаты
+            unit: g
+            required_quantity: '200.000'
+            available_quantity: '1000.000'
+            missing_quantity: '0.000'
+          - product_id: 20202020-2020-4020-8020-202020202020
+            product_name: Тесто для пиццы
+            unit: pcs
+            required_quantity: '2.000'
+            available_quantity: '10.000'
+            missing_quantity: '0.000'
+        shortages: []
+        issues: []
+        meta: {server_time: '2026-10-09T09:00:00Z'}
+    OrderCheckShortage:
+      summary: Томаты закончились; результат проверки всё равно имеет статус 200
+      value:
+        can_create: false
+        items:
+          - dish_id: 66666666-6666-4666-8666-666666666666
+            dish_name: Пицца «Маргарита»
+            portions: 2
+            recipe_version: 1
+        requirements:
+          - product_id: 11111111-1111-4111-8111-111111111111
+            product_name: Моцарелла
+            unit: g
+            required_quantity: '240.000'
+            available_quantity: '1200.000'
+            missing_quantity: '0.000'
+          - product_id: 10101010-1010-4010-8010-101010101010
+            product_name: Томаты
+            unit: g
+            required_quantity: '200.000'
+            available_quantity: '0.000'
+            missing_quantity: '200.000'
+          - product_id: 20202020-2020-4020-8020-202020202020
+            product_name: Тесто для пиццы
+            unit: pcs
+            required_quantity: '2.000'
+            available_quantity: '10.000'
+            missing_quantity: '0.000'
+        shortages:
+          - product_id: 10101010-1010-4010-8010-101010101010
+            product_name: Томаты
+            unit: g
+            required_quantity: '200.000'
+            available_quantity: '0.000'
+            missing_quantity: '200.000'
+            expired_quantity: '0.000'
+            reason_code: ingredient_shortage
+        issues: []
+        meta: {server_time: '2026-10-09T09:00:00Z'}
+    OrderCheckRecipeChanged:
+      summary: Рецепт изменился; расчёт по новой версии, HTTP 200
+      value:
+        can_create: false
+        items:
+          - dish_id: 66666666-6666-4666-8666-666666666666
+            dish_name: Пицца «Маргарита»
+            portions: 2
+            recipe_version: 2
+        requirements:
+          - product_id: 11111111-1111-4111-8111-111111111111
+            product_name: Моцарелла
+            unit: g
+            required_quantity: '300.000'
+            available_quantity: '1200.000'
+            missing_quantity: '0.000'
+        shortages: []
+        issues:
+          - dish_id: 66666666-6666-4666-8666-666666666666
+            code: recipe_changed
+            message: Рецептура блюда изменилась
+            current_recipe_version: 2
+        meta: {server_time: '2026-10-09T09:00:00Z'}
+    OrderCheckUnavailable:
+      summary: Отключённое блюдо без рецепта; HTTP 200 с двумя issues
+      value:
+        can_create: false
+        items:
+          - dish_id: 66666666-6666-4666-8666-666666666666
+            dish_name: Пицца «Маргарита»
+            portions: 1
+            recipe_version: null
+        requirements: []
+        shortages: []
+        issues:
+          - dish_id: 66666666-6666-4666-8666-666666666666
+            code: dish_inactive
+            message: Блюдо отключено
+            current_recipe_version: null
+          - dish_id: 66666666-6666-4666-8666-666666666666
+            code: recipe_missing
+            message: У блюда нет рецептуры
+            current_recipe_version: null
+        meta: {server_time: '2026-10-09T09:00:00Z'}
+    OrderDetail:
+      summary: Заказ с полным распределением всех трёх ингредиентов по партиям
+      value:
+        id: 77777777-7777-4777-8777-777777777777
+        number: '247'
+        status: completed
+        created_at: '2026-10-09T09:00:00Z'
+        created_by: {id: 88888888-8888-4888-8888-888888888888, name: Оператор}
+        items:
+          - id: 78787878-7878-4787-8787-787878787878
+            dish_id: 66666666-6666-4666-8666-666666666666
+            dish_name: Пицца «Маргарита»
+            portions: 2
+            recipe_version: 1
+            allocations:
+              - movement_id: 79797979-7979-4797-8797-797979797979
+                product_id: 11111111-1111-4111-8111-111111111111
+                product_name: Моцарелла
+                unit: g
+                batch_id: 33333333-3333-4333-8333-333333333333
+                supply_id: 44444444-4444-4444-8444-444444444444
+                supply_number: '104'
+                line_number: 1
+                quantity: '240.000'
+                batch_remaining_quantity_after: '960.000'
+              - movement_id: 80808080-8080-4808-8808-808080808080
+                product_id: 10101010-1010-4010-8010-101010101010
+                product_name: Томаты
+                unit: g
+                batch_id: 12121212-1212-4212-8212-121212121212
+                supply_id: 44444444-4444-4444-8444-444444444444
+                supply_number: '104'
+                line_number: 2
+                quantity: '200.000'
+                batch_remaining_quantity_after: '800.000'
+              - movement_id: 81818181-8181-4818-8818-818181818181
+                product_id: 20202020-2020-4020-8020-202020202020
+                product_name: Тесто для пиццы
+                unit: pcs
+                batch_id: 13131313-1313-4313-8313-131313131313
+                supply_id: 44444444-4444-4444-8444-444444444444
+                supply_number: '104'
+                line_number: 3
+                quantity: '2.000'
+                batch_remaining_quantity_after: '8.000'
+    InsufficientStock:
+      summary: Отказ создания заказа; отдельный сценарий с отсутствием всех ингредиентов
+      value:
+        error:
+          code: INSUFFICIENT_STOCK
+          message: Недостаточно ингредиентов для заказа
+          details:
+            attempt_id: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb
+            requirements:
+              - product_id: 11111111-1111-4111-8111-111111111111
+                product_name: Моцарелла
+                unit: g
+                required_quantity: '240.000'
+                available_quantity: '0.000'
+                missing_quantity: '240.000'
+              - product_id: 10101010-1010-4010-8010-101010101010
+                product_name: Томаты
+                unit: g
+                required_quantity: '200.000'
+                available_quantity: '0.000'
+                missing_quantity: '200.000'
+              - product_id: 20202020-2020-4020-8020-202020202020
+                product_name: Тесто для пиццы
+                unit: pcs
+                required_quantity: '2.000'
+                available_quantity: '0.000'
+                missing_quantity: '2.000'
+            shortages:
+              - product_id: 11111111-1111-4111-8111-111111111111
+                product_name: Моцарелла
+                unit: g
+                required_quantity: '240.000'
+                available_quantity: '0.000'
+                missing_quantity: '240.000'
+                expired_quantity: '0.000'
+                reason_code: ingredient_shortage
+              - product_id: 10101010-1010-4010-8010-101010101010
+                product_name: Томаты
+                unit: g
+                required_quantity: '200.000'
+                available_quantity: '0.000'
+                missing_quantity: '200.000'
+                expired_quantity: '0.000'
+                reason_code: ingredient_shortage
+              - product_id: 20202020-2020-4020-8020-202020202020
+                product_name: Тесто для пиццы
+                unit: pcs
+                required_quantity: '2.000'
+                available_quantity: '0.000'
+                missing_quantity: '2.000'
+                expired_quantity: '0.000'
+                reason_code: ingredient_shortage
+        request_id: 99999999-9999-4999-8999-999999999999

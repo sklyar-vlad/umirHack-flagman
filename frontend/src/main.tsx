@@ -1,15 +1,28 @@
-import { createRoot } from 'react-dom/client';
-import './style.css';
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { App } from '@/app'
+import { MockStartupError } from '@/app/mocks/MockStartupError'
+import { env } from '@/shared/config'
+import '@/app/styles/index.css'
 
-function App() {
-  return (
-    <main className="placeholder">
-      <span className="badge">Скоро</span>
-      <h1>Флагман</h1>
-      <p>Склад, меню и заказы вашего ресторана в одном месте.</p>
-      <p className="muted">Готовим приложение к запуску.</p>
-    </main>
-  );
+const root = createRoot(document.getElementById('root')!)
+
+function renderApp() {
+  root.render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
 }
 
-createRoot(document.getElementById('root')!).render(<App />);
+if (import.meta.env.DEV && env.mockModeEnabled) {
+  import('@/app/mocks/browser')
+    .then(({ startMocking }) => startMocking())
+    .then(renderApp)
+    .catch((error: unknown) => {
+      console.error('Не удалось запустить MSW:', error)
+      root.render(<MockStartupError />)
+    })
+} else {
+  renderApp()
+}

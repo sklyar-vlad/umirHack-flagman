@@ -1,0 +1,2 @@
+.draft { display: grid; gap: var(--space-16); min-width: 0; }
+.draft h2, .draft p { margin: 0; }

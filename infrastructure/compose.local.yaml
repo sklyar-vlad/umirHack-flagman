@@ -1,0 +1,202 @@
+name: flagman
+services:
+  traefik:
+    image: traefik:v3.7
+    restart: unless-stopped
+    command:
+    - --api.insecure=true
+    - --providers.docker=true
+    - --providers.docker.exposedbydefault=false
+    - --entrypoints.web.address=:80
+    - --entrypoints.web.transport.respondingtimeouts.writetimeout=0s
+    ports:
+    - ${HTTP_BIND:-0.0.0.0}:${HTTP_PORT:-80}:80
+    - 127.0.0.1:${TRAEFIK_PORT:-8081}:8080
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+    - flagman
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASS:-admin}
+    ports:
+    - 127.0.0.1:${POSTGRES_PORT:-5432}:5432
+    volumes:
+    - postgres-data:/var/lib/postgresql
+    networks:
+    - warehouse
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - PGPASSWORD="$$POSTGRES_PASSWORD" psql -X -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -v ON_ERROR_STOP=1 -c 'SELECT 1' >/dev/null
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  migrate:
+    build:
+      context: ../backend
+      dockerfile: ../infrastructure/Dockerfile.backend
+      target: migrate
+    environment:
+      POSTGRES_URL: ${POSTGRES_URL:-postgres://${POSTGRES_USER:-admin}:${POSTGRES_PASS:-admin}@db:5432/${POSTGRES_DB:-postgres}?sslmode=disable}
+    networks:
+    - warehouse
+    depends_on:
+      db:
+        condition: service_healthy
+  monitoring-init:
+    image: postgres:18-alpine
+    environment:
+      PGHOST: db
+      PGDATABASE: ${POSTGRES_DB:-postgres}
+      PGUSER: ${POSTGRES_USER:-admin}
+      PGPASSWORD: ${POSTGRES_PASS:-admin}
+      FLAGMAN_GRAFANA_PASSWORD: ${GRAFANA_PG_PASSWORD:-local-grafana-database-password}
+    entrypoint:
+    - psql
+    - -X
+    - -v
+    - ON_ERROR_STOP=1
+    - -f
+    - /grafana-role.sql
+    volumes:
+    - ./monitoring/grafana-role.sql:/grafana-role.sql:ro
+    networks:
+    - warehouse
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../infrastructure/Dockerfile.backend
+    restart: unless-stopped
+    environment:
+      ENV: ${ENV:-development}
+      GIN_MODE: release
+      PORT: '8080'
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://${FLAGMAN_DOMAIN:-flagman.localhost}}
+      POSTGRES_URL: ${POSTGRES_URL:-postgres://${POSTGRES_USER:-admin}:${POSTGRES_PASS:-admin}@db:5432/${POSTGRES_DB:-postgres}?sslmode=disable}
+      METRICS_TOKEN: ${METRICS_TOKEN:-flagman-local-metrics-token-change-on-vps}
+    networks:
+    - flagman
+    - warehouse
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+      - CMD
+      - wget
+      - -q
+      - -O
+      - /dev/null
+      - http://127.0.0.1:8080/api/v1/ready
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: ${COMPOSE_PROJECT_NAME:-flagman}
+      traefik.http.routers.backend.rule: Host(`api.${FLAGMAN_DOMAIN:-flagman.localhost}`) && PathPrefix(`/api/`)
+      traefik.http.routers.backend.entrypoints: web
+      traefik.http.services.backend.loadbalancer.server.port: '8080'
+      traefik.http.services.backend.loadbalancer.responseforwarding.flushinterval: -1ms
+  frontend:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.frontend
+    restart: unless-stopped
+    networks:
+    - flagman
+    depends_on:
+      backend:
+        condition: service_healthy
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: ${COMPOSE_PROJECT_NAME:-flagman}
+      traefik.http.routers.frontend.rule: Host(`${FLAGMAN_DOMAIN:-flagman.localhost}`)
+      traefik.http.routers.frontend.entrypoints: web
+      traefik.http.services.frontend.loadbalancer.server.port: '80'
+      traefik.http.services.frontend.loadbalancer.responseforwarding.flushinterval: -1ms
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    environment:
+      METRICS_TOKEN: ${METRICS_TOKEN:-flagman-local-metrics-token-change-on-vps}
+    entrypoint:
+    - /bin/sh
+    - -ec
+    command:
+    - umask 077; test "$${#METRICS_TOKEN}" -ge 32; printf '%s' "$$METRICS_TOKEN" > /tmp/flagman-metrics-token; exec /bin/prometheus
+      --config.file=/etc/prometheus/prometheus.yaml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=15d
+    ports:
+    - 127.0.0.1:${PROMETHEUS_PORT:-9090}:9090
+    volumes:
+    - ./monitoring/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+    - prometheus-data:/prometheus
+    networks:
+    - flagman
+    depends_on:
+      backend:
+        condition: service_healthy
+  grafana:
+    image: grafana/grafana:12.1.1
+    restart: unless-stopped
+    ports:
+    - 127.0.0.1:${GRAFANA_PORT:-3000}:3000
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-local-grafana-admin-password}
+      FLAGMAN_GRAFANA_PASSWORD: ${GRAFANA_PG_PASSWORD:-local-grafana-database-password}
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_PLUGINS_PREINSTALL_DISABLED: 'true'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+      GF_ANALYTICS_CHECK_FOR_UPDATES: 'false'
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: 'false'
+    volumes:
+    - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+    - grafana-data:/var/lib/grafana
+    networks:
+    - flagman
+    - warehouse
+    depends_on:
+      monitoring-init:
+        condition: service_completed_successfully
+  seed:
+    profiles:
+    - tools
+    build:
+      context: ../backend
+      dockerfile: ../infrastructure/Dockerfile.backend
+      target: seed-users
+    command:
+    - -data
+    environment:
+      POSTGRES_URL: ${POSTGRES_URL:-postgres://${POSTGRES_USER:-admin}:${POSTGRES_PASS:-admin}@db:5432/${POSTGRES_DB:-postgres}?sslmode=disable}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
+      DEMO_MANAGER_PASSWORD: ${DEMO_MANAGER_PASSWORD:-}
+      DEMO_STOREKEEPER_PASSWORD: ${DEMO_STOREKEEPER_PASSWORD:-}
+      DEMO_ORDER_OPERATOR_PASSWORD: ${DEMO_ORDER_OPERATOR_PASSWORD:-}
+    networks:
+    - warehouse
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+volumes:
+  postgres-data:
+    name: ${POSTGRES_VOLUME:-flagman-postgres}
+  prometheus-data: {}
+  grafana-data: {}
+networks:
+  flagman:
+    name: ${COMPOSE_PROJECT_NAME:-flagman}
+  warehouse: {}

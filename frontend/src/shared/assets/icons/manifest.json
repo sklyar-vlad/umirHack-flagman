@@ -1,0 +1,154 @@
+[
+  {
+    "name": "logo",
+    "exportName": "logo",
+    "nodeId": "6:6",
+    "width": 20,
+    "height": 20,
+    "file": "logo.svg"
+  },
+  {
+    "name": "grid",
+    "exportName": "grid",
+    "nodeId": "6:13",
+    "width": 20,
+    "height": 20,
+    "file": "grid.svg"
+  },
+  {
+    "name": "box",
+    "exportName": "box",
+    "nodeId": "6:17",
+    "width": 20,
+    "height": 20,
+    "file": "box.svg"
+  },
+  {
+    "name": "truck",
+    "exportName": "truck",
+    "nodeId": "6:23",
+    "width": 20,
+    "height": 20,
+    "file": "truck.svg"
+  },
+  {
+    "name": "receipt",
+    "exportName": "receipt",
+    "nodeId": "6:27",
+    "width": 20,
+    "height": 20,
+    "file": "receipt.svg"
+  },
+  {
+    "name": "stop",
+    "exportName": "stop",
+    "nodeId": "6:32",
+    "width": 20,
+    "height": 20,
+    "file": "stop.svg"
+  },
+  {
+    "name": "spark",
+    "exportName": "spark",
+    "nodeId": "6:36",
+    "width": 20,
+    "height": 20,
+    "file": "spark.svg"
+  },
+  {
+    "name": "user",
+    "exportName": "user",
+    "nodeId": "6:41",
+    "width": 20,
+    "height": 20,
+    "file": "user.svg"
+  },
+  {
+    "name": "menu",
+    "exportName": "menu",
+    "nodeId": "6:45",
+    "width": 20,
+    "height": 20,
+    "file": "menu.svg"
+  },
+  {
+    "name": "check",
+    "exportName": "check",
+    "nodeId": "6:49",
+    "width": 20,
+    "height": 20,
+    "file": "check.svg"
+  },
+  {
+    "name": "alert",
+    "exportName": "alert",
+    "nodeId": "6:53",
+    "width": 20,
+    "height": 20,
+    "file": "alert.svg"
+  },
+  {
+    "name": "chevron",
+    "exportName": "chevron",
+    "nodeId": "6:57",
+    "width": 20,
+    "height": 20,
+    "file": "chevron.svg"
+  },
+  {
+    "name": "plus",
+    "exportName": "plus",
+    "nodeId": "6:61",
+    "width": 20,
+    "height": 20,
+    "file": "plus.svg"
+  },
+  {
+    "name": "close",
+    "exportName": "close",
+    "nodeId": "6:65",
+    "width": 20,
+    "height": 20,
+    "file": "close.svg"
+  },
+  {
+    "name": "search",
+    "exportName": "search",
+    "nodeId": "6:70",
+    "width": 20,
+    "height": 20,
+    "file": "search.svg"
+  },
+  {
+    "name": "admin-book",
+    "exportName": "adminBook",
+    "nodeId": "16:32210",
+    "width": 20,
+    "height": 20,
+    "file": "admin-book.svg"
+  },
+  {
+    "name": "admin-users",
+    "exportName": "adminUsers",
+    "nodeId": "16:32217",
+    "width": 20,
+    "height": 20,
+    "file": "admin-users.svg"
+  },
+  {
+    "name": "admin-settings",
+    "exportName": "adminSettings",
+    "nodeId": "16:32227",
+    "width": 20,
+    "height": 20,
+    "file": "admin-settings.svg"
+  },
+  {
+    "name": "admin-history",
+    "exportName": "adminHistory",
+    "nodeId": "16:32236",
+    "width": 20,
+    "height": 20,
+    "file": "admin-history.svg"
+  }
+]

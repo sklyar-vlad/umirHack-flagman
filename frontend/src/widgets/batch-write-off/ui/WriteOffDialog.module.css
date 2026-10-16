@@ -1,0 +1,3 @@
+.form { display: grid; gap: var(--space-16); min-width: 0; }
+.fields { display: grid; gap: var(--space-16); border: 0; padding: 0; margin: 0; min-width: 0; }
+.identity { overflow-wrap: anywhere; font-size: var(--font-size-caption); color: var(--color-text-muted); }

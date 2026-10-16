@@ -1,0 +1,107 @@
+import { backgroundRefresh } from './refresh'
+import { test, expect, type Page } from '@playwright/test'
+async function login(page: Page, target = '/stop-list', role = 'manager') {
+  await page.goto(`/login?returnTo=${encodeURIComponent(target)}`)
+  if (role !== 'manager') await page.getByLabel('Сценарий API').selectOption(`role-${role.replaceAll('_', '-')}`)
+  await page.getByLabel(/^Email/).fill('employee@example.test'); await page.getByLabel(/^Пароль/).fill('local-test-only')
+  await page.getByRole('button', { name: 'Войти', exact: true }).click()
+}
+const soup = (page: Page) => page.getByRole('article', { name: 'Блюдо: Молочный суп' })
+for (const width of [360, 390, 1024, 1440]) {
+  test(`stop-list snapshots, keyboard, search, pages and links at ${width}px`, async ({ page }) => {
+    const errors: string[] = [], reads: URL[] = []
+    page.on('pageerror', (error) => errors.push(error.message)); page.on('request', (request) => { if (new URL(request.url()).pathname === '/api/v1/stop-list') reads.push(new URL(request.url())) })
+    await page.setViewportSize({ width, height: 1000 }); await login(page)
+    await expect(soup(page)).toBeVisible(); await expect(page.getByText(/Недоступных блюд: 27. Страница 1/)).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Отключённое блюдо', exact: true })).toHaveCount(0)
+    const summary = soup(page).locator('summary'); await summary.focus(); await page.keyboard.press('Enter')
+    await expect(soup(page).getByRole('heading', { name: 'Состав на одну порцию · рецепт 1' })).toBeVisible()
+    const deficit = soup(page).getByRole('region', { name: 'Дефицит: Молоко' })
+    for (const quantity of ['1500,001 мл', '1500 мл', '0,001 мл', '200 мл']) await expect(deficit).toContainText(quantity)
+    const expired = page.getByRole('article', { name: 'Блюдо: Крем — только просрочка' }); await expired.locator('summary').focus(); await page.keyboard.press('Space')
+    await expect(expired.getByRole('region')).toContainText('300 мл')
+    const noRecipe = page.getByRole('article', { name: 'Блюдо: Без рецептуры' }); await noRecipe.locator('summary').click()
+    await expect(noRecipe).toContainText('Обратитесь к администратору'); await expect(noRecipe.getByRole('link')).toHaveCount(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/stop-list-${width}.png`, fullPage: true })
+    await page.getByRole('button', { name: 'Следующая страница' }).focus(); await page.keyboard.press('Enter')
+    await expect(page.getByText(/Страница 2. Снимок/)).toBeVisible(); await expect(soup(page)).toHaveCount(0)
+    await page.getByLabel('Название блюда').fill('МОЛОЧНЫЙ'); await page.getByLabel('Название блюда').press('Enter')
+    await expect(page.getByText(/Недоступных блюд: 1. Страница 1/)).toBeVisible(); await expect(page.getByRole('article')).toHaveCount(1)
+    expect(new URL(page.url()).searchParams.has('page')).toBe(false)
+    await page.goBack(); await expect(page.getByText(/Страница 2. Снимок/)).toBeVisible()
+    await page.goForward(); await expect(soup(page)).toBeVisible()
+    await soup(page).locator('summary').focus(); await page.keyboard.press('Enter')
+    const warehouse = soup(page).getByRole('link', { name: 'На склад: Молоко' })
+    await warehouse.focus(); await page.keyboard.press('Enter'); await expect(page.getByRole('heading', { name: 'Молоко', exact: true })).toBeVisible()
+    expect(new URL(page.url()).searchParams.get('product_id')).toBe('00000000-0000-4000-8000-000000000010')
+    await page.goBack(); await expect(soup(page)).toBeVisible(); await page.reload(); await expect(soup(page)).toBeVisible()
+    expect(reads.every((url) => [...url.searchParams.keys()].every((key) => ['search', 'page', 'page_size', 'sort'].includes(key)))).toBe(true)
+    expect(errors).toEqual([])
+  })
+}
+test('loading, stale/error states, empty state, literal search and local denial', async ({ page }) => {
+  await login(page); await expect(soup(page)).toBeVisible()
+  await backgroundRefresh(page, 'slow', '/api/v1/stop-list', 'Загрузка стоп-листа', soup(page), page.getByRole('button', { name: 'Обновить стоп-лист' }))
+  await page.getByLabel('Сценарий API').selectOption('network-error'); await expect(page.getByText(/Данные могут быть устаревшими/)).toBeVisible(); await expect(soup(page)).toBeVisible()
+  await page.getByLabel('Название блюда').fill('%_\\'); await page.getByLabel('Название блюда').press('Enter')
+  await expect(page.getByRole('article')).toHaveCount(0); await expect(page.getByText('Попробуйте ещё раз.', { exact: true })).toBeVisible()
+  await page.getByLabel('Сценарий API').selectOption('success'); await expect(page.getByRole('heading', { name: 'Ничего не найдено' })).toBeVisible()
+  await page.getByRole('button', { name: 'Сбросить поиск', exact: true }).click(); await expect(soup(page)).toBeVisible()
+  await page.getByLabel('Сценарий API').selectOption('stop-list-empty'); await expect(page.getByRole('heading', { name: 'Все блюда доступны' })).toBeVisible()
+  await page.getByLabel('Сценарий API').selectOption('success'); await expect(soup(page)).toBeVisible()
+  await page.getByLabel('Сценарий API').selectOption('forbidden'); await expect(page.getByRole('heading', { name: 'Недостаточно прав' })).toBeVisible(); await expect(page.getByRole('article')).toHaveCount(0)
+  await expect(page.getByRole('banner').getByText('Тестовый сотрудник')).toBeVisible()
+})
+for (const role of ['admin', 'order_operator']) {
+  test(`${role} related links follow permissions`, async ({ page }) => {
+    await login(page, '/stop-list', role); await expect(soup(page)).toBeVisible(); await soup(page).locator('summary').click()
+    await expect(soup(page).getByRole('link', { name: 'На склад: Молоко' })).toBeVisible()
+    await expect(soup(page).getByRole('link', { name: 'Рекомендации по закупкам: Молочный суп' })).toHaveCount(role === 'admin' ? 1 : 0)
+    const noRecipe = page.getByRole('article', { name: 'Блюдо: Без рецептуры' }); await noRecipe.locator('summary').click()
+    const recipeLink = noRecipe.getByRole('link', { name: 'Добавить рецептуру: Без рецептуры' })
+    await expect(recipeLink).toHaveCount(role === 'admin' ? 1 : 0)
+    if (role === 'admin') { await recipeLink.focus(); await page.keyboard.press('Enter'); await expect(page).toHaveURL(/\/dishes\/00000000-0000-4000-8000-000000000803$/) }
+  })
+}
+test('storekeeper cannot mount stop-list or request its API', async ({ page }) => {
+  const reads: string[] = []; page.on('request', (request) => { if (new URL(request.url()).pathname === '/api/v1/stop-list') reads.push(request.url()) })
+  await login(page, '/stop-list', 'storekeeper'); await expect(page.getByRole('heading', { name: 'Обзор' })).toBeVisible()
+  await page.goto('/stop-list'); await expect(page.getByRole('heading', { name: 'Недостаточно прав' })).toBeVisible(); expect(reads).toEqual([])
+})
+test('time event reads expiration without a write or scenario invalidation', async ({ page }) => {
+  await page.clock.install()
+  await login(page, '/inventory?search=Молоко')
+  await expect(page.getByRole('article', { name: 'Молоко' })).toBeVisible()
+  await page.evaluate(async () => {
+    const path = '/src/app/mocks/inventory-fixtures.ts'
+    const { inventoryItems } = await import(path)
+    inventoryItems[0].nearest_expires_at = new Date(Date.now() + 20_000).toISOString()
+    inventoryItems[0].remaining_seconds = 20
+  })
+  const refreshed = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/inventory')
+  await page.getByRole('button', { name: 'Обновить склад' }).click()
+  await refreshed
+  await expect(page.getByRole('button', { name: 'Обновить склад' })).toBeEnabled()
+  await page.getByRole('navigation', { name: 'Разделы приложения', exact: true }).getByRole('link', { name: 'Стоп-лист', exact: true }).click(); await expect(soup(page)).toBeVisible()
+  await soup(page).locator('summary').click()
+  await expect(soup(page).getByRole('region')).toContainText('0,001 мл')
+  await page.evaluate(async () => {
+    const path = '/src/app/mocks/scenarios.ts'
+    const { setMockScenario } = await import(path)
+    setMockScenario('stop-list-expired')
+  })
+  await page.clock.runFor(30_500)
+  await expect(soup(page).getByRole('region')).toContainText('Остались только просроченные партии')
+  await expect(soup(page).getByRole('region')).toContainText('0 мл')
+})
+test('recipe snapshot updates and return after confirmed order', async ({ page }) => {
+  await login(page, '/stop-list?search=Молочный'); await expect(soup(page)).toBeVisible()
+  await page.getByLabel('Сценарий API').selectOption('stop-list-recipe'); await expect(page.getByRole('heading', { name: 'Ничего не найдено' })).toBeVisible()
+  await page.getByLabel('Сценарий API').selectOption('success'); await expect(soup(page)).toBeVisible()
+  await page.goto('/orders/new'); await page.getByRole('button', { name: 'Добавить Суп дня', exact: true }).click()
+  const submit = page.getByRole('button', { name: 'Оформить заказ', exact: true }); await expect(submit).toBeEnabled(); await submit.click()
+  await expect(page.getByRole('heading', { name: 'Заказ №1001' })).toBeVisible()
+  await page.goto('/stop-list?search=Молочный'); await expect(soup(page)).toBeVisible(); await soup(page).locator('summary').click()
+  await expect(soup(page).getByRole('region')).toContainText('100,001 мл')
+})

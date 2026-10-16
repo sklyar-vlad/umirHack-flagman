@@ -1,0 +1,11 @@
+.form { max-width: 960px; padding: var(--space-24); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--panel-radius); overflow-wrap: anywhere; }
+.form form, .fields { display: grid; gap: var(--space-16); }
+.fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.ingredient { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: var(--space-16); border: 1px solid var(--color-border); border-radius: var(--panel-radius); padding: var(--space-16); min-width: 0; margin: 0; }
+.ingredient legend { padding: 0 var(--space-8); }
+.description { width: 100%; box-sizing: border-box; min-height: 100px; resize: vertical; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-6); padding: var(--space-12); font: inherit; }
+.description:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.actions { display: flex; gap: var(--space-12); flex-wrap: wrap; }
+.preview, .review { margin-top: var(--space-16); border-top: 1px solid var(--color-border); padding-top: var(--space-16); }
+.form ul { padding-left: var(--space-24); }
+@media (max-width: 700px) { .ingredient { grid-template-columns: 1fr; } .form { padding: var(--space-16); } .actions { flex-direction: column; } }
